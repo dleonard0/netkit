@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)getent.c	5.1 (Berkeley) 2/28/91";*/
-static char rcsid[] = "$Id: getent.c,v 1.2 1993/08/01 18:32:38 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)getent.c	5.1 (Berkeley) 2/28/91
+ */
+char ge_rcsid[] = 
+  "$Id: getent.c,v 1.2 1996/07/16 09:14:25 dholland Exp $";
 
 /*
  * Copyright (c) 1991 Regents of the University of California.
@@ -56,16 +57,13 @@ static char rcsid[] = "$Id: getent.c,v 1.2 1993/08/01 18:32:38 mycroft Exp $";
  */
 
 /*ARGSUSED*/
-getent(cp, name)
-char *cp, *name;
+int getent(char *cp, char *name) 
 {
-	return(0);
+	return 0;
 }
 
 /*ARGSUSED*/
-char *
-getstr(cp, cpp)
-char *cp, **cpp;
+char *getstr(char *cp, char **cpp)
 {
-	return(0);
+	return (char *)0;
 }

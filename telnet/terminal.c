@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)terminal.c	5.3 (Berkeley) 3/22/91";*/
-static char rcsid[] = "$Id: terminal.c,v 1.2 1993/08/01 18:07:17 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)terminal.c	5.3 (Berkeley) 3/22/91
+ */
+char terminal_rcsid[] = 
+  "$Id: terminal.c,v 1.3 1996/07/20 21:01:24 dholland Exp $";
 
 #include <arpa/telnet.h>
 #include <sys/types.h>
@@ -43,6 +44,7 @@ static char rcsid[] = "$Id: terminal.c,v 1.2 1993/08/01 18:07:17 mycroft Exp $";
 
 #include "externs.h"
 #include "types.h"
+#include "proto.h"
 
 Ring		ttyoring, ttyiring;
 unsigned char	ttyobuf[2*BUFSIZ], ttyibuf[BUFSIZ];
@@ -113,9 +115,8 @@ init_terminal()
  */
 
 
-    int
-ttyflush(drop)
-    int drop;
+int
+ttyflush(int drop)
 {
     register int n, n0, n1;
 
@@ -162,8 +163,8 @@ ttyflush(drop)
  */
 
 
-    int
-getconnmode()
+int
+getconnmode(void)
 {
     extern int linemode;
     int mode = 0;

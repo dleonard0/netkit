@@ -31,10 +31,12 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)output.c	5.15 (Berkeley) 2/28/91";*/
-static char rcsid[] = "$Id: output.c,v 1.1 1994/05/23 09:08:11 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)output.c	5.15 (Berkeley) 2/28/91
+ */
+char output_rcsid[] = 
+  "$Id: output.c,v 1.3 1996/07/15 17:45:59 dholland Exp $";
+
 
 /*
  * Routing Table Management Daemon
@@ -47,10 +49,8 @@ static char rcsid[] = "$Id: output.c,v 1.1 1994/05/23 09:08:11 rzsfl Exp rzsfl $
  * use of broadcasting use it, otherwise address
  * the output to the known router.
  */
-toall(f, rtstate, skipif)
-	int (*f)();
-	int rtstate;
-	struct interface *skipif;
+void
+toall(int (*f)(), int, int rtstate, struct interface *skipif)
 {
 	register struct interface *ifp;
 	register struct sockaddr *dst;
@@ -74,11 +74,8 @@ toall(f, rtstate, skipif)
  * Output a preformed packet.
  */
 /*ARGSUSED*/
-sndmsg(dst, flags, ifp, rtstate)
-	struct sockaddr *dst;
-	int flags;
-	struct interface *ifp;
-	int rtstate;
+void
+sndmsg(struct sockaddr *dst, int flags, struct interface *ifp, int rtstate)
 {
 
 	(*afswitch[dst->sa_family].af_output)(s, flags,
@@ -90,11 +87,8 @@ sndmsg(dst, flags, ifp, rtstate)
  * Supply dst with the contents of the routing tables.
  * If this won't fit in one packet, chop it up into several.
  */
-supply(dst, flags, ifp, rtstate)
-	struct sockaddr *dst;
-	int flags;
-	register struct interface *ifp;
-	int rtstate;
+void
+supply(struct sockaddr *dst, int flags, struct interface *ifp, int rtstate)
 {
 	register struct rt_entry *rt;
 	register struct netinfo *n = msg->rip_nets;
@@ -107,7 +101,7 @@ supply(dst, flags, ifp, rtstate)
 
 	msg->rip_cmd = RIPCMD_RESPONSE;
 	msg->rip_vers = RIPVERSION;
-	bzero(msg->rip_res1, sizeof(msg->rip_res1));
+	memset(msg->rip_res1, 0, sizeof(msg->rip_res1));
 again:
 	for (rh = base; rh < &base[ROUTEHASHSIZ]; rh++)
 	for (rt = rh->rt_forw; rt != (struct rt_entry *)rh; rt = rt->rt_forw) {

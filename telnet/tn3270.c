@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)tn3270.c	5.2 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: tn3270.c,v 1.1 1994/05/23 09:11:49 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)tn3270.c	5.2 (Berkeley) 3/1/91
+ */
+char tn3270_rcsid[] = 
+  "$Id: tn3270.c,v 1.4 1996/07/20 21:01:24 dholland Exp $";
 
 #include <sys/types.h>
 #include <arpa/telnet.h>
@@ -45,6 +46,7 @@ static char rcsid[] = "$Id: tn3270.c,v 1.1 1994/05/23 09:11:49 rzsfl Exp rzsfl $
 #include "ring.h"
 #include "externs.h"
 #include "fdset.h"
+#include "proto.h"
 
 #if	defined(TN3270)
 

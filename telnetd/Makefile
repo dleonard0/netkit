@@ -1,9 +1,21 @@
-CFLAGS += '-DISSUE_FILE="/etc/issue.net"' -DAUTHENTICATE -I.. \
-	-DTERMCAP -DUSE_TERMIO -DKLUDGELINEMODE -DDIAGNOSTICS
-LDLIBS = -lbsd -ltermcap -ltelnet -L ../libtelnet
+all: telnetd
 
-telnetd: telnetd.o state.o termstat.o slc.o sys_term.o utility.o \
-		global.o authenc.o logwtmp.o
+include ../MCONFIG
+include ../MRULES
+
+# -DAUTHENTICATE
+
+CFLAGS += '-DISSUE_FILE="/etc/issue.net"' -I.. \
+	-DTERMCAP -DUSE_TERMIO -DKLUDGELINEMODE -DDIAGNOSTICS
+LIBS += -lbsd -ltermcap
+
+OBJS = telnetd.o state.o termstat.o slc.o sys_term.o utility.o \
+	global.o authenc.o logwtmp.o
+
+telnetd: $(OBJS)
+	$(CC) $(LDFLAGS) $^ $(LIBS) -L../libtelnet -ltelnet -o $@
+
+$(OBJS): defs.h ext.h pathnames.h telnetd.h
 
 install: telnetd
 	install -s -m744 telnetd /usr/sbin/in.telnetd

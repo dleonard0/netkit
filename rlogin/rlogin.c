@@ -31,89 +31,53 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1983, 1990 The Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
-
-#ifndef lint
-/*static char sccsid[] = "from: @(#)rlogin.c	5.33 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: rlogin.c,v 1.1 1994/05/23 09:07:59 rzsfl Exp rzsfl $";
-#endif /* not lint */
+ "@(#) Copyright (c) 1983, 1990 The Regents of the University of California.\n"
+ "All rights reserved.\n";
 
 /*
- * $Source: /hda4/ftp/source/networking/NetBSD/new/rlogin/rlogin.c,v $
- * $Header: mit/rlogin/RCS/rlogin.c,v 5.2 89/07/26 12:11:21 kfall
- *	Exp Locker: kfall $
+ * From: @(#)rlogin.c	5.33 (Berkeley) 3/1/91
+ * Header: mit/rlogin/RCS/rlogin.c,v 5.2 89/07/26 12:11:21 kfall 
+ *     Exp Locker: kfall
  */
+char rcsid[] = 
+  "$Id: rlogin.c,v 1.10 1996/07/22 01:08:04 dholland Exp $";
+
 
 /*
  * rlogin - remote login
  */
+#include <stdio.h>
 #include <sys/param.h>
 #include <sys/file.h>
 #include <sys/socket.h>
-#include <sys/signal.h>
+#include <signal.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/wait.h>
-
+#include <sys/ioctl.h>
 #include <netinet/in.h>
-#if 0
-#include <netinet/in_systm.h>
-#include <netinet/ip.h>
-#endif
 #include <netdb.h>
-
-#ifdef linux
-#define USE_TERMIO
-#define CQUIT	'\034'
-#define CSTART	'\021'
-#define CSTOP	'\023'
-#define CEOF	'\004'
-#endif
-
-#ifdef USE_TERMIO
 #include <termios.h>
-#define sg_flags c_lflag
-#define sg_ospeed c_cflag&CBAUD
-
-#define TIOCGETP TCGETS
-#define TIOCSETP TCSETS
-#define TIOCSETN TCSETSW
-struct	termios defmodes;
-struct	termios ixon_state;
-#else
-#include <sgtty.h>
-#endif
 #include <setjmp.h>
 #include <varargs.h>
 #include <errno.h>
 #include <pwd.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 
-#ifdef KERBEROS
-#include <kerberosIV/des.h>
-#include <kerberosIV/krb.h>
-
-CREDENTIALS cred;
-Key_schedule schedule;
-int use_kerberos = 1, doencrypt;
-char dst_realm_buf[REALM_SZ], *dest_realm = NULL;
-extern char *krb_realmofhost();
-#endif
-
 /*
-* rlogin has problems with urgent data when logging into suns which
-* results in the connection being closed with an IO error. SUN_KLUDGE
-* is a work around - the actual bug is probably in tcp.c in the kernel, but
-* I haven't managed to find it yet.
-* Andrew.Tridgell@anu.edu.au (12th March 1993)
-*/
-#ifdef notdef
+ * rlogin has problems with urgent data when logging into suns which
+ * results in the connection being closed with an IO error. SUN_KLUDGE
+ * is a work around - the actual bug is probably in tcp.c in the kernel, but
+ * I haven't managed to find it yet.
+ * Andrew.Tridgell@anu.edu.au (12th March 1993)
+ * 
+ * This should all be ancient history now. 
+ * dholland@hcs.harvard.edu (15-Jul-1996)
+ */
+#if 0
 #define SUN_KLUDGE
 #endif
 
@@ -121,21 +85,37 @@ extern char *krb_realmofhost();
 #define	TIOCPKT_WINDOW	0x80
 #endif
 
+#ifndef TIOCPKT_FLUSHWRITE
+#define TIOCPKT_FLUSHWRITE 0x02
+#define TIOCPKT_NOSTOP 0x10
+#define TIOCPKT_DOSTOP 0x20
+#endif
+
 /* concession to Sun */
 #ifndef SIGUSR1
 #define	SIGUSR1	30
 #endif
 
-extern int errno;
-int eight, litout, rem;
+struct termios defmodes;
+struct termios ixon_state;
+static int eight, litout, rem;
 
-int noescape;
-u_char escapechar = '~';
+static int noescape;
+static u_char escapechar = '~';
 
-char *speeds[] = {
-	"0", "50", "75", "110", "134", "150", "200", "300", "600", "1200",
-	"1800", "2400", "4800", "9600", "19200", "38400"
+static char *speeds[] = {
+	"0",    "50",   "75",    "110", 
+	"134",  "150",  "200",   "300", 
+	"600",  "1200", "1800",  "2400", 
+        "4800", "9600", "19200", "38400"
 };
+
+static int childpid;
+
+static char defkill, defquit, defstart, defstop, defeol, defeof, defintr;
+static char defsusp, defdsusp, defreprint, defdiscard, defwerase, deflnext;
+
+
 
 #ifdef sun
 struct winsize {
@@ -149,33 +129,42 @@ struct	winsize winsize;
 #define	get_window_size(fd, wp)	ioctl(fd, TIOCGWINSZ, wp)
 #endif
 
-void exit();
+static void mode(int f);
+static void stop(char cmdc);
+static void usage(void);
+static void doit(long omask);
+static void done(int status);
+static void writer(void);
+static int reader(int omask);
+static void msg(const char *str);
+static void setsignal(int sig, void (*act)(int));
+static void sendwindow(void);
+static void echo(char c);
+static void stop(char cmdc);
+static void catch_child(int);
+static void copytochild(int);
+static void writeroob(int);
+static void lostpeer(int);
+static u_char getescape(const char *p);
 
-main(argc, argv)
-	int argc;
-	char **argv;
+int
+main(int argc, char **argv)
 {
 	extern char *optarg;
 	extern int optind;
 	struct passwd *pw;
 	struct servent *sp;
-#ifdef	USE_TERMIO
-	struct termios ttyb;
-#else
-	struct sgttyb ttyb;
-#endif
+	struct termios tios;
+
 	long omask;
 	int argoff, ch, dflag, one, uid;
 	char *host, *p, *user, term[1024];
-	void lostpeer();
-	u_char getescape();
-	char *getenv();
 
 	argoff = dflag = 0;
 	one = 1;
 	host = user = NULL;
 
-	if (p = rindex(argv[0], '/'))
+	if ((p = strrchr(argv[0], '/'))!=NULL)
 		++p;
 	else
 		p = argv[0];
@@ -189,11 +178,7 @@ main(argc, argv)
 		argoff = 1;
 	}
 
-#ifdef KERBEROS
-#define	OPTIONS	"8EKLde:k:l:x"
-#else
 #define	OPTIONS	"8EKLde:l:"
-#endif
 	while ((ch = getopt(argc - argoff, argv + argoff, OPTIONS)) != EOF)
 		switch(ch) {
 		case '8':
@@ -203,9 +188,6 @@ main(argc, argv)
 			noescape = 1;
 			break;
 		case 'K':
-#ifdef KERBEROS
-			use_kerberos = 0;
-#endif
 			break;
 		case 'L':
 			litout = 1;
@@ -216,23 +198,9 @@ main(argc, argv)
 		case 'e':
 			escapechar = getescape(optarg);
 			break;
-#ifdef KERBEROS
-		case 'k':
-			dest_realm = dst_realm_buf;
-			(void)strncpy(dest_realm, optarg, REALM_SZ);
-			break;
-#endif
 		case 'l':
 			user = optarg;
 			break;
-#ifdef CRYPT
-#ifdef KERBEROS
-		case 'x':
-			doencrypt = 1;
-			des_set_key(cred.session, schedule);
-			break;
-#endif
-#endif
 		case '?':
 		default:
 			usage();
@@ -249,210 +217,105 @@ main(argc, argv)
 		usage();
 
 	if (!(pw = getpwuid(uid = getuid()))) {
-		(void)fprintf(stderr, "rlogin: unknown user id.\n");
+		fprintf(stderr, "rlogin: unknown user id.\n");
 		exit(1);
 	}
 	if (!user)
 		user = pw->pw_name;
 
 	sp = NULL;
-#ifdef KERBEROS
-	if (use_kerberos) {
-		sp = getservbyname((doencrypt ? "eklogin" : "klogin"), "tcp");
-		if (sp == NULL) {
-			use_kerberos = 0;
-			warning("can't get entry for %s/tcp service",
-			    doencrypt ? "eklogin" : "klogin");
-		}
-	}
-#endif
 	if (sp == NULL)
 		sp = getservbyname("login", "tcp");
 	if (sp == NULL) {
-		(void)fprintf(stderr, "rlogin: login/tcp: unknown service.\n");
+		fprintf(stderr, "rlogin: login/tcp: unknown service.\n");
 		exit(1);
 	}
 
-	(void)strcpy(term, (p = getenv("TERM")) ? p : "network");
-	if (ioctl(0, TIOCGETP, &ttyb) == 0) {
-		(void)strcat(term, "/");
-		(void)strcat(term, speeds[ttyb.sg_ospeed]);
-	}
+	p = getenv("TERM");
+	if (!p) p = "network";
+  	if (tcgetattr(0, &tios) == 0) {
+		speed_t speed = cfgetispeed(&tios);
+		snprintf(term, sizeof(term), "%.256s/%s", p, speeds[speed]);
+  	}
+	else snprintf(term, sizeof(term), "%.256s", p);
 
-	(void)get_window_size(0, &winsize);
+	get_window_size(0, &winsize);
 
-#ifdef USE_TERMIO
-	/**** moved before rcmd call so that if get a SIGPIPE in rcmd **/
-	/**** we will have the defmodes set already. ***/
-	(void)ioctl(fileno(stdin), TIOCGETP, &defmodes);
-	(void)ioctl(fileno(stdin), TIOCGETP,&ixon_state);
-#endif
+	/*
+	 * Moved before rcmd call so that if get a SIGPIPE in rcmd
+	 * we will have the defmodes set already. 
+	 */
+	tcgetattr(0, &defmodes);
+	tcgetattr(0, &ixon_state);
 
-	(void)signal(SIGPIPE, lostpeer);
+	signal(SIGPIPE, lostpeer);
 	/* will use SIGUSR1 for window size hack, so hold it off */
 	omask = sigblock(sigmask(SIGURG) | sigmask(SIGUSR1));
 
-#ifdef KERBEROS
-try_connect:
-	if (use_kerberos) {
-		rem = KSUCCESS;
-		errno = 0;
-		if (dest_realm == NULL)
-			dest_realm = krb_realmofhost(host);
-
-#ifdef CRYPT
-		if (doencrypt)
-			rem = krcmd_mutual(&host, sp->s_port, user, term, 0,
-			    dest_realm, &cred, schedule);
-		else
-#endif /* CRYPT */
-			rem = krcmd(&host, sp->s_port, user, term, 0,
-			    dest_realm);
-		if (rem < 0) {
-			use_kerberos = 0;
-			sp = getservbyname("login", "tcp");
-			if (sp == NULL) {
-				(void)fprintf(stderr,
-				    "rlogin: unknown service login/tcp.\n");
-				exit(1);
-			}
-			if (errno == ECONNREFUSED)
-				warning("remote host doesn't support Kerberos");
-			if (errno == ENOENT)
-				warning("can't provide Kerberos auth data");
-			goto try_connect;
-		}
-	} else {
-#ifdef CRYPT
-		if (doencrypt) {
-			(void)fprintf(stderr,
-			    "rlogin: the -x flag requires Kerberos authentication.\n");
-			exit(1);
-		}
-#endif /* CRYPT */
-		rem = rcmd(&host, sp->s_port, pw->pw_name, user, term, 0);
-	}
-#else
 	rem = rcmd(&host, sp->s_port, pw->pw_name, user, term, 0);
-#endif /* KERBEROS */
 
-	if (rem < 0)
-		exit(1);
+	if (rem < 0) exit(1);
 
-	if (dflag &&
-	    setsockopt(rem, SOL_SOCKET, SO_DEBUG, &one, sizeof(one)) < 0)
-		(void)fprintf(stderr, "rlogin: setsockopt: %s.\n",
-		    strerror(errno));
+	if (dflag) {
+	    if (setsockopt(rem, SOL_SOCKET, SO_DEBUG, &one, sizeof(one)) < 0)
+	    	fprintf(stderr, "rlogin: setsockopt(SO_DEBUG): %s.\n", 
+			strerror(errno));
+	}
 #ifdef IP_TOS
 	one = IPTOS_LOWDELAY;
-	if (setsockopt(rem, IPPROTO_IP, IP_TOS, (char *)&one, sizeof(int)) < 0)
-		perror("rlogin: setsockopt TOS (ignored)");
+	if (setsockopt(rem, IPPROTO_IP, IP_TOS, (char *)&one, sizeof(one)) < 0)
+	    	fprintf(stderr, "rlogin: setsockopt(TOS): %s.\n", 
+			strerror(errno));
 #endif
+	setuid(uid);
 
-	(void)setuid(uid);
 	doit(omask);
 	/*NOTREACHED*/
+	return 0;
 }
 
-int child, defflags, deflflags, tabflag;
-char deferase, defkill;
-
-#ifdef USE_TERMIO
-char defvtim, defvmin;
-struct tchars {
-        char    t_intrc;        /* interrupt */
-        char    t_quitc;        /* quit */
-        char    t_startc;       /* start output */
-        char    t_stopc;        /* stop output */
-        char    t_eofc;         /* end-of-file */
-        char    t_brkc;         /* input delimiter (like nl) */
-};
-#ifdef linux
-struct ltchars {
-	char	t_suspc;	/* stop process */
-	char	t_dsuspc;	/* delayed stop process */
-	char	t_rprntc;	/* rprint line */
-	char	t_flushc;	/* flush output */
-	char	t_werasc;	/* word erase */
-	char	t_lnextc;	/* literal next char */
-};
-
-#ifndef TIOCPKT_FLUSHWRITE
-#define TIOCPKT_FLUSHWRITE 0x02
-#define TIOCPKT_NOSTOP 0x10
-#define TIOCPKT_DOSTOP 0x20
-#endif
-#endif
-
-#endif
-
-struct tchars deftc;
-struct ltchars defltc;
-struct tchars notc = { -1, -1, -1, -1, -1, -1 };
-struct ltchars noltc = { -1, -1, -1, -1, -1, -1 };
-
-doit(omask)
-	long omask;
+static void
+doit(long omask)
 {
-#ifdef	USE_TERMIO
-	struct termios sb;
-#else
-	struct sgttyb sb;
-#endif
-	void catch_child(), copytochild(), exit(), writeroob();
+	struct termios tios;
 
-	(void)ioctl(0, TIOCGETP, (char *)&sb);
-	defflags = sb.sg_flags;
-#ifdef USE_TERMIO
-	tabflag = sb.c_oflag & TABDLY;
-	defflags |= ECHO;
-	deferase = sb.c_cc[VERASE];
-	defkill = sb.c_cc[VKILL];
-	sb.c_cc[VMIN] = 1;
-	sb.c_cc[VTIME] = 1;
-	defvtim = sb.c_cc[VTIME];
-	defvmin = sb.c_cc[VMIN];
-	deftc.t_quitc = CQUIT;
-	deftc.t_startc = CSTART;
-	deftc.t_stopc = CSTOP;
-	deftc.t_eofc = CEOF;
-	deftc.t_brkc =  '\n';
-	defltc.t_suspc = sb.c_cc[VSUSP];        /* stop process */
-#ifdef V_DSUSP
-	defltc.t_dsuspc = sb.c_cc[VDSUSP];        /* delayed stop process */
+	tcgetattr(0, &tios);
+
+	tios.c_cc[VMIN] = 1;
+	tios.c_cc[VTIME] = 1;
+
+	defkill = tios.c_cc[VKILL];
+	defquit = tios.c_cc[VQUIT];
+	defstart = tios.c_cc[VSTART];
+	defstop = tios.c_cc[VSTOP];
+	defeol = tios.c_cc[VEOL];
+	defeof = tios.c_cc[VEOF];
+	defintr = tios.c_cc[VINTR];
+	defsusp = tios.c_cc[VSUSP];        /* stop process */
+#ifdef VDSUSP
+	defdsusp = tios.c_cc[VDSUSP];        /* delayed stop process */
 #else
-	defltc.t_dsuspc = 255;
+	defdsusp = 255;
 #endif
-	defltc.t_rprntc = sb.c_cc[VREPRINT];       /* rprint line */
-	defltc.t_flushc = sb.c_cc[VDISCARD];        /* flush output */
-	defltc.t_werasc = sb.c_cc[VWERASE];         /* word erase */
-	defltc.t_lnextc = sb.c_cc[VLNEXT];         /* literal next char */
-#else
-	tabflag = defflags & TBDELAY;
-	defflags &= ECHO | CRMOD;
-	deferase = sb.sg_erase;
-	defkill = sb.sg_kill;
-	(void)ioctl(0, TIOCLGET, (char *)&deflflags);
-	(void)ioctl(0, TIOCGETC, (char *)&deftc);
-	(void)ioctl(0, TIOCGLTC, (char *)&defltc);
-#endif
-	notc.t_startc = deftc.t_startc;
-	notc.t_stopc = deftc.t_stopc;
-	(void)signal(SIGINT, SIG_IGN);
+	defreprint = tios.c_cc[VREPRINT];       /* rprint line */
+	defdiscard = tios.c_cc[VDISCARD];        /* flush output */
+	defwerase = tios.c_cc[VWERASE];         /* word erase */
+	deflnext = tios.c_cc[VLNEXT];         /* literal next char */
+
+	signal(SIGINT, SIG_IGN);
 	setsignal(SIGHUP, exit);
 	setsignal(SIGQUIT, exit);
-#ifdef linux
-	(void)signal(SIGCHLD, catch_child);
-#endif
-	child = fork();
-	if (child == -1) {
-		(void)fprintf(stderr, "rlogin: fork: %s.\n", strerror(errno));
+	/*
+	 * Do this *before* forking...
+	 */
+	signal(SIGCHLD, catch_child);
+
+	childpid = fork();
+	if (childpid == -1) {
+		fprintf(stderr, "rlogin: fork: %s.\n", strerror(errno));
 		done(1);
 	}
-	if (child == 0) {
-#ifdef linux
-		signal(SIGCHLD, SIG_IGN);
-#endif
+	if (childpid == 0) {
 		mode(1);
 		if (reader(omask) == 0) {
 			msg("connection closed.");
@@ -468,13 +331,11 @@ doit(omask)
 	 * receive one soon) that we really want to send to the reader.  Set a
 	 * trap that simply copies such signals to the child.
 	 */
-	(void)signal(SIGURG, copytochild);
-	(void)signal(SIGUSR1, writeroob);
-	(void)sigsetmask(omask);
+	signal(SIGURG, copytochild);
+	signal(SIGUSR1, writeroob);
+	sigsetmask(omask);
 #ifdef	__linux__
-	sleep(1);
-#else
-	(void)signal(SIGCHLD, catch_child);
+	/*sleep(1);*/    /*  why?!? */
 #endif
 	writer();
 	msg("closed connection.");
@@ -482,28 +343,27 @@ doit(omask)
 }
 
 /* trap a signal, unless it is being ignored. */
-setsignal(sig, act)
-	int sig;
-	void (*act)();
+static void
+setsignal(int sig, void (*act)(int))
 {
 	int omask = sigblock(sigmask(sig));
 
 	if (signal(sig, act) == SIG_IGN)
-		(void)signal(sig, SIG_IGN);
-	(void)sigsetmask(omask);
+		signal(sig, SIG_IGN);
+	sigsetmask(omask);
 }
 
-done(status)
-	int status;
+static void
+done(int status)
 {
 	int w, wstatus;
 
 	mode(0);
-	if (child > 0) {
+	if (childpid > 0) {
 		/* make sure catch_child does not snap it up */
-		(void)signal(SIGCHLD, SIG_DFL);
-		if (kill(child, SIGKILL) >= 0)
-			while ((w = wait(&wstatus)) > 0 && w != child);
+		signal(SIGCHLD, SIG_DFL);
+		if (kill(childpid, SIGKILL) >= 0)
+			while ((w = wait(&wstatus)) > 0 && w != childpid);
 	}
 	exit(status);
 }
@@ -515,18 +375,18 @@ void sigwinch();
  * This is called when the reader process gets the out-of-band (urgent)
  * request to turn on the window-changing protocol.
  */
-void
-writeroob()
+static void
+writeroob(int ignore)
 {
 	if (dosigwinch == 0) {
 		sendwindow();
-		(void)signal(SIGWINCH, sigwinch);
+		signal(SIGWINCH, sigwinch);
 	}
 	dosigwinch = 1;
 }
 
 void
-catch_child()
+catch_child(int ignore)
 {
 	union wait status;
 	int pid;
@@ -537,7 +397,7 @@ catch_child()
 		if (pid == 0)
 			return;
 		/* if the child (reader) dies, just quit */
-		if (pid < 0 || pid == child && !WIFSTOPPED(status))
+		if (pid < 0 || (pid == childpid && !WIFSTOPPED(status)))
 			done((int)(status.w_termsig | status.w_retcode));
 	}
 	/* NOTREACHED */
@@ -549,7 +409,8 @@ catch_child()
  * ~^Z				suspend rlogin process.
  * ~<delayed-suspend char>	suspend rlogin process, but leave reader alone.
  */
-writer()
+static void
+writer(void)
 {
 	register int bol, local, n;
 	char c;
@@ -578,49 +439,32 @@ writer()
 			}
 		} else if (local) {
 			local = 0;
-			if (c == '.' || c == deftc.t_eofc) {
+			if (c == '.' || c == defeof) {
 				echo(c);
 				break;
 			}
-			if (c == defltc.t_suspc || c == defltc.t_dsuspc) {
+			if (c == defsusp || c == defdsusp) {
 				bol = 1;
 				echo(c);
 				stop(c);
 				continue;
 			}
 			if (c != escapechar)
-#ifdef CRYPT
-#ifdef KERBEROS
-				if (doencrypt)
-					(void)des_write(rem, &escapechar, 1);
-				else
-#endif
-#endif
-					(void)write(rem, &escapechar, 1);
+					write(rem, &escapechar, 1);
 		}
 
-#ifdef CRYPT
-#ifdef KERBEROS
-		if (doencrypt) {
-			if (des_write(rem, &c, 1) == 0) {
-				msg("line gone");
-				break;
-			}
-		} else
-#endif
-#endif
 			if (write(rem, &c, 1) == 0) {
 				msg("line gone");
 				break;
 			}
-		bol = c == defkill || c == deftc.t_eofc ||
-		    c == deftc.t_intrc || c == defltc.t_suspc ||
+		bol = c == defkill || c == defeof ||
+		    c == defintr || c == defsusp ||
 		    c == '\r' || c == '\n';
 	}
 }
 
-echo(c)
-register char c;
+static void
+echo(char c)
 {
 	register char *p;
 	char buf[8];
@@ -638,16 +482,16 @@ register char c;
 		*p++ = c;
 	*p++ = '\r';
 	*p++ = '\n';
-	(void)write(STDOUT_FILENO, buf, p - buf);
+	write(STDOUT_FILENO, buf, p - buf);
 }
 
-stop(cmdc)
-	char cmdc;
+static void
+stop(char cmdc)
 {
 	mode(0);
-	(void)signal(SIGCHLD, SIG_IGN);
-	(void)kill(cmdc == defltc.t_suspc ? 0 : getpid(), SIGTSTP);
-	(void)signal(SIGCHLD, catch_child);
+	signal(SIGCHLD, SIG_IGN);
+	kill(cmdc == defsusp ? 0 : getpid(), SIGTSTP);
+	signal(SIGCHLD, catch_child);
 	mode(1);
 	sigwinch();			/* check for size changes */
 }
@@ -670,7 +514,8 @@ sigwinch()
 /*
  * Send the window size to the server via the magic escape
  */
-sendwindow()
+static void
+sendwindow(void)
 {
 	struct winsize *wp;
 	char obuf[4 + sizeof (struct winsize)];
@@ -685,14 +530,7 @@ sendwindow()
 	wp->ws_xpixel = htons(winsize.ws_xpixel);
 	wp->ws_ypixel = htons(winsize.ws_ypixel);
 
-#ifdef CRYPT
-#ifdef KERBEROS
-	if(doencrypt)
-		(void)des_write(rem, obuf, sizeof(obuf));
-	else
-#endif
-#endif
-		(void)write(rem, obuf, sizeof(obuf));
+		write(rem, obuf, sizeof(obuf));
 }
 
 /*
@@ -701,36 +539,18 @@ sendwindow()
 #define	READING	1
 #define	WRITING	2
 
-jmp_buf rcvtop;
+sigjmp_buf rcvtop;
 int ppid, rcvcnt, rcvstate;
 char rcvbuf[8 * 1024];
 
-void oob()
+static void
+oob_real(void)
 {
-void oob_real();
-oob_real();
-#ifdef SUN_KLUDGE
-signal(SIGURG,oob);
-#endif
-}
+	struct termios tios;
 
-
-void
-oob_real()
-{
-#ifdef	USE_TERMIO
-	struct termios sb;
-#else
-	struct sgttyb sb;
-#endif
-	int atmark, n, out, rcvd;
+	int atmark, n, rcvd;
 	unsigned char waste[BUFSIZ], mark;
 
-#ifdef	USE_TERMIO
-	out = TCOFLUSH;
-#else
-	out = O_RDWR;
-#endif
 	rcvd = 0;
 	while (recv(rem, &mark, 1, MSG_OOB) < 0) {
 		sleep(1);
@@ -759,49 +579,27 @@ oob_real()
 	}
 	if (mark & TIOCPKT_WINDOW) {
 		/* Let server know about window size changes */
-		(void)kill(ppid, SIGUSR1);
+		kill(ppid, SIGUSR1);
 	}
 	if (!eight && (mark & TIOCPKT_NOSTOP)) {
-		(void)ioctl(0, TIOCGETP, (char *)&sb);
-#ifdef	USE_TERMIO
-		sb.c_iflag &= ~IXON;
-/*		sb.sg_flags &= ~ICANON;	*/
-#else
-		sb.sg_flags &= ~CBREAK;
-		sb.sg_flags |= RAW;
-#ifndef SUN_KLUDGE
-		(void)ioctl(0, TIOCSETN, (char *)&sb);
-#endif
-		notc.t_stopc = -1;
-		notc.t_startc = -1;
-		(void)ioctl(0, TIOCSETC, (char *)&notc);
-#endif
-		(void)ioctl(0, TIOCSETN, (char *)&sb);
+		tcgetattr(0, &tios);
+		tios.c_iflag &= ~IXON;
+/*		tios.c_lflag &= ~ICANON;	*/
+		tcsetattr(0, TCSADRAIN, &tios);
 	}
 	if (!eight && (mark & TIOCPKT_DOSTOP)) {
-		(void)ioctl(0, TIOCGETP, (char *)&sb);
-#ifdef USE_TERMIO
-/*		sb.sg_flags  |= ICANON;*/
-		sb.c_iflag |= IXON;
-#else
-		sb.sg_flags &= ~RAW;
-		sb.sg_flags |= CBREAK;
-		notc.t_stopc = deftc.t_stopc;
-		notc.t_startc = deftc.t_startc;
-		(void)ioctl(0, TIOCSETC, (char *)&notc);
-#endif
-		(void)ioctl(0, TIOCSETN, (char *)&sb);
+		tcgetattr(0, &tios);
+/*		tios.c_lflag  |= ICANON;*/
+		tios.c_iflag |= IXON;
+		tcsetattr(0, TCSADRAIN, &tios);
 	}
 	if (mark & TIOCPKT_FLUSHWRITE) {
-#ifdef	USE_TERMIO
-		(void)ioctl(1, TCFLSH, (char *)out);
-#else
-		(void)ioctl(1, TIOCFLUSH, (char *)&out);
-#endif
+		tcflush(1, TCOFLUSH);
+
 		for (;;) {
 			if (ioctl(rem, SIOCATMARK, &atmark) < 0) {
-				(void)fprintf(stderr, "rlogin: ioctl: %s.\n",
-				    strerror(errno));
+				fprintf(stderr, "rlogin: ioctl: %s.\n",
+					strerror(errno));
 				break;
 			}
 			if (atmark)
@@ -817,7 +615,7 @@ oob_real()
 		 * anyway.
 		 */
 		rcvcnt = 0;
-		longjmp(rcvtop, 1);
+		siglongjmp(rcvtop, 1);
 	}
 
 	/* oob does not do FLUSHREAD (alas!) */
@@ -828,38 +626,42 @@ oob_real()
 	 * however, or we won't know how much was written.
 	 */
 	if (rcvd && rcvstate == READING) {
-		longjmp(rcvtop, 1);
+		siglongjmp(rcvtop, 1);
 	}
 }
 
-/* reader: read from remote: line -> 1 */
-reader(omask)
-	int omask;
+static void oob(int ignore)
 {
-	void oob();
-
-#if !defined(BSD) || BSD < 43
-	int pid = -getpid();
-#else
-	int pid = getpid();
+	oob_real();
+#ifdef SUN_KLUDGE
+	signal(SIGURG,oob);
 #endif
-	int n, remaining;
-	char *bufp = rcvbuf;
+}
 
-	(void)signal(SIGTTOU, SIG_IGN);
-	(void)signal(SIGURG, oob);
+
+
+/* reader: read from remote: line -> 1 */
+static int
+reader(int omask)
+{
+	int pid = getpid();
+	int n, remaining;
+	char *volatile bufp = rcvbuf;
+
+	signal(SIGTTOU, SIG_IGN);
+	signal(SIGURG, oob);
 	ppid = getppid();
-/*	(void)fcntl(rem, F_SETOWN, pid); */
+/*	fcntl(rem, F_SETOWN, pid); */
 	ioctl(rem, SIOCSPGRP, &pid); /* @@@ */
-	(void)setjmp(rcvtop);
-	(void)sigsetmask(omask);
+	sigsetjmp(rcvtop, 1);
+	sigsetmask(omask);
 	for (;;) {
 		while ((remaining = rcvcnt - (bufp - rcvbuf)) > 0) {
 			rcvstate = WRITING;
 			n = write(STDOUT_FILENO, bufp, remaining);
 			if (n < 0) {
 				if (errno != EINTR)
-					return(-1);
+					return -1;
 				continue;
 			}
 			bufp += n;
@@ -868,13 +670,6 @@ reader(omask)
 		rcvcnt = 0;
 		rcvstate = READING;
 
-#ifdef CRYPT
-#ifdef KERBEROS
-		if (doencrypt)
-			rcvcnt = des_read(rem, rcvbuf, sizeof(rcvbuf));
-		else
-#endif
-#endif
 			rcvcnt = read(rem, rcvbuf, sizeof (rcvbuf));
 
 /*
@@ -901,163 +696,102 @@ reader(omask)
 		if (rcvcnt < 0) {
 			if (errno == EINTR)
 				continue;
-			(void)fprintf(stderr, "rlogin: read: %s.\n",
-			    strerror(errno));
-			return(-1);
+			fprintf(stderr, "rlogin: read: %s.\n",
+				strerror(errno));
+			return -1;
 		}
 	}
 }
 
-mode(f)
+static void
+mode(int f)
 {
-	struct ltchars *ltc;
-#ifdef	USE_TERMIO
-	struct termios sb;
-#else
-	struct sgttyb sb;
-	struct tchars *tc;
-	int lflags;
-	(void)ioctl(0, TIOCLGET, (char *)&lflags);
-#endif
+	struct termios tios;
+	tcgetattr(0, &tios);
 
-	(void)ioctl(0, TIOCGETP, (char *)&sb);
 	switch(f) {
-	case 0:
-#ifdef USE_TERMIO
+	  case 0:
 		/*
-		**      remember whether IXON was set, so it can be restored
-		**      when mode(1) is next done
-		*/
-		(void) ioctl(fileno(stdin), TIOCGETP, &ixon_state);
+		 * remember whether IXON was set, so it can be restored
+		 * when mode(1) is next done
+		 */
+	        tcgetattr(0, &ixon_state);
 		/*
-		**      copy the initial modes we saved into sb; this is
-		**      for restoring to the initial state
-		*/
-		(void)memcpy(&sb, &defmodes, sizeof(defmodes));
-
-#else
-		sb.sg_flags &= ~(CBREAK|RAW|TBDELAY);
-		sb.sg_flags |= defflags|tabflag;
-		sb.sg_kill = defkill;
-		sb.sg_erase = deferase;
-		lflags = deflflags;
-		tc = &deftc;
-		ltc = &defltc;
-#endif
+		 * copy the initial modes we saved into sb; this is
+		 * for restoring to the initial state
+		 */
+		memcpy(&tios, &defmodes, sizeof(defmodes));
 		break;
-	case 1:
-#ifdef USE_TERMIO
+	  case 1:
+                /* turn off output mappings */
+                tios.c_oflag &= ~(ONLCR|OCRNL);
                 /*
-                **      turn off output mappings
-                */
-                sb.c_oflag &= ~(ONLCR|OCRNL);
-                /*
-                **      turn off canonical processing and character echo;
-                **      also turn off signal checking -- ICANON might be
-                **      enough to do this, but we're being careful
-                */
-                sb.c_lflag &= ~(ECHO|ICANON|ISIG);
-                sb.c_iflag &= ~(ICRNL);
-                sb.c_cc[VTIME] = 1;
-                sb.c_cc[VMIN] = 1;
-                if (eight)
-                        sb.c_iflag &= ~(ISTRIP);
+                 * turn off canonical processing and character echo;
+                 * also turn off signal checking -- ICANON might be
+                 * enough to do this, but we're being careful
+                 */
+                tios.c_lflag &= ~(ECHO|ICANON|ISIG);
+                tios.c_iflag &= ~(ICRNL);
+                tios.c_cc[VTIME] = 1;
+                tios.c_cc[VMIN] = 1;
+                if (eight) tios.c_iflag &= ~(ISTRIP);
                 /* preserve tab delays, but turn off tab-to-space expansion */
-                if ((sb.c_oflag & TABDLY) == TAB3)
-                        sb.c_oflag &= ~TAB3;
+                if ((tios.c_oflag & TABDLY) == TAB3)
+                        tios.c_oflag &= ~TAB3;
                 /*
-                **  restore current flow control state
-                */
-                if ((ixon_state.c_iflag & IXON) && ! eight ) {
-                    sb.c_iflag |= IXON;
-                } else {
-                    sb.c_iflag &= ~IXON;
+                 *  restore current flow control state
+                 */
+                if ((ixon_state.c_iflag & IXON) && ! eight) {
+                    tios.c_iflag |= IXON;
+                } 
+		else {
+                    tios.c_iflag &= ~IXON;
                 }
-               sb.c_cc[VSUSP] = 255;
-               sb.c_cc[VEOL] = 255;
-               sb.c_cc[VREPRINT] = 255;
-               sb.c_cc[VDISCARD] = 255;
-               sb.c_cc[VWERASE] = 255;
-               sb.c_cc[VLNEXT] = 255;
-               sb.c_cc[VEOL2] = 255;
-#else /* ! USE_TERMIO */
-		sb.sg_flags |= (eight ? RAW : CBREAK);
-		sb.sg_flags &= ~defflags;
-		/* preserve tab delays, but turn off XTABS */
-		if ((sb.sg_flags & TBDELAY) == XTABS)
-			sb.sg_flags &= ~TBDELAY;
-		tc = &notc;
-		sb.sg_kill = sb.sg_erase = -1;
-		if (litout)
-			lflags |= LLITOUT;
-		ltc = &noltc;
-#endif
+		tios.c_cc[VSUSP] = 255;
+		tios.c_cc[VEOL] = 255;
+		tios.c_cc[VREPRINT] = 255;
+		tios.c_cc[VDISCARD] = 255;
+		tios.c_cc[VWERASE] = 255;
+		tios.c_cc[VLNEXT] = 255;
+		tios.c_cc[VEOL2] = 255;
 		break;
-	default:
+	  default:
 		return;
 	}
-#ifndef	USE_TERMIO
-	(void)ioctl(0, TIOCSLTC, (char *)ltc);
-	(void)ioctl(0, TIOCSETC, (char *)tc);
-	(void)ioctl(0, TIOCLSET, (char *)&lflags);
-#endif
-	(void)ioctl(0, TIOCSETN, (char *)&sb);
+	tcsetattr(0, TCSADRAIN, &tios);
 }
 
-void
-lostpeer()
+static void
+lostpeer(int ignore)
 {
-	(void)signal(SIGPIPE, SIG_IGN);
+	signal(SIGPIPE, SIG_IGN);
 	msg("\007connection closed.");
 	done(1);
 }
 
 /* copy SIGURGs to the child process. */
 void
-copytochild()
+copytochild(int ignore)
 {
-	(void)kill(child, SIGURG);
+	kill(childpid, SIGURG);
 #ifdef SUN_KLUDGE
-  signal(SIGCHLD,copytochild);
+	signal(SIGCHLD,copytochild);
 #endif
 }
 
-msg(str)
-	char *str;
+static void
+msg(const char *str)
 {
-	(void)fprintf(stderr, "rlogin: %s\r\n", str);
+	fprintf(stderr, "rlogin: %s\r\n", str);
 }
 
-#ifdef KERBEROS
-/* VARARGS */
-warning(va_alist)
-va_dcl
-{
-	va_list ap;
-	char *fmt;
 
-	(void)fprintf(stderr, "rlogin: warning, using standard rlogin: ");
-	va_start(ap);
-	fmt = va_arg(ap, char *);
-	vfprintf(stderr, fmt, ap);
-	va_end(ap);
-	(void)fprintf(stderr, ".\n");
-}
-#endif
-
-usage()
+static void
+usage(void)
 {
-	(void)fprintf(stderr,
+	fprintf(stderr,
 	    "usage: rlogin [ -%s]%s[-e char] [ -l username ] host\n",
-#ifdef KERBEROS
-#ifdef CRYPT
-	    "8ELx", " [-k realm] ");
-#else
-	    "8EL", " [-k realm] ");
-#endif
-#else
 	    "8EL", " ");
-#endif
 	exit(1);
 }
 
@@ -1073,31 +807,31 @@ get_window_size(fd, wp)
 	struct ttysize ts;
 	int error;
 
-	if ((error = ioctl(0, TIOCGSIZE, &ts)) != 0)
-		return(error);
+	error = ioctl(0, TIOCGSIZE, &ts);
+	if (error != 0)	return error;
+
 	wp->ws_row = ts.ts_lines;
 	wp->ws_col = ts.ts_cols;
 	wp->ws_xpixel = 0;
 	wp->ws_ypixel = 0;
-	return(0);
+	return 0;
 }
 #endif
 
-u_char
-getescape(p)
-	register char *p;
+static u_char
+getescape(const char *p)
 {
 	long val;
 	int len;
 
-	if ((len = strlen(p)) == 1)	/* use any single char, including '\' */
-		return((u_char)*p);
+	if ((len = strlen(p)) == 1)    /* use any single char, including '\' */
+		return (u_char)*p;
 					/* otherwise, \nnn */
 	if (*p == '\\' && len >= 2 && len <= 4) {
-		val = strtol(++p, (char **)NULL, 8);
+		val = strtol(++p, NULL, 8);
 		for (;;) {
 			if (!*++p)
-				return((u_char)val);
+				return (u_char)val;
 			if (*p < '0' || *p > '8')
 				break;
 		}
@@ -1105,4 +839,5 @@ getescape(p)
 	msg("illegal option value -- e");
 	usage();
 	/* NOTREACHED */
+	return 0;
 }

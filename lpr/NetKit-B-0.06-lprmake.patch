@@ -1,0 +1,12 @@
+diff -ur NetKit-B-0.06.orig/lpr/lpq/Makefile NetKit-B-0.06/lpr/lpq/Makefile
+--- NetKit-B-0.06.orig/lpr/lpq/Makefile	Mon Jun  5 17:44:43 1995
++++ NetKit-B-0.06/lpr/lpq/Makefile	Mon Jun  5 17:45:58 1995
+@@ -4,7 +4,7 @@
+ 
+ install: lpq
+ 	install -s -g lp -m6555 lpq /usr/bin
+-	isntall lpq.1 /usr/man/man1
++	install lpq.1 /usr/man/man1
+ 
+ clean:
+ 	rm -f lpq *.o

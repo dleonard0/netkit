@@ -1,13 +1,16 @@
-CFLAGS += -DBSD=43
-# -DKERBEROS -DCRYPT
-# -lkrb -ldes
+all: rlogin
 
-rlogin: rlogin.o # krcmd.o kcmd.o des_rw.o
+include ../MCONFIG
+include ../MRULES
+
+OBJS=rlogin.o
+
+rlogin: $(OBJS)
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 install: rlogin
-	install -s -m4755 rlogin /usr/bin
+	install -s -o root -m4755 rlogin /usr/bin
 	install -m644 rlogin.1 /usr/man/man1
 
 clean:
 	rm -f *.o rlogin
-

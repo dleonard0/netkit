@@ -31,10 +31,12 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)trace.c	5.11 (Berkeley) 2/28/91";*/
-static char rcsid[] = "$Id: trace.c,v 1.1 1994/05/23 09:08:13 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)trace.c	5.11 (Berkeley) 2/28/91
+ */
+char trace_rcsid[] = 
+  "$Id: trace.c,v 1.3 1996/07/15 17:45:59 dholland Exp $";
+
 
 /*
  * Routing Table Management Daemon
@@ -45,6 +47,8 @@ static char rcsid[] = "$Id: trace.c,v 1.1 1994/05/23 09:08:13 rzsfl Exp rzsfl $"
 #include <sys/signal.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <arpa/inet.h>
 #include "pathnames.h"
 
 #define	NRECORDS	50		/* size of circular trace buffer */
@@ -55,8 +59,8 @@ int	traceactions = 0;
 static	struct timeval lastlog;
 static	char *savetracename;
 
-traceinit(ifp)
-	register struct interface *ifp;
+void
+traceinit(struct interface *ifp)
 {
 	static int iftraceinit();
 
@@ -67,10 +71,8 @@ traceinit(ifp)
 	fprintf(stderr, "traceinit: can't init %s\n", ifp->int_name);
 }
 
-static
-iftraceinit(ifp, ifd)
-	struct interface *ifp;
-	register struct ifdebug *ifd;
+static int
+iftraceinit(struct interface *ifp, struct ifdebug *ifd)
 {
 	register struct iftrace *t;
 
@@ -88,8 +90,8 @@ iftraceinit(ifp, ifd)
 	return (1);
 }
 
-traceon(file)
-	char *file;
+void
+traceon(char *file)
 {
 	struct stat stbuf;
 
@@ -108,7 +110,8 @@ traceon(file)
 	fprintf(ftrace, "Tracing enabled %s\n", ctime((time_t *)&now.tv_sec));
 }
 
-traceoff()
+void
+traceoff(void)
 {
 	if (!traceactions)
 		return;
@@ -131,8 +134,7 @@ traceoff()
 }
 
 void
-sigtrace(s)
-	int s;
+sigtrace(int s)
 {
 	(void) signal(s, sigtrace);
 
@@ -152,7 +154,8 @@ sigtrace(s)
  *	traceactions + tracehistory (packets and contents after change)
  *	traceactions + tracepackets + tracecontents
  */
-bumploglevel()
+void
+bumploglevel(void)
 {
 
 	(void) gettimeofday(&now, (struct timezone *)NULL);
@@ -185,11 +188,8 @@ bumploglevel()
 		fflush(ftrace);
 }
 
-trace(ifd, who, p, len, m)
-	register struct ifdebug *ifd;
-	struct sockaddr *who;
-	char *p;
-	int len, m;
+void
+trace(struct ifdebug *ifd, struct sockaddr *who, char *p, int len, int m)
 {
 	register struct iftrace *t;
 
@@ -212,15 +212,13 @@ trace(ifd, who, p, len, m)
 			len = 0;
 	}
 	if (len > 0)
-		bcopy(p, t->ift_packet, len);
+		memcpy(t->ift_packet, p, len);
 	t->ift_size = len;
 	t->ift_metric = m;
 }
 
-traceaction(fd, action, rt)
-	FILE *fd;
-	char *action;
-	struct rt_entry *rt;
+void
+traceaction(FILE *fd, char *action, struct rt_entry *rt)
 {
 	struct sockaddr_in *dst, *gate;
 	static struct bits {
@@ -288,10 +286,8 @@ traceaction(fd, action, rt)
 		traceoff();
 }
 
-tracenewmetric(fd, rt, newmetric)
-	FILE *fd;
-	struct rt_entry *rt;
-	int newmetric;
+void
+tracenewmetric(FILE *fd, struct rt_entry *rt, int newmetric)
 {
 	struct sockaddr_in *dst, *gate;
 
@@ -311,9 +307,8 @@ tracenewmetric(fd, rt, newmetric)
 		traceoff();
 }
 
-dumpif(fd, ifp)
-	FILE *fd;
-	register struct interface *ifp;
+void
+dumpif(FILE *fd, struct interface *ifp)
 {
 	if (ifp->int_input.ifd_count || ifp->int_output.ifd_count) {
 		fprintf(fd, "*** Packet history for interface %s ***\n",
@@ -326,10 +321,8 @@ dumpif(fd, ifp)
 	}
 }
 
-dumptrace(fd, dir, ifd)
-	FILE *fd;
-	char *dir;
-	register struct ifdebug *ifd;
+void
+dumptrace(FILE *fd, char *dir, struct ifdebug *ifd)
 {
 	register struct iftrace *t;
 	char *cp = !strcmp(dir, "to") ? "Output" : "Input";
@@ -354,12 +347,9 @@ dumptrace(fd, dir, ifd)
 	}
 }
 
-dumppacket(fd, dir, who, cp, size, stamp)
-	FILE *fd;
-	struct sockaddr_in *who;		/* should be sockaddr */
-	char *dir, *cp;
-	register int size;
-	struct timeval *stamp;
+void
+dumppacket(FILE *fd, int dir, struct sockaddr_in *who, char *cp, int size, 
+	   struct timeval *stamp)
 {
 	register struct rip *msg = (struct rip *)cp;
 	register struct netinfo *n;

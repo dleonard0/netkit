@@ -31,9 +31,11 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)pathnames.h	5.3 (Berkeley) 6/1/90
- *	$Id: pathnames.h,v 1.1 1994/05/23 09:03:33 rzsfl Exp rzsfl $
+ *	$Id: pathnames.h,v 1.3 1996/07/13 23:21:42 dholland Exp $
  */
 
+/*
+ * These should maybe be determined at configure/install time.
+ */
 #define	_PATH_FINGER	"/usr/bin/finger"
 #define _PATH_UPTIME	"/usr/bin/uptime"
-#define _PATH_SH	"/bin/sh"

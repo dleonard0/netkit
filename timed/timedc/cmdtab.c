@@ -31,9 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-static char sccsid[] = "@(#)cmdtab.c	2.7 (Berkeley) 5/11/93";
-#endif /* not lint */
+/* 
+ * From: @(#)cmdtab.c	2.7 (Berkeley) 5/11/93
+ */
+char cmdtab_rcsid[] =
+  "$Id: cmdtab.c,v 1.2 1996/07/20 19:45:11 dholland Exp $";
 
 #include "timedc.h"
 

@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)io.c	5.6 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: io.c,v 1.3 1993/08/14 13:47:51 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)io.c	5.6 (Berkeley) 3/1/91
+ */
+char io_rcsid[] = 
+  "$Id: io.c,v 1.3 1996/07/20 20:59:41 dholland Exp $";
 
 /*
  * This file contains the I/O handling and the exchange of 
@@ -44,10 +45,11 @@ static char rcsid[] = "$Id: io.c,v 1.3 1993/08/14 13:47:51 mycroft Exp $";
 
 #include <sys/time.h>
 #include <sys/ioctl.h>
-#include "talk.h"
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
+#include "talk.h"
 
 #define A_LONG_TIME 10000000
 #define STDIN_MASK (1<<fileno(stdin))	/* the bit mask for standard
@@ -56,7 +58,8 @@ static char rcsid[] = "$Id: io.c,v 1.3 1993/08/14 13:47:51 mycroft Exp $";
 /*
  * The routine to do the actual talking
  */
-talk()
+void
+talk(void)
 {
 	register int read_template, sockt_mask;
 	int read_set, nb;
@@ -76,7 +79,7 @@ talk()
 		read_set = read_template;
 		wait.tv_sec = A_LONG_TIME;
 		wait.tv_usec = 0;
-		nb = select(32, &read_set, 0, 0, &wait);
+		nb = select(32, (fd_set *) &read_set, 0, 0, &wait);
 		if (nb <= 0) {
 			if (errno == EINTR) {
 				read_set = read_template;
@@ -116,8 +119,8 @@ extern	int sys_nerr;
  * p_error prints the system error message on the standard location
  * on the screen and then exits. (i.e. a curses version of perror)
  */
-p_error(string) 
-	char *string;
+void
+p_error(char *string) 
 {
 	wmove(my_win.x_win, current_line%my_win.x_nlines, 0);
 	wprintw(my_win.x_win, "[%s : %s (%d)]\n",
@@ -131,8 +134,8 @@ p_error(string)
 /*
  * Display string in the standard location
  */
-message(string)
-	char *string;
+void
+message(char *string)
 {
 
 	wmove(my_win.x_win, current_line%my_win.x_nlines, 0);

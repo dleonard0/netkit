@@ -39,7 +39,7 @@ char copyright[] =
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)comsat.c	5.24 (Berkeley) 2/25/91";*/
-static char rcsid[] = "$Id: comsat.c,v 1.1 1994/07/15 23:51:03 florian Exp florian $";
+char rcsid[] = "$Id: comsat.c,v 1.4 1996/07/20 21:09:14 dholland Exp $";
 #endif /* not lint */
 
 #include <sys/param.h>
@@ -51,8 +51,8 @@ static char rcsid[] = "$Id: comsat.c,v 1.1 1994/07/15 23:51:03 florian Exp flori
 #include <netinet/in.h>
 
 #include <stdio.h>
-#include <sgtty.h>
 #include <utmp.h>
+#include <termios.h>
 #include <signal.h>
 #include <errno.h>
 #include <netdb.h>
@@ -76,25 +76,20 @@ int	nutmp, uf;
 
 static void mailfor(char *name);
 static void notify(struct utmp *utp, off_t offset);
-static void jkfprintf(FILE *tp, char name[], off_t offset);
+static void jkfprintf(FILE *, const char *name, off_t offset, const char *cr);
+static void onalrm(int);
 
-/* ARGSUSED */
-int main(argc, argv)
-	int argc;
-	char **argv;
+int 
+main(int argc, char *argv[])
 {
-	extern int errno;
-	register int cc;
 	char msgbuf[100];
 	struct sockaddr_in from;
 	int fromlen;
-	void onalrm(), reapchildren();
 
 	/* verify proper invocation */
 	fromlen = sizeof(from);
 	if (getsockname(0, (struct sockaddr *)&from, &fromlen) < 0) {
-		(void)fprintf(stderr,
-		    "comsat: getsockname: %s.\n", strerror(errno));
+		fprintf(stderr, "comsat: getsockname: %s.\n", strerror(errno));
 		exit(1);
 	}
 	openlog("comsat", LOG_PID, LOG_DAEMON);
@@ -109,11 +104,13 @@ int main(argc, argv)
 	}
 	(void)time(&lastmsgtime);
 	(void)gethostname(hostname, sizeof(hostname));
-	onalrm();
+	onalrm(SIGALRM);
 	(void)signal(SIGALRM, onalrm);
 	(void)signal(SIGTTOU, SIG_IGN);
-	(void)signal(SIGCHLD, reapchildren);
+	/* This should prevent zombies without needing to wait. */
+	(void)signal(SIGCHLD, SIG_IGN);
 	for (;;) {
+		int cc;
 		cc = recv(0, msgbuf, sizeof(msgbuf) - 1, 0);
 		if (cc <= 0) {
 			if (errno != EINTR)
@@ -132,13 +129,7 @@ int main(argc, argv)
 }
 
 void
-reapchildren()
-{
-	while (wait3((int *)NULL, WNOHANG, (struct rusage *)NULL) > 0);
-}
-
-void
-onalrm()
+onalrm(int ignore)
 {
 	static u_int utmpsize;		/* last malloced size for utmp */
 	static u_int utmpmtime;		/* last modification time for utmp */
@@ -167,15 +158,15 @@ onalrm()
 	}
 }
 
-static void mailfor(name)
-	char *name;
+static void mailfor(char *name)
 {
-	register struct utmp *utp = &utmp[nutmp];
-	register char *cp;
+	struct utmp *utp = &utmp[nutmp];
+	char *cp;
 	off_t offset;
 
-	if (!(cp = index(name, '@')))
-		return;
+	cp = strchr(name, '@');
+	if (!cp) return;
+
 	*cp = '\0';
 	offset = atoi(cp + 1);
 	while (--utp >= utmp)
@@ -183,53 +174,58 @@ static void mailfor(name)
 			notify(utp, offset);
 }
 
-static char *cr;
 
-static void notify(utp, offset)
-	register struct utmp *utp;
-	off_t offset;
+static void notify(struct utmp *utp, off_t offset)
 {
 	FILE *tp;
 	struct stat stb;
-	struct sgttyb gttybuf;
-	char tty[20], name[sizeof(utmp[0].ut_name) + 1];
+	struct termios tbuf;
+	char tty[20];
+	char name[sizeof(utmp[0].ut_name) + 1];
+	const char *cr;
 
 	(void)snprintf(tty, sizeof(tty), "%s%.*s",
-	    _PATH_DEV, (int)sizeof(utp->ut_line), utp->ut_line);
-	if (index(tty + sizeof(_PATH_DEV) - 1, '/')) {
+		       _PATH_DEV, (int)sizeof(utp->ut_line), utp->ut_line);
+	/*
+	 * Um. This will barf on any scheme involving ttys in subdirectories.
+	 */
+	if (strchr(tty + sizeof(_PATH_DEV) - 1, '/')) {
 		/* A slash is an attempt to break security... */
 		syslog(LOG_AUTH | LOG_NOTICE, "'/' in \"%s\"", tty);
 		return;
 	}
+
 	if (stat(tty, &stb) || !(stb.st_mode & S_IEXEC)) {
 		dsyslog(LOG_DEBUG, "%s: wrong mode on %s", utp->ut_name, tty);
 		return;
 	}
 	dsyslog(LOG_DEBUG, "notify %s on %s\n", utp->ut_name, tty);
-	if (fork())
+
+	if (fork()) {
+		/* parent process */
 		return;
+	}
+	/* child process */
 	(void)signal(SIGALRM, SIG_DFL);
 	(void)alarm((u_int)30);
 	if ((tp = fopen(tty, "w")) == NULL) {
 		dsyslog(LOG_ERR, "fopen of tty %s failed", tty);
 		_exit(-1);
 	}
-	(void)ioctl(fileno(tp), TIOCGETP, &gttybuf);
-	cr = (gttybuf.sg_flags&CRMOD) && !(gttybuf.sg_flags&RAW) ?
-	    "\n" : "\n\r";
+	tcgetattr(fileno(tp), &tbuf);
+	if ((tbuf.c_oflag & OPOST) && (tbuf.c_oflag & ONLCR)) cr = "\n";
+	else cr = "\r\n";
+
 	(void)strncpy(name, utp->ut_name, sizeof(utp->ut_name));
 	name[sizeof(name) - 1] = '\0';
-	(void)fprintf(tp, "%s\007New mail for %s@%.*s\007 has arrived:%s----%s",
+	(void)fprintf(tp, "%s\aNew mail for %s@%.*s\a has arrived:%s----%s",
 	    cr, name, (int)sizeof(hostname), hostname, cr, cr);
-	jkfprintf(tp, name, offset);
+	jkfprintf(tp, name, offset, cr);
 	(void)fclose(tp);
 	_exit(0);
 }
 
-static void jkfprintf(tp, name, offset)
-	register FILE *tp;
-	char name[];
-	off_t offset;
+static void jkfprintf(FILE *tp, const char *name, off_t offset, const char *cr)
 {
 	register char *cp, ch;
 	register FILE *fi;
@@ -245,11 +241,12 @@ static void jkfprintf(tp, name, offset)
 		 */
 		syslog(LOG_AUTH | LOG_NOTICE, "%s not in passwd file", name);
 		return;
-	} else
-		(void) setuid(p->pw_uid);
+	} 
+	setuid(p->pw_uid);
 
-	if ((fi = fopen(name, "r")) == NULL)
-		return;
+	fi = fopen(name, "r");
+	if (fi == NULL)	return;
+
 	(void)fseek(fi, offset, L_SET);
 	/*
 	 * Print the first 7 lines or 560 characters of the new mail

@@ -31,34 +31,33 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1983 The Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1983 The Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)rwho.c	5.5 (Berkeley) 6/1/90";*/
-static char rcsid[] = "$Id: rwho.c,v 1.1 1994/05/24 07:56:25 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)rwho.c	5.5 (Berkeley) 6/1/90
+ */
+char rcsid[] = "$Id: rwho.c,v 1.3 1996/07/15 21:53:11 dholland Exp $";
 
 #include <sys/param.h>
 #include <sys/dir.h>
 #include <sys/file.h>
-#include <protocols/rwhod.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
+#include <protocols/rwhod.h>
 
-DIR	*dirp;
-
-struct	whod wd;
-int	utmpcmp();
+static int utmpcmp(const void *, const void *);
 #define	NUSERS	1000
-struct	myutmp {
+
+struct myutmp {
 	char	myhost[MAXHOSTNAMELEN];
 	int	myidle;
 	struct	outmp myutmp;
-} myutmp[NUSERS];
-int	nusers;
+};
 
 #define	WHDRSIZE	(sizeof (wd) - sizeof (wd.wd_we))
 /* 
@@ -66,26 +65,27 @@ int	nusers;
  */
 #define	down(w,now)	((now) - (w)->wd_recvtime > 11 * 60)
 
-char	*ctime(), *strcpy();
-time_t	now;
-int	aflg;
-
-main(argc, argv)
-	int argc;
-	char **argv;
+int 
+main(int argc, char *argv[])
 {
+	static struct myutmp myutmp[NUSERS];
+	int nusers = 0;
+
 	extern char *optarg;
 	extern int optind;
 	int ch;
 	struct direct *dp;
 	int cc, width;
-	register struct whod *w = &wd;
-	register struct whoent *we;
-	register struct myutmp *mp;
+	struct whod wd;
+	struct whod *w = &wd;
+	struct whoent *we;
+	struct myutmp *mp;
 	int f, n, i;
-	time_t time();
+	DIR *dirp;
+	time_t now;
+	int aflg = 0;
 
-	while ((ch = getopt(argc, argv, "a")) != EOF)
+	while ((ch = getopt(argc, argv, "a")) != EOF) {
 		switch((char)ch) {
 		case 'a':
 			aflg = 1;
@@ -95,13 +95,14 @@ main(argc, argv)
 			fprintf(stderr, "usage: rwho [-a]\n");
 			exit(1);
 		}
+	}
 	if (chdir(_PATH_RWHODIR) || (dirp = opendir(".")) == NULL) {
 		perror(_PATH_RWHODIR);
 		exit(1);
 	}
 	mp = myutmp;
-	(void)time(&now);
-	while (dp = readdir(dirp)) {
+	time(&now);
+	while ((dp = readdir(dirp))!=NULL) {
 		if (dp->d_ino == 0 || strncmp(dp->d_name, "whod.", 5))
 			continue;
 		f = open(dp->d_name, O_RDONLY);
@@ -133,7 +134,7 @@ main(argc, argv)
 		}
 		(void) close(f);
 	}
-	qsort((char *)myutmp, nusers, sizeof (struct myutmp), utmpcmp);
+	qsort(myutmp, nusers, sizeof(struct myutmp), utmpcmp);
 	mp = myutmp;
 	width = 0;
 	for (i = 0; i < nusers; i++) {
@@ -170,9 +171,11 @@ main(argc, argv)
 	exit(0);
 }
 
-utmpcmp(u1, u2)
-	struct myutmp *u1, *u2;
+static int
+utmpcmp(const void *v1, const void *v2)
 {
+	struct myutmp *u1 = (struct myutmp *)v1;
+	struct myutmp *u2 = (struct myutmp *)v2;
 	int rc;
 
 	rc = strncmp(u1->myutmp.out_name, u2->myutmp.out_name, 8);

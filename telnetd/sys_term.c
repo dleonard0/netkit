@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)sys_term.c	5.16 (Berkeley) 3/22/91";*/
-static char rcsid[] = "$Id: sys_term.c,v 1.1 1994/05/23 09:11:55 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)sys_term.c	5.16 (Berkeley) 3/22/91
+ */
+char st_rcsid[] = 
+  "$Id: sys_term.c,v 1.4 1996/07/16 08:58:22 dholland Exp $";
 
 #include "telnetd.h"
 #include "pathnames.h"
@@ -139,6 +140,10 @@ struct termbuf {
 # endif /* TCSANOW */
 struct termios termbuf, termbuf2;	/* pty control structure */
 #endif	/* USE_TERMIO */
+
+void logwtmp(char *, char *, char *);
+int logout(const char *);
+static int cleanopen(char *line);
 
 /*
  * init_termbuf()
@@ -433,22 +438,23 @@ getpty()
 {
 	register int p;
 #ifndef CRAY
-	register char c, *p1, *p2;
-	register int i;
+	/*char c;*/
+	char *p1, *p2;
+	int i,j;
 
 	(void) sprintf(line, "/dev/ptyXX");
 	p1 = &line[8];
 	p2 = &line[9];
 
-	for (c = 'p'; c <= 's'; c++) {
+	for (i = 0; i < 16; i++) {
 		struct stat stb;
 
-		*p1 = c;
+		*p1 = "pqrstuvwxyzABCDE"[i];
 		*p2 = '0';
 		if (stat(line, &stb) < 0)
 			break;
-		for (i = 0; i < 16; i++) {
-			*p2 = "0123456789abcdef"[i];
+		for (j = 0; j < 16; j++) {
+			*p2 = "0123456789abcdef"[j];
 			p = open(line, 2);
 			if (p > 0) {
 				line[5] = 't';
@@ -903,8 +909,8 @@ extern void utmp_sig_notify P((int));
  * that is necessary.  The return value is a file descriptor
  * for the slave side.
  */
-	int
-getptyslave()
+int
+getptyslave(void)
 {
 	register int t = -1;
 
@@ -1016,6 +1022,7 @@ getptyslave()
 		(void) close(net);
 	if (pty > 2)
 		(void) close(pty);
+	return t;  /* ? was nothing here... */
 }
 
 #if	!defined(CRAY) || !defined(NEWINIT)
@@ -1026,9 +1033,8 @@ getptyslave()
  * Open the specified slave side of the pty,
  * making sure that we have a clean tty.
  */
-	int
-cleanopen(line)
-	char *line;
+static int
+cleanopen(char *line)
 {
 	register int t;
 
@@ -1125,15 +1131,12 @@ char *gen_id = "fe";
  */
 
 /* ARGSUSED */
-	void
-startslave(host, autologin, autoname)
-	char *host;
-	int autologin;
-	char *autoname;
+void
+startslave(const char *host, int autologin, char *autoname)
 {
 	register int i;
 	long time();
-	char name[256];
+/*	char name[256]; */
 #ifdef	NEWINIT
 	extern char *ptyip;
 	struct init_request request;
@@ -1262,7 +1265,7 @@ init_env()
 	char **envp;
 
 	envp = envinit;
-	if (*envp = getenv("TZ"))
+	if ((*envp = getenv("TZ"))!=NULL)
 		*envp++ -= 3;
 #ifdef	CRAY
 	else
@@ -1281,15 +1284,13 @@ init_env()
  * function will turn us into the login process.
  */
 
-	void
-start_login(host, autologin, name)
-	char *host;
-	int autologin;
-	char *name;
+char **addarg();
+
+void
+start_login(const char *host, int autologin, char *name)
 {
-	register char *cp;
+/*	register char *cp; */
 	register char **argv;
-	char **addarg();
 
 	/*
 	 * -h : pass on name of host.

@@ -31,16 +31,15 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1983 Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1983 Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)talkd.c	5.8 (Berkeley) 2/26/91";*/
-static char rcsid[] = "$Id: talkd.c,v 1.2 1993/08/01 18:29:30 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)talkd.c	5.8 (Berkeley) 2/26/91
+ */
+char talkd_rcsid[] = 
+  "$Id: talkd.c,v 1.2 1996/07/16 05:01:32 dholland Exp $";
 
 /*
  * The top level of the daemon, the format is heavily borrowed
@@ -60,23 +59,25 @@ static char rcsid[] = "$Id: talkd.c,v 1.2 1993/08/01 18:29:30 mycroft Exp $";
 #include <stdlib.h>
 #include <string.h>
 #include <paths.h>
-
-CTL_MSG		request;
-CTL_RESPONSE	response;
-
-int	sockt;
-int	debug = 0;
-void	timeout();
-long	lastmsgtime;
-
-char	hostname[32];
+#include "proto.h"
 
 #define TIMEOUT 30
 #define MAXIDLE 120
 
-main(argc, argv)
-	int argc;
-	char *argv[];
+
+static void timeout(int);
+
+static CTL_MSG request;
+static CTL_RESPONSE response;
+
+static int sockt;
+static long lastmsgtime;
+
+char hostname[256];
+int debug = 0;
+
+int
+main(int argc, char *argv[])
 {
 	register CTL_MSG *mp = &request;
 	int cc;
@@ -99,8 +100,6 @@ main(argc, argv)
 	signal(SIGALRM, timeout);
 	alarm(TIMEOUT);
 	for (;;) {
-		extern int errno;
-
 		cc = recv(0, (char *)mp, sizeof (*mp), 0);
 		if (cc != sizeof (*mp)) {
 			if (cc < 0 && errno != EINTR)
@@ -116,13 +115,14 @@ main(argc, argv)
 		if (cc != sizeof (response))
 			syslog(LOG_WARNING, "sendto: %m");
 	}
+	return 0;
 }
 
 void
-timeout()
+timeout(int ignore)
 {
-
 	if (time(0) - lastmsgtime >= MAXIDLE)
 		_exit(0);
+	signal(SIGALRM, timeout);
 	alarm(TIMEOUT);
 }

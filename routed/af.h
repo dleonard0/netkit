@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)af.h	5.7 (Berkeley) 6/1/90
- *	$Id: af.h,v 1.1 1994/05/23 09:08:11 rzsfl Exp rzsfl $
+ *	$Id: af.h,v 1.2 1996/07/15 16:49:21 dholland Exp $
  */
 
 /*

@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)ruserpass.c	5.3 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: ruserpass.c,v 1.1 1994/08/17 13:52:59 florian Exp florian $";
-#endif /* not lint */
+/*
+ * from: @(#)ruserpass.c	5.3 (Berkeley) 3/1/91
+ */
+char ruserpass_rcsid[] = 
+  "$Id: ruserpass.c,v 1.2 1996/07/14 09:16:00 dholland Exp $";
 
 #include <sys/types.h>
 #include <stdio.h>
@@ -42,6 +43,8 @@ static char rcsid[] = "$Id: ruserpass.c,v 1.1 1994/08/17 13:52:59 florian Exp fl
 #include <ctype.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <string.h>
+#include <unistd.h>
 #include "ftp_var.h"
 
 char	*renvlook(), *malloc(), *index(), *getenv(), *getpass(), *getlogin();
@@ -63,18 +66,18 @@ static struct toktab {
 	char *tokstr;
 	int tval;
 } toktab[]= {
-	"default",	DEFAULT,
-	"login",	LOGIN,
-	"password",	PASSWD,
-	"passwd",	PASSWD,
-	"account",	ACCOUNT,
-	"machine",	MACH,
-	"macdef",	MACDEF,
-	0,		0
+	{ "default",	DEFAULT },
+	{ "login",	LOGIN },
+	{ "password",	PASSWD },
+	{ "passwd",	PASSWD },
+	{ "account",	ACCOUNT },
+	{ "machine",	MACH },
+	{ "macdef",	MACDEF },
+	{ NULL,		0 }
 };
 
-ruserpass(host, aname, apass, aacct)
-	char *host, **aname, **apass, **aacct;
+int
+xruserpass(const char *host, char **aname, char **apass, char **aacct)
 {
 	char *hdir, buf[BUFSIZ], *tmp;
 	char myname[MAXHOSTNAMELEN], *mydomain;
@@ -171,7 +174,7 @@ next:
 				(void) fclose(cfile);
 				return(0);
 			}
-			while ((c=getc(cfile)) != EOF && c == ' ' || c == '\t');
+			while ((c=getc(cfile)) != EOF && (c == ' ' || c == '\t'));
 			if (c == EOF || c == '\n') {
 				printf("Missing macdef name argument.\n");
 				goto bad;
@@ -239,7 +242,7 @@ bad:
 	return(-1);
 }
 
-static
+static int
 token()
 {
 	char *cp;

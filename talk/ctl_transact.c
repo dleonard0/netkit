@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)ctl_transact.c	5.8 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: ctl_transact.c,v 1.1 1994/07/16 09:40:47 florian Exp florian $";
-#endif /* not lint */
+/*
+ * From: @(#)ctl_transact.c	5.8 (Berkeley) 3/1/91
+ */
+char ctlt_rcsid[] = 
+  "$Id: ctl_transact.c,v 1.4 1996/07/20 20:59:41 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -43,6 +44,7 @@ static char rcsid[] = "$Id: ctl_transact.c,v 1.1 1994/07/16 09:40:47 florian Exp
 #include <protocols/talkd.h>
 #include <errno.h>
 #include "talk_ctl.h"
+#include "talk.h"
 
 #define CTL_WAIT 2	/* time to wait for a response, in seconds */
 
@@ -51,13 +53,10 @@ static char rcsid[] = "$Id: ctl_transact.c,v 1.1 1994/07/16 09:40:47 florian Exp
  * not recieved an acknowledgement within a reasonable amount
  * of time
  */
-ctl_transact(target, msg, type, rp)
-	struct in_addr target;
-	CTL_MSG msg;
-	int type;
-	CTL_RESPONSE *rp;
+void
+ctl_transact(struct in_addr target, CTL_MSG msg, int type, CTL_RESPONSE *rp)
 {
-	int read_mask, ctl_mask, nready, cc;
+	int read_mask, ctl_mask, nready=0, cc;
 	struct timeval wait;
 
 	msg.type = type;
@@ -83,7 +82,7 @@ ctl_transact(target, msg, type, rp)
 			read_mask = ctl_mask;
 			wait.tv_sec = CTL_WAIT;
 			wait.tv_usec = 0;
-			nready = select(32, &read_mask, 0, 0, &wait);
+			nready = select(32, (fd_set *)&read_mask, 0, 0, &wait);
 			if (nready < 0) {
 				if (errno == EINTR)
 					continue;
@@ -105,7 +104,7 @@ ctl_transact(target, msg, type, rp)
 			read_mask = ctl_mask;
 			/* an immediate poll */
 			timerclear(&wait);
-			nready = select(32, &read_mask, 0, 0, &wait);
+			nready = select(32, (fd_set *)&read_mask, 0, 0, &wait);
 		} while (nready > 0 && (rp->vers != TALK_VERSION ||
 		    rp->type != type));
 	} while (rp->vers != TALK_VERSION || rp->type != type);

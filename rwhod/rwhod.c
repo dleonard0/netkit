@@ -31,21 +31,20 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1983 The Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1983 The Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)rwhod.c	5.20 (Berkeley) 3/2/91";*/
-static char rcsid[] = "$Id: rwhod.c,v 1.1 1994/05/23 22:35:57 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)rwhod.c	5.20 (Berkeley) 3/2/91
+ */
+char rcsid[] = 
+  "$Id: rwhod.c,v 1.4 1996/07/20 20:57:27 dholland Exp $";
 
 #include <sys/param.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/signal.h>
+#include <signal.h>
 #include <sys/ioctl.h>
 #include <sys/file.h>
 
@@ -60,7 +59,14 @@ static char rcsid[] = "$Id: rwhod.c,v 1.1 1994/05/23 22:35:57 rzsfl Exp rzsfl $"
 #include <syslog.h>
 #include <protocols/rwhod.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <paths.h>
+#include <unistd.h>
+#include <string.h>
+#include <arpa/inet.h>
+
+/* from libbsd.a */
+int daemon(int, int);
 
 #define ENDIAN	LITTLE_ENDIAN
 #define sin x_sin
@@ -82,6 +88,10 @@ struct	nlist nl[] = {
 	0
 };
 #endif
+
+static int configure(int s);
+static int verify(const char *name);
+static int getloadavg(double ptr[3], int n);
 
 /*
  * We communicate with each neighbor in
@@ -110,13 +120,14 @@ long	lseek();
 void	getkmem(int), onalrm(int);
 struct	in_addr inet_makeaddr();
 
-main()
+int
+main(void)
 {
 	struct sockaddr_in from;
 	struct stat st;
 	char path[64];
 	int on = 1;
-	char *cp, *index(), *strerror();
+	char *cp;
 
 	if (getuid()) {
 		fprintf(stderr, "rwhod: not super user\n");
@@ -163,7 +174,7 @@ main()
 	}
 	sin.sin_family = AF_INET;
 	sin.sin_port = sp->s_port;
-	if (bind(s, &sin, sizeof (sin)) < 0) {
+	if (bind(s, (struct sockaddr *)&sin, sizeof (sin)) < 0) {
 		syslog(LOG_ERR, "bind: %m");
 		exit(1);
 	}
@@ -177,7 +188,7 @@ main()
 		int cc, whod, len = sizeof (from);
 
 		cc = recvfrom(s, (char *)&wd, sizeof (struct whod), 0,
-			&from, &len);
+			      (struct sockaddr *)&from, &len);
 		if (cc <= 0) {
 			if (cc < 0 && errno != EINTR)
 				syslog(LOG_WARNING, "recv: %m");
@@ -226,8 +237,8 @@ main()
 			}
 		}
 #endif
-		(void) time(&wd.wd_recvtime);
-		(void) write(whod, (char *)&wd, cc);
+		wd.wd_recvtime = time(NULL);
+		write(whod, (char *)&wd, cc);
 		if (fstat(whod, &st) < 0 || st.st_size > cc)
 			ftruncate(whod, cc);
 		(void) close(whod);
@@ -239,8 +250,8 @@ main()
  * and other funnies before allowing a file
  * to be created.  Sorry, but blanks aren't allowed.
  */
-verify(name)
-	register char *name;
+static int
+verify(const char *name)
 {
 	register int size = 0;
 
@@ -249,7 +260,7 @@ verify(name)
 			return (0);
 		name++, size++;
 	}
-	return (size > 0);
+	return size > 0;
 }
 
 int	utmptime;
@@ -279,9 +290,9 @@ void onalrm(int dummy)
 		if (stb.st_size > utmpsize) {
 			utmpsize = stb.st_size + 10 * sizeof(struct utmp);
 			if (utmp)
-				utmp = (struct utmp *)realloc(utmp, utmpsize);
+				utmp = realloc(utmp, utmpsize);
 			else
-				utmp = (struct utmp *)malloc(utmpsize);
+				utmp = malloc(utmpsize);
 			if (! utmp) {
 				fprintf(stderr, "rwhod: malloc failed\n");
 				utmpsize = 0;
@@ -327,23 +338,20 @@ void onalrm(int dummy)
 			we->we_idle = htonl(now - stb.st_atime);
 		we++;
 	}
-	(void) getloadavg(avenrun, sizeof(avenrun)/sizeof(avenrun[0]));
+	getloadavg(avenrun, sizeof(avenrun)/sizeof(avenrun[0]));
 	for (i = 0; i < 3; i++)
 		mywd.wd_loadav[i] = htonl((u_long)(avenrun[i] * 100));
 	cc = (char *)we - (char *)&mywd;
 	mywd.wd_sendtime = htonl(time(0));
 	mywd.wd_vers = WHODVERSION;
 	mywd.wd_type = WHODTYPE_STATUS;
-	for (np = neighbors; np != NULL; np = np->n_next)
-#ifdef	__linux__
+	for (np = neighbors; np != NULL; np = np->n_next) {
 		if (sendto(s, (char *)&mywd, cc, 0,
-			np->n_addr, np->n_addrlen) < 0)
-				syslog(LOG_ERR, "sendto(%s): %m",
-inet_ntoa(((struct sockaddr_in *)np->n_addr)->sin_addr));
-#else
-		(void) sendto(s, (char *)&mywd, cc, 0,
-			np->n_addr, np->n_addrlen);
-#endif
+			   (struct sockaddr *) np->n_addr, np->n_addrlen) < 0) 
+		  syslog(LOG_ERR, "sendto(%s): %m",
+			 inet_ntoa(((struct sockaddr_in *)np->n_addr)->sin_addr));
+	}
+
 	if (utmpent && chdir(_PATH_RWHODIR)) {
 		syslog(LOG_ERR, "chdir(%s): %m", _PATH_RWHODIR);
 		exit(1);
@@ -381,9 +389,13 @@ done:
  *
  * Send comments/bug reports/fixes to: pen@signum.se or pen@lysator.liu.se
  */
-int getloadavg(double ptr[3])
+int getloadavg(double ptr[3], int n)
 {
-	FILE *fp = fopen("/proc/loadavg", "r");
+	FILE *fp;
+
+	if (n!=3) return -1;
+
+	fp = fopen("/proc/loadavg", "r");
 	if (!fp) return -1;
 
 	if (fscanf(fp, "%lf %lf %lf", &ptr[0], &ptr[1], &ptr[2]) != 3) {
@@ -399,14 +411,14 @@ int getloadavg(double ptr[3])
 void getkmem(int dummy)
 {
 #ifdef __linux__
-	int uptime;
-	int curtime;
+	time_t uptime;
+	time_t curtime;
 	FILE *fp = fopen("/proc/uptime", "r");
 	if (!fp) return /* -1 */;
 
-	fscanf(fp, "%d", &uptime);
+	fscanf(fp, "%ld", &uptime);
 
-	time(&curtime);
+	curtime = time(NULL);
 	curtime -= uptime;
 	mywd.wd_boottime = htonl(curtime);
 
@@ -450,8 +462,8 @@ loop:
  * Figure out device configuration and select
  * networks which deserve status information.
  */
-configure(s)
-	int s;
+static int
+configure(int s)
 {
 	char buf[BUFSIZ], *cp, *cplim;
 	struct ifconf ifc;

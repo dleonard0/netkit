@@ -31,12 +31,14 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-static char sccsid[] = "@(#)correct.c	5.1 (Berkeley) 5/11/93";
-#endif /* not lint */
+/*
+ * From: @(#)correct.c	5.1 (Berkeley) 5/11/93
+ */
+char correct_rcsid[] =
+  "$Id: correct.c,v 1.2 1996/07/20 19:45:38 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.3 $"
+#ident "$Revision: 1.2 $"
 #endif
 
 #include "globals.h"

@@ -1,9 +1,3 @@
-#ifndef lint
-/*static char sccsid[] = "from: @(#)rpcinfo.c 1.22 87/08/12 SMI";*/
-/*static char sccsid[] = "from: @(#)rpcinfo.c	2.2 88/08/11 4.0 RPCSRC";*/
-static char rcsid[] = "$Id: rpcinfo.c,v 1.1 1994/05/23 09:09:33 rzsfl Exp rzsfl $";
-#endif
-
 /*
  * Copyright (C) 1986, Sun Microsystems, Inc.
  */
@@ -41,6 +35,13 @@ static char rcsid[] = "$Id: rpcinfo.c,v 1.1 1994/05/23 09:09:33 rzsfl Exp rzsfl 
  * 2550 Garcia Avenue
  * Mountain View, California  94043
  */
+
+/*
+ * From: @(#)rpcinfo.c 1.22 87/08/12 SMI
+ * From: @(#)rpcinfo.c	2.2 88/08/11 4.0 RPCSRC
+ */
+char rcsid[] = 
+  "$Id: rpcinfo.c,v 1.3 1996/07/15 19:57:23 dholland Exp $";
 
 #include <rpc/rpc.h>
 #include <stdio.h>
@@ -226,8 +227,9 @@ udpping(portnum, argc, argv)
 		}
 		to.tv_sec = 10;
 		to.tv_usec = 0;
-		rpc_stat = clnt_call(client, NULLPROC, xdr_void, (char *)NULL,
-		    xdr_void, (char *)NULL, to);
+		rpc_stat = clnt_call(client, NULLPROC, 
+				     (xdrproc_t) xdr_void, NULL,
+				     (xdrproc_t) xdr_void, NULL, to);
 		if (rpc_stat == RPC_PROGVERSMISMATCH) {
 			clnt_geterr(client, &rpcerr);
 			minvers = rpcerr.re_vers.low;
@@ -249,8 +251,9 @@ udpping(portnum, argc, argv)
 			}
 			to.tv_sec = 10;
 			to.tv_usec = 0;
-			rpc_stat = clnt_call(client, NULLPROC, xdr_void,
-			    (char *)NULL, xdr_void, (char *)NULL, to);
+			rpc_stat = clnt_call(client, NULLPROC, 
+					     (xdrproc_t) xdr_void, NULL, 
+					     (xdrproc_t) xdr_void, NULL, to);
 			if (rpc_stat == RPC_PROGVERSMISMATCH) {
 				clnt_geterr(client, &rpcerr);
 				minvers = rpcerr.re_vers.low;
@@ -286,8 +289,9 @@ udpping(portnum, argc, argv)
 			}
 			to.tv_sec = 10;
 			to.tv_usec = 0;
-			rpc_stat = clnt_call(client, NULLPROC, xdr_void,
-			    (char *)NULL, xdr_void, (char *)NULL, to);
+			rpc_stat = clnt_call(client, NULLPROC, 
+					     (xdrproc_t) xdr_void, NULL, 
+					     (xdrproc_t) xdr_void, NULL, to);
 			if (pstatus(client, prognum, vers) < 0)
 				failure = 1;
 			clnt_destroy(client);
@@ -307,8 +311,9 @@ udpping(portnum, argc, argv)
 		}
 		to.tv_sec = 10;
 		to.tv_usec = 0;
-		rpc_stat = clnt_call(client, 0, xdr_void, (char *)NULL,
-		    xdr_void, (char *)NULL, to);
+		rpc_stat = clnt_call(client, 0, 
+				     (xdrproc_t) xdr_void, NULL,
+				     (xdrproc_t) xdr_void, NULL, to);
 		if (pstatus(client, prognum, vers) < 0)
 			failure = 1;
 	}
@@ -354,8 +359,9 @@ tcpping(portnum, argc, argv)
 		}
 		to.tv_sec = 10;
 		to.tv_usec = 0;
-		rpc_stat = clnt_call(client, NULLPROC, xdr_void, (char *)NULL,
-		    xdr_void, (char *)NULL, to);
+		rpc_stat = clnt_call(client, NULLPROC, 
+				     (xdrproc_t) xdr_void, NULL,
+				     (xdrproc_t) xdr_void, NULL, to);
 		if (rpc_stat == RPC_PROGVERSMISMATCH) {
 			clnt_geterr(client, &rpcerr);
 			minvers = rpcerr.re_vers.low;
@@ -375,8 +381,9 @@ tcpping(portnum, argc, argv)
 			}
 			to.tv_sec = 10;
 			to.tv_usec = 0;
-			rpc_stat = clnt_call(client, NULLPROC, xdr_void,
-			    (char *)NULL, xdr_void, (char *)NULL, to);
+			rpc_stat = clnt_call(client, NULLPROC, 
+					     (xdrproc_t) xdr_void, NULL, 
+					     (xdrproc_t) xdr_void, NULL, to);
 			if (rpc_stat == RPC_PROGVERSMISMATCH) {
 				clnt_geterr(client, &rpcerr);
 				minvers = rpcerr.re_vers.low;
@@ -412,8 +419,9 @@ tcpping(portnum, argc, argv)
 			}
 			to.tv_usec = 0;
 			to.tv_sec = 10;
-			rpc_stat = clnt_call(client, 0, xdr_void, (char *)NULL,
-			    xdr_void, (char *)NULL, to);
+			rpc_stat = clnt_call(client, 0, 
+					     (xdrproc_t) xdr_void, NULL,
+					     (xdrproc_t) xdr_void, NULL, to);
 			if (pstatus(client, prognum, vers) < 0)
 				failure = 1;
 			clnt_destroy(client);
@@ -433,8 +441,9 @@ tcpping(portnum, argc, argv)
 		}
 		to.tv_usec = 0;
 		to.tv_sec = 10;
-		rpc_stat = clnt_call(client, 0, xdr_void, (char *)NULL,
-		    xdr_void, (char *)NULL, to);
+		rpc_stat = clnt_call(client, 0, 
+				     (xdrproc_t) xdr_void, NULL,
+				     (xdrproc_t) xdr_void, NULL, to);
 		if (pstatus(client, prognum, vers) < 0)
 			failure = 1;
 	}
@@ -512,8 +521,11 @@ pmapdump(argc, argv)
 		clnt_pcreateerror("rpcinfo: can't contact portmapper");
 		exit(1);
 	}
-	if (clnt_call(client, PMAPPROC_DUMP, xdr_void, NULL,
-	    xdr_pmaplist, &head, minutetimeout) != RPC_SUCCESS) {
+	if (clnt_call(client, PMAPPROC_DUMP, 
+		      (xdrproc_t) xdr_void, NULL,
+		      (xdrproc_t) xdr_pmaplist, 
+		      &head, minutetimeout) != RPC_SUCCESS) 
+	{
 		fprintf(stderr, "rpcinfo: can't contact portmapper: ");
 		clnt_perror(client, "rpcinfo");
 		exit(1);
@@ -577,8 +589,9 @@ brdcst(argc, argv)
 	}
 	prognum = getprognum(argv[0]);
 	vers = getvers(argv[1]);
-	rpc_stat = clnt_broadcast(prognum, vers, NULLPROC, xdr_void,
-	    (char *)NULL, xdr_void, (char *)NULL, reply_proc);
+	rpc_stat = clnt_broadcast(prognum, vers, NULLPROC, 
+				  (xdrproc_t) xdr_void, NULL, 
+				  (xdrproc_t) xdr_void, NULL, reply_proc);
 	if ((rpc_stat != RPC_SUCCESS) && (rpc_stat != RPC_TIMEDOUT)) {
 		fprintf(stderr, "rpcinfo: broadcast failed: %s\n",
 		    clnt_sperrno(rpc_stat));

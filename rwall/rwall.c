@@ -32,16 +32,15 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1988 Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1988 Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)wall.c	5.14 (Berkeley) 3/2/91";*/
-static char rcsid[] = "$Id: rwall.c,v 1.5 1993/12/10 19:24:39 jtc Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)wall.c	5.14 (Berkeley) 3/2/91
+ */
+char rcsid[] = 
+  "$Id: rwall.c,v 1.3 1996/07/21 06:43:18 dholland Exp $";
 
 /*
  * This program is not related to David Wall, whose Stanford Ph.D. thesis
@@ -66,12 +65,10 @@ struct timeval timeout = { 25, 0 };
 int mbufsize;
 char *mbuf;
 
-void makemsg ();
+static void makemsg(const char *);
 
 int
-main(argc, argv)
-	int argc;
-	char **argv;
+main(int argc, char *argv[])
 {
 	char *wallhost, res;
 	CLIENT *cl;
@@ -100,7 +97,10 @@ main(argc, argv)
 		exit(1);
 	}
 
-	if (clnt_call(cl, WALLPROC_WALL, xdr_wrapstring, &mbuf, xdr_void, &res, timeout) != RPC_SUCCESS) {
+	if (clnt_call(cl, WALLPROC_WALL, 
+		      (xdrproc_t) xdr_wrapstring, &mbuf, 
+		      (xdrproc_t) xdr_void, &res, timeout) != RPC_SUCCESS) 
+	{
 		/*
 		 * An error occurred while calling the server. 
 		 * Print error message and die.
@@ -113,8 +113,7 @@ main(argc, argv)
 }
 
 void
-makemsg(fname)
-	char *fname;
+makemsg(const char *fname)
 {
 	struct tm *lt;
 	struct passwd *pw;

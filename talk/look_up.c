@@ -31,23 +31,28 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)look_up.c	5.7 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: look_up.c,v 1.2 1993/08/01 18:07:47 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)look_up.c	5.7 (Berkeley) 3/1/91
+ */
+char lu_rcsid[] = 
+  "$Id: look_up.c,v 1.3 1996/07/20 20:59:41 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <protocols/talkd.h>
+#include <unistd.h>
 #include <errno.h>
 #include "talk_ctl.h"
 #include "talk.h"
 
+static int look_for_invite(CTL_RESPONSE *rp);
+
 /*
  * See if the local daemon has an invitation for us.
  */
-check_local()
+int
+check_local(void)
 {
 	CTL_RESPONSE response;
 	register CTL_RESPONSE *rp = &response;
@@ -62,7 +67,7 @@ check_local()
 #endif
 	/* must be initiating a talk */
 	if (!look_for_invite(rp))
-		return (0);
+		return 0;
 	/*
 	 * There was an invitation waiting for us, 
 	 * so connect with the other (hopefully waiting) party 
@@ -74,7 +79,7 @@ check_local()
 		errno = 0;
 		if (connect(sockt,
 		    (struct sockaddr *)&rp->addr, sizeof (rp->addr)) != -1)
-			return (1);
+			return 1;
 	} while (errno == EINTR);
 	if (errno == ECONNREFUSED) {
 		/*
@@ -86,19 +91,20 @@ check_local()
 		ctl_transact(his_machine_addr, msg, DELETE, rp);
 		close(sockt);
 		open_sockt();
-		return (0);
+		return 0;
 	}
 	p_error("Unable to connect with initiator");
 	/*NOTREACHED*/
+	return 0;
 }
 
 /*
  * Look for an invitation on 'machine'
  */
-look_for_invite(rp)
-	CTL_RESPONSE *rp;
+static int
+look_for_invite(CTL_RESPONSE *rp)
 {
-	struct in_addr machine_addr;
+/*	struct in_addr machine_addr; */
 
 	current_state = "Checking for invitation on caller's machine";
 	ctl_transact(his_machine_addr, msg, LOOK_UP, rp);

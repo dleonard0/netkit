@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)ring.c	5.2 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: ring.c,v 1.2 1993/08/01 18:07:22 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)ring.c	5.2 (Berkeley) 3/1/91
+ */
+char ring_rcsid[] =
+  "$Id: ring.c,v 1.3 1996/07/20 21:01:24 dholland Exp $";
 
 /*
  * This defines a structure for a ring buffer.
@@ -47,21 +48,23 @@ static char rcsid[] = "$Id: ring.c,v 1.2 1993/08/01 18:07:22 mycroft Exp $";
  *
  */
 
-#include	<stdio.h>
-#include	<errno.h>
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
 
 #ifdef	size_t
 #undef	size_t
 #endif
 
-#include	<sys/types.h>
+#include <sys/types.h>
 #ifndef	FILIO_H
-#include	<sys/ioctl.h>
+#include <sys/ioctl.h>
 #endif
-#include	<sys/socket.h>
+#include <sys/socket.h>
 
-#include	"ring.h"
-#include	"general.h"
+#include "ring.h"
+#include "general.h"
+#include "proto.h"
 
 /* Internal macros */
 
@@ -99,13 +102,10 @@ static u_long ring_clock = 0;
 
 
 /* Buffer state transition routines */
-
-    ring_init(ring, buffer, count)
-Ring *ring;
-    unsigned char *buffer;
-    int count;
+int
+ring_init(Ring *ring, unsigned char *buffer, int count)
 {
-    memset((char *)ring, 0, sizeof *ring);
+    memset(ring, 0, sizeof *ring);
 
     ring->size = count;
 
@@ -137,9 +137,8 @@ ring_mark(ring)
  * Is the ring pointing to the mark?
  */
 
-    int
-ring_at_mark(ring)
-    Ring *ring;
+int
+ring_at_mark(Ring *ring)
 {
     if (ring->mark == ring->consume) {
 	return 1;

@@ -28,9 +28,11 @@
  * Mountain View, California  94043
  */
 
-#ifndef lint
- static char sccsid[] = "@(#)rpc_svcout.c 1.29 89/03/30 (C) 1987 SMI";
-#endif
+/*
+ * From: @(#)rpc_svcout.c 1.29 89/03/30 (C) 1987 SMI
+ */
+char svcout_rcsid[] =
+  "$Id: rpc_svcout.c,v 1.2 1996/07/15 19:31:27 dholland Exp $";
 
 /*
  * rpc_svcout.c, Server-skeleton outputter for the RPC protocol compiler
@@ -39,6 +41,7 @@
 #include <string.h>
 #include "rpc_parse.h"
 #include "rpc_util.h"
+#include "proto.h"
 
 static char RQSTP[] = "rqstp";
 static char TRANSP[] = "transp";
@@ -48,12 +51,23 @@ static char ROUTINE[] = "local";
 
 char _errbuf[256];	/* For all messages */
 
-void internal_proctype();
+static void internal_proctype(proc_list *plist);
+static void p_xdrfunc(char *rname, char *typename);
+static void write_real_program(definition *def);
+static void write_program(definition *def, char *storage);
+static void printerr(char *err, char *transp);
+static void printif(char *proc, char *transp, char *prefix, char *arg);
+static void write_inetmost(char *infile);
+static void print_return(char *space);
+static void print_pmapunset(char *space);
+static void print_err_message(char *space);
+static void write_timeout_func(void);
+static void write_pm_most(char *infile, int netflag);
+static void write_rpc_svc_fg(char *infile, char *sp);
+static void open_log_file(char *infile, char *sp);
 
-static
-p_xdrfunc( rname, typename )
-char* rname;
-char* typename;
+static void
+p_xdrfunc(char *rname, char *typename)
 {
   if( Cflag )
     f_print(fout, "\t\txdr_%s = (xdrproc_t) xdr_%s;\n", rname, 
@@ -63,8 +77,7 @@ char* typename;
 }    
 
 void
-internal_proctype(plist)
-	proc_list *plist;
+internal_proctype(proc_list *plist)
 {
 	f_print(fout, "static ");
 	ptype( plist->res_prefix, plist->res_type, 1 );
@@ -76,10 +89,7 @@ internal_proctype(plist)
  * write most of the service, that is, everything but the registrations. 
  */
 void
-write_most(infile, netflag, nomain)
-	char *infile;		/* our name */
-	int netflag;
-        int nomain;
+write_most(char *infile /* our name */, int netflag, int nomain)
 {
 	if (inetdflag || pmflag) {
 	        char* var_type;
@@ -147,8 +157,7 @@ write_most(infile, netflag, nomain)
  * write a registration for the given transport 
  */
 void
-write_netid_register(transp)
-	char *transp;
+write_netid_register(char *transp)
 {
 	list *l;
 	definition *def;
@@ -166,7 +175,7 @@ write_netid_register(transp)
 	f_print(fout, "%s\t\texit(1);\n", sp);
 	f_print(fout, "%s\t}\n", sp);
 	f_print(fout, "%s\t%s = svc_tli_create(RPC_ANYFD, nconf, 0, 0, 0);\n",
-			sp, TRANSP, transp);
+		sp, TRANSP /*, transp*/  /* ?!?... */ );
 	f_print(fout, "%s\tif (%s == NULL) {\n", sp, TRANSP);
 	(void) sprintf(_errbuf, "cannot create %s service.", transp);
 	print_err_message(tmpbuf);
@@ -201,8 +210,7 @@ write_netid_register(transp)
  * write a registration for the given transport for TLI
  */
 void
-write_nettype_register(transp)
-	char *transp;
+write_nettype_register(char *transp)
 {
 	list *l;
 	definition *def;
@@ -232,7 +240,7 @@ write_nettype_register(transp)
  * write the rest of the service 
  */
 void
-write_rest()
+write_rest(void)
 {
 	f_print(fout, "\n");
 	if (inetdflag) {
@@ -259,8 +267,7 @@ write_rest()
 }
 
 void
-write_programs(storage)
-	char *storage;
+write_programs(char *storage)
 {
 	list *l;
 	definition *def;
@@ -288,9 +295,8 @@ write_programs(storage)
    which calls server's defintion of actual function (e.g. printmsg_1(...)).
    Unpacks single user argument of printmsg_1 to call-by-value format
    expected by printmsg_1. */
-static
-write_real_program(def)
-	definition *def;
+static void
+write_real_program(definition *def)
 {
 	version_list *vp;
 	proc_list *proc;
@@ -346,10 +352,8 @@ write_real_program(def)
 	}
 }
 
-static 
-write_program(def, storage)
-	definition *def;
-	char *storage;
+static void
+write_program(definition *def, char *storage)
 {
 	version_list *vp;
 	proc_list *proc;
@@ -493,27 +497,21 @@ write_program(def, storage)
 	}
 }
 
-static
-printerr(err, transp)
-	char *err;
-	char *transp;
+static void
+printerr(char *err, char *transp)
 {
 	f_print(fout, "\t\tsvcerr_%s(%s);\n", err, transp);
 }
 
-static
-printif(proc, transp, prefix, arg)
-	char *proc;
-	char *transp;
-	char *prefix;
-	char *arg;
+static void
+printif(char *proc, char *transp, char *prefix, char *arg)
 {
 	f_print(fout, "\tif (!svc_%s(%s, xdr_%s, %s%s)) {\n",
 		proc, transp, arg, prefix, arg);
 }
 
-nullproc(proc)
-	proc_list *proc;
+int
+nullproc(proc_list *proc)
 {
 	for (; proc != NULL; proc = proc->next) {
 		if (streq(proc->proc_num, "0")) {
@@ -523,9 +521,8 @@ nullproc(proc)
 	return (0);
 }
 
-static
-write_inetmost(infile)
-	char *infile;
+static void
+write_inetmost(char *infile)
 {
 	f_print(fout, "\tregister SVCXPRT *%s;\n", TRANSP);
 	f_print(fout, "\tint sock;\n");
@@ -552,9 +549,8 @@ write_inetmost(infile)
 	f_print(fout, "\t}\n");
 }
 
-static
-print_return(space)
-	char *space;
+static void
+print_return(char *space)
 {
 	if (exitnow)
 		f_print(fout, "%sexit(0);\n", space);
@@ -565,9 +561,8 @@ print_return(space)
 	}
 }
 
-static
-print_pmapunset(space)
-	char *space;
+static void
+print_pmapunset(char *space)
 {
 	list *l;
 	definition *def;
@@ -585,9 +580,8 @@ print_pmapunset(space)
 	}
 }
 
-static
-print_err_message(space)
-	char *space;
+static void
+print_err_message(char *space)
 {
 	if (logflag)
 		f_print(fout, "%ssyslog(LOG_ERR, \"%s\");\n", space, _errbuf);
@@ -600,9 +594,8 @@ print_err_message(space)
 /*
  * Write the server auxiliary function ( _msgout, timeout)
  */
-void
-write_svc_aux( nomain )
-     int nomain;
+void 
+write_svc_aux(int nomain)
 {
 	if (!logflag)
 		write_msg_out();
@@ -614,7 +607,8 @@ write_svc_aux( nomain )
  * Write the _msgout function
  */
 
-write_msg_out()
+void
+write_msg_out(void)
 {
 	f_print(fout, "\n");
 	f_print(fout, "static\n");
@@ -640,8 +634,8 @@ write_msg_out()
 /*
  * Write the timeout function
  */
-static
-write_timeout_func()
+static void
+write_timeout_func(void)
 {
 	if (!timerflag)
 		return;
@@ -695,10 +689,8 @@ write_timeout_func()
 /*
  * Write the most of port monitor support
  */
-static
-write_pm_most(infile, netflag)
-	char *infile;
-	int netflag;
+static void
+write_pm_most(char *infile, int netflag)
 {
 	list *l;
 	definition *def;
@@ -782,10 +774,8 @@ write_pm_most(infile, netflag)
 /*
  * Support for backgrounding the server if self started.
  */
-static
-write_rpc_svc_fg(infile, sp)
-	char *infile;
-	char *sp;
+static void
+write_rpc_svc_fg(char *infile, char *sp)
 {
 	f_print(fout, "#ifndef RPC_SVC_FG\n");
 	f_print(fout, "%sint size;\n", sp);
@@ -833,10 +823,8 @@ write_rpc_svc_fg(infile, sp)
 		open_log_file(infile, sp);
 }
 
-static
-open_log_file(infile, sp)
-	char *infile;
-	char *sp;
+static void
+open_log_file(char *infile, char *sp)
 {
 	char *s;
 
@@ -855,8 +843,7 @@ open_log_file(infile, sp)
  * write a registration for the given transport for Inetd
  */
 void
-write_inetd_register(transp)
-	char *transp;
+write_inetd_register(char *transp)
 {
 	list *l;
 	definition *def;

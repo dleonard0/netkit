@@ -1,20 +1,28 @@
-ToDo:
-- Remove logwtmp.c from rlogind and telnetd, if they are fixed in the
-  linux shared C library.
-  Maybe leave these versions together with the programs and add stuff like
-  recording the IP address.
-- Install all programs like in.ftpd in /usr/libexec/ ?
-- You could change talk to use ncurses instead of bsd curses.
-- Remove rdist and portmap.old source directory.
-- Look at Wietses logdaemon source code and do the same changes to our code.
-  (This is easy work. Anybody can to that...)
-- Don't put all things in one directory, but make a better dir structure.
-  Suggested by Daniel Quinland:
-  ./daemons     Standard networking daemons \
-        /inetd  inetd-based daemons          -> I think these all are
-        /rpc    daemons that use Sun RPC    /   placed in /usr/sbin
-  ./clients     Standard networking clients -> some in /bin & most in /usr/bin
-  ./etc         Et cetera files       -> All of these go in /etc, I think.
+New in 0.07: (16-Jul-1996)
+- removed portmap; use Wietse Venema's portmap.
+- removed rdist; use rdist 6.x distributed separately.
+- removed sliplogin; use the one distributed separately and read the
+  security bulletins.
+- deprecated ftpd; use wu_ftpd or ftpd-diku or the 4.4BSD ftpd or
+  something, but, please, not this one.
+- deprecated routed; I don't see how it could ever have worked, frankly.
+- deprecated lpr; please use LPRng or PLP. 
+- integrated a collection of patches that had been lurking on the net,
+  including the 256-ptys support for telnetd and passive mode ftp.
+- major security fixes, including to fingerd, lpr, rlogin, rsh, talkd, 
+  and telnetd. Do *not* use the sliplogin from earlier versions of this
+  package, either.
+- talkd is flashproof.
+- several of the daemons support better logging.
+- much of the code builds without libbsd.a or bsd includes.
+- massive code cleanup. Almost everything compiles clean with gcc -Wall 
+  now. rusers and rusersd do not; patches to rpcgen to fix this would be
+  appreciated if anyone feels like it.
+- Kerberos support has been removed. It didn't work anyway, and proper
+  Kerberos tools come with Kerberos.
+- added experimental support for PAM (Pluggable Authentication Modules)
+  which may or may not actually work...
+- new maintainer:  David A. Holland, dholland@hcs.harvard.edu
 
 New in 0.06:
 - rsh was exiting before all of the output from the remote command was

@@ -31,10 +31,12 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)inet.c	5.8 (Berkeley) 6/1/90";*/
-static char rcsid[] = "$Id: inet.c,v 1.4 1993/08/01 18:24:29 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)inet.c	5.8 (Berkeley) 6/1/90
+ */
+char inet_rcsid[] = 
+  "$Id: inet.c,v 1.2 1996/07/15 17:45:59 dholland Exp $";
+
 
 /*
  * Temporarily, copy these routines from the kernel,
@@ -48,8 +50,7 @@ extern struct interface *ifnet;
  * Formulate an Internet address from network + host.
  */
 struct in_addr
-inet_makeaddr(net, host)
-	u_long net, host;
+inet_makeaddr(u_long net, u_long host)
 {
 	register struct interface *ifp;
 	register u_long mask;
@@ -74,8 +75,8 @@ inet_makeaddr(net, host)
 /*
  * Return the network number from an internet address.
  */
-inet_netof(in)
-	struct in_addr in;
+int
+inet_netof(struct in_addr in)
 {
 	register u_long i = ntohl(in.s_addr);
 	register u_long net;
@@ -101,8 +102,8 @@ inet_netof(in)
 /*
  * Return the host portion of an internet address.
  */
-inet_lnaof(in)
-	struct in_addr in;
+int
+inet_lnaof(struct in_addr in)
 {
 	register u_long i = ntohl(in.s_addr);
 	register u_long net, host;
@@ -134,8 +135,8 @@ inet_lnaof(in)
  * for an Internet host, RTF_SUBNET for a subnet,
  * 0 for a network.
  */
-inet_rtflags(sin)
-	struct sockaddr_in *sin;
+int
+inet_rtflags(struct sockaddr_in *sin)
 {
 	register u_long i = ntohl(sin->sin_addr.s_addr);
 	register u_long net, host;
@@ -176,9 +177,8 @@ inet_rtflags(sin)
  * Send it only if dst is on the same logical network if not "internal",
  * otherwise only if the route is the "internal" route for the logical net.
  */
-inet_sendroute(rt, dst)
-	struct rt_entry *rt;
-	struct sockaddr_in *dst;
+int
+inet_sendroute(struct rt_entry *rt, struct sockaddr_in *dst)
 {
 	register u_long r =
 	    ntohl(((struct sockaddr_in *)&rt->rt_dst)->sin_addr.s_addr);

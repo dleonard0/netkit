@@ -38,9 +38,8 @@
 #include <unistd.h>
 #include <utmp.h>
 
-
-logwtmp(line, name, host)
-	char *line, *name, *host;
+void
+logwtmp(char *line, char *name, char *host)
 {
 	struct utmp ut;
 	struct stat buf;

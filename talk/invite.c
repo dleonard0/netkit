@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)invite.c	5.8 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: invite.c,v 1.1 1994/07/16 09:52:42 florian Exp florian $";
-#endif /* not lint */
+/*
+ * From: @(#)invite.c	5.8 (Berkeley) 3/1/91
+ */
+char inv_rcsid[] = 
+  "$Id: invite.c,v 1.5 1996/07/20 20:59:41 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -44,8 +45,11 @@ static char rcsid[] = "$Id: invite.c,v 1.1 1994/07/16 09:52:42 florian Exp flori
 #include <protocols/talkd.h>
 #include <errno.h>
 #include <setjmp.h>
+#include <unistd.h>
 #include "talk_ctl.h"
 #include "talk.h"
+
+static void announce_invite(void);
 
 /*
  * There wasn't an invitation waiting, so send a request containing
@@ -60,12 +64,14 @@ static char rcsid[] = "$Id: invite.c,v 1.1 1994/07/16 09:52:42 florian Exp flori
  * invitations.
  */
 int	local_id, remote_id;
-void	re_invite();
-jmp_buf invitebuf;
+void	re_invite(int);
+sigjmp_buf invitebuf;
 
-invite_remote()
+void
+invite_remote(void)
 {
-	volatile int nfd, read_mask, template, new_sockt;
+	/*volatile int nfd, read_mask, template;*/
+	volatile new_sockt;
 	struct itimerval itimer;
 	CTL_RESPONSE response;
 
@@ -92,7 +98,7 @@ invite_remote()
 	setitimer(ITIMER_REAL, &itimer, (struct itimerval *)0);
 	message("Waiting for your party to respond");
 	signal(SIGALRM, re_invite);
-	(void) setjmp(invitebuf);
+	(void) sigsetjmp(invitebuf, 1);
 	while ((new_sockt = accept(sockt, 0, 0)) < 0) {
 		if (errno == EINTR)
 			continue;
@@ -119,7 +125,7 @@ invite_remote()
  * Routine called on interupt to re-invite the callee
  */
 void
-re_invite()
+re_invite(int ignore)
 {
 	signal(SIGALRM, re_invite);
 
@@ -128,7 +134,7 @@ re_invite()
 	/* force a re-announce */
 	msg.id_num = htonl(remote_id + 1);
 	announce_invite();
-	longjmp(invitebuf, 1);
+	siglongjmp(invitebuf, 1);
 }
 
 static	char *answers[] = {
@@ -147,7 +153,8 @@ static	char *answers[] = {
 /*
  * Transmit the invitation and process the response
  */
-announce_invite()
+static void
+announce_invite(void)
 {
 	CTL_RESPONSE response;
 
@@ -167,7 +174,8 @@ announce_invite()
 /*
  * Tell the daemon to remove your invitation
  */
-send_delete()
+void
+send_delete(void)
 {
 
 	msg.type = DELETE;

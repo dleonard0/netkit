@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)glob.c	5.9 (Berkeley) 2/25/91";*/
-static char rcsid[] = "$Id: glob.c,v 1.1 1994/05/23 09:03:42 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)glob.c	5.9 (Berkeley) 2/25/91
+ */
+char glob_rcsid[] = 
+  "$Id: glob.c,v 1.4 1996/07/20 20:43:13 dholland Exp $";
 
 /*
  * C-shell glob for random programs.
@@ -50,10 +51,12 @@ static char rcsid[] = "$Id: glob.c,v 1.1 1994/05/23 09:03:42 rzsfl Exp rzsfl $";
 #include <stdlib.h>
 #include <string.h>
 
+#include "ftp_var.h"  /* for protos only */
+
 #define	QUOTE 0200
 #define	TRIM 0177
 #define	eq(a,b)		(strcmp(a, b)==0)
-#define	GAVSIZ		(NCARGS/6)
+#define	GAVSIZ		(ARG_MAX/6)
 #define	isdir(d)	((d.st_mode & S_IFMT) == S_IFDIR)
 
 static	char **gargv;		/* Pointer to the (stack) arglist */
@@ -71,6 +74,11 @@ char	**copyblk();
 static void acollect(), addpath(), collect(), expand(), Gcat();
 static void ginit(), matchdir(), rscan(), sort();
 static int amatch(), execbrc(), match();
+
+static int gethdir(char *home);
+static int letter(char c);
+static int digit(char c);
+static int any(int c, char *s);
 
 static	int globcnt;
 
@@ -113,7 +121,7 @@ ginit(agargv)
 {
 
 	agargv[0] = 0; gargv = agargv; sortbas = agargv; gargc = 0;
-	gnleft = NCARGS - 4;
+	gnleft = ARG_MAX - 4;
 }
 
 static void
@@ -227,7 +235,7 @@ matchdir(pattern)
 			return;
 		goto patherr2;
 	}
-	if (fstat(dirp->dd_fd, &stb) < 0)
+	if (fstat(dirfd(dirp), &stb) < 0)
 		goto patherr1;
 	if (!isdir(stb)) {
 		errno = ENOTDIR;
@@ -369,7 +377,7 @@ amatch(s, p)
 		case '[':
 			ok = 0;
 			lc = 077777;
-			while (cc = *p++) {
+			while ((cc = *p++) != 0) {
 				if (cc == ']') {
 					if (ok)
 						break;
@@ -438,7 +446,7 @@ slash:
 	}
 }
 
-static
+static int
 Gmatch(s, p)
 	register char *s, *p;
 {
@@ -453,7 +461,7 @@ Gmatch(s, p)
 		case '[':
 			ok = 0;
 			lc = 077777;
-			while (cc = *p++) {
+			while ((cc = *p++) != 0) {
 				if (cc == ']') {
 					if (ok)
 						break;
@@ -534,13 +542,13 @@ rscan(t, f)
 {
 	register char *p, c;
 
-	while (p = *t++) {
+	while ((p = *t++) != 0) {
 		if (f == tglob)
 			if (*p == '~')
 				gflag |= 2;
 			else if (eq(p, "{") || eq(p, "{}"))
 				continue;
-		while (c = *p++)
+		while ((c = *p++) != 0)
 			(*f)(c);
 	}
 }
@@ -557,7 +565,7 @@ scan(t, f)
 			*p++ = (*f)(c);
 } */
 
-static
+static int
 tglob(c)
 	register char c;
 {
@@ -575,24 +583,22 @@ trim(c)
 	return (c & TRIM);
 } */
 
-
-letter(c)
-	register char c;
+static int
+letter(char c)
 {
 
-	return (c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_');
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 }
 
-digit(c)
-	register char c;
+static int
+digit(char c)
 {
 
 	return (c >= '0' && c <= '9');
 }
 
-any(c, s)
-	register int c;
-	register char *s;
+static int
+any(int c, char *s)
 {
 
 	while (*s)
@@ -600,6 +606,8 @@ any(c, s)
 			return(1);
 	return(0);
 }
+
+int
 blklen(av)
 	register char **av;
 {
@@ -617,13 +625,13 @@ blkcpy(oav, bv)
 {
 	register char **av = oav;
 
-	while (*av++ = *bv++)
+	while ((*av++ = *bv++) != 0)
 		continue;
 	return (oav);
 }
 
-blkfree(av0)
-	char **av0;
+void
+blkfree(char **av0)
 {
 	register char **av = av0;
 
@@ -673,8 +681,8 @@ strend(cp)
  * user whose home directory is sought is currently.
  * We write the home directory of the user back there.
  */
-gethdir(home)
-	char *home;
+static int
+gethdir(char *home)
 {
 	register struct passwd *pp = getpwnam(home);
 

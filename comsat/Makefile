@@ -1,4 +1,10 @@
+all: comsat
+
+include ../MCONFIG
+include ../MRULES
+
 comsat: comsat.o
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 install: comsat
 	install -s -m744 comsat /usr/sbin/in.comsat

@@ -31,29 +31,37 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1989 Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1989 Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)telnetd.c	5.48 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: telnetd.c,v 1.1 1994/05/23 09:11:55 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)telnetd.c	5.48 (Berkeley) 3/1/91
+ */
+char telnetd_rcsid[] = 
+  "$Id: telnetd.c,v 1.3 1996/07/16 08:58:22 dholland Exp $";
 
+#include <netdb.h>
+#include <termcap.h>
+#include <sys/utsname.h>
 #include "telnetd.h"
 #include "pathnames.h"
-#include <netdb.h>
-#include <sys/utsname.h>
 
 #if	defined(AUTHENTICATE)
 #include <libtelnet/auth.h>
+#include <libtelnet/auth-proto.h>
+#include <libtelnet/misc-proto.h>
 int	auth_level = 0;
 #endif
 #if	defined(SecurID)
 int	require_SecurID = 0;
 #endif
+
+void startslave(const char *host, int autologin, char *autoname);
+int getent(char *cp, char *name);
+
+static void doit(struct sockaddr_in *who);
+static int terminaltypeok(char *s);
 
 /*
  * I/O data buffers,
@@ -73,10 +81,10 @@ int debug = 0;
 int keepalive = 1;
 char *progname;
 
-extern void usage P((void));
+extern void usage(void);
 
-main(argc, argv)
-	char *argv[];
+int
+main(int argc, char *argv[])
 {
 	struct sockaddr_in from;
 	int on = 1, fromlen;
@@ -263,7 +271,7 @@ main(argc, argv)
 #endif	/* AUTHENTICATE */
 
 		default:
-			fprintf(stderr, "telnetd: %s: unknown option\n", ch);
+			fprintf(stderr, "telnetd: %c: unknown option\n", ch);
 			/* FALLTHROUGH */
 		case '?':
 			usage();
@@ -283,7 +291,7 @@ main(argc, argv)
 		usage();
 		/* NOT REACHED */
 	    } else if (argc == 1) {
-		    if (sp = getservbyname(*argv, "tcp")) {
+		    if ((sp = getservbyname(*argv, "tcp"))!=NULL) {
 			sin.sin_port = sp->s_port;
 		    } else {
 			sin.sin_port = atoi(*argv);
@@ -365,10 +373,11 @@ main(argc, argv)
 	net = 0;
 	doit(&from);
 	/* NOTREACHED */
+	return 0;
 }  /* end of main */
 
-	void
-usage()
+void
+usage(void)
 {
 	fprintf(stderr, "Usage: telnetd");
 #ifdef	AUTHENTICATE
@@ -555,9 +564,8 @@ _gettermname()
 	ttloop();
 }
 
-    int
-terminaltypeok(s)
-    char *s;
+static int
+terminaltypeok(char *s)
 {
     char buf[2048];
 
@@ -592,11 +600,11 @@ extern void telnet P((int, int, char *));
 /*
  * Get a pty, scan input lines.
  */
-doit(who)
-	struct sockaddr_in *who;
+static void
+doit(struct sockaddr_in *who)
 {
 	const char *host, *inet_ntoa();
-	int t;
+/*	int t; */
 	struct hostent *hp;
 	int level;
 	char user_name[256];
@@ -640,7 +648,7 @@ doit(who)
 	host = remote_host_name;
 
 	{
-		struct utsname utsname;
+/*		struct utsname utsname; */
 		struct hostent *hp;
 		(void) gethostname(host_name, sizeof (host_name));
 		if ((hp = gethostbyname(host_name)))

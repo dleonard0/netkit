@@ -31,30 +31,29 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)domacro.c	1.8 (Berkeley) 9/28/90";*/
-static char rcsid[] = "$Id: domacro.c,v 1.2 1993/08/01 18:15:29 mycroft Exp $";
-#endif /* not lint */
+/*
+ * from: @(#)domacro.c	1.8 (Berkeley) 9/28/90
+ */
+char domacro_rcsid[] = 
+  "$Id: domacro.c,v 1.3 1996/07/20 20:43:13 dholland Exp $";
+
+#include <errno.h>
+#include <ctype.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "ftp_var.h"
 
-#include <signal.h>
-#include <stdio.h>
-#include <errno.h>
-#include <ctype.h>
-#include <sys/ttychars.h>
 
-domacro(argc, argv)
-	int argc;
-	char *argv[];
+void
+domacro(int argc, char *argv[])
 {
 	register int i, j;
 	register char *cp1, *cp2;
 	int count = 2, loopflg = 0;
 	char line2[200];
-	extern char **glob(), *globerr;
+	extern char **glob();
 	struct cmd *getcmd(), *c;
-	extern struct cmd cmdtab[];
 
 	if (argc < 2 && !another(&argc, &argv, "macro name")) {
 		printf("Usage: %s macro_name.\n", argv[0]);

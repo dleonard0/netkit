@@ -31,23 +31,21 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1983 Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1983 Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)tftpd.c	5.13 (Berkeley) 2/26/91";*/
-static char rcsid[] = "$Id: tftpd.c,v 1.3 1993/08/01 18:28:53 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)tftpd.c	5.13 (Berkeley) 2/26/91
+ */
+char rcsid[] = 
+  "$Id: tftpd.c,v 1.5 1996/07/20 21:05:48 dholland Exp $";
 
 /*
  * Trivial file transfer protocol server.
  *
  * This version includes many modifications by Jim Guyton <guyton@rand-unix>
  */
-
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
@@ -66,8 +64,21 @@ static char rcsid[] = "$Id: tftpd.c,v 1.3 1993/08/01 18:28:53 mycroft Exp $";
 #include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #define	TIMEOUT		5
+
+int synchnet(int);
+int readit(FILE *file, struct tftphdr **dpp, int convert);
+int writeit(FILE *file, struct tftphdr **dpp, int ct, int convert);
+void read_ahead(FILE *file, int convert /* if true, convert to ascii */);
+void write_behind(FILE *file, int convert);
+
+struct formats;
+static void tftp(struct tftphdr *tp, int size);
+static void nak(int error);
+static void sendfile(struct formats *pf);
+static void recvfile(struct formats *pf);
 
 extern	int errno;
 struct	sockaddr_in s_in = { AF_INET };
@@ -84,8 +95,8 @@ int	fromlen;
 #define MAXARG	4
 char	*dirs[MAXARG+1];
 
-main(ac, av)
-	char **av;
+int
+main(int ac, char **av)
 {
 	register struct tftphdr *tp;
 	register int n = 0;
@@ -181,13 +192,12 @@ main(ac, av)
 }
 
 int	validate_access();
-int	sendfile(), recvfile();
 
 struct formats {
 	char	*f_mode;
 	int	(*f_validate)();
-	int	(*f_send)();
-	int	(*f_recv)();
+	void	(*f_send)(struct formats *);
+	void	(*f_recv)(struct formats *);
 	int	f_convert;
 } formats[] = {
 	{ "netascii",	validate_access,	sendfile,	recvfile, 1 },
@@ -201,14 +211,13 @@ struct formats {
 /*
  * Handle initial connection protocol.
  */
-tftp(tp, size)
-	struct tftphdr *tp;
-	int size;
+static void
+tftp(struct tftphdr *tp, int size)
 {
 	register char *cp;
 	int first = 1, ecode;
 	register struct formats *pf;
-	char *filename, *mode;
+	char *filename, *mode = NULL;
 
 	filename = cp = tp->th_stuff;
 again:
@@ -262,27 +271,31 @@ FILE *file;
  * Note also, full path name must be
  * given as we have no login directory.
  */
-validate_access(filename, mode)
-	char *filename;
-	int mode;
+int
+validate_access(char *filename, int mode)
 {
 	struct stat stbuf;
 	int	fd;
 	char *cp, **dirp;
 
-	if (*filename != '/')
-		return (EACCESS);
+	syslog(LOG_ERR, "tftpd: trying to get file: %s\n", filename);
+
+	if (*filename != '/') {
+		syslog(LOG_ERR, "tftpd: serving file from %s\n", dirs[0]);
+		chdir(dirs[0]);
+	} else {
+		for (dirp = dirs; *dirp; dirp++)
+			if (strncmp(filename, *dirp, strlen(*dirp)) == 0)
+				break;
+		if (*dirp==0 && dirp!=dirs)
+			return (EACCESS);
+	}
 	/*
 	 * prevent tricksters from getting around the directory restrictions
 	 */
 	for (cp = filename + 1; *cp; cp++)
 		if(*cp == '.' && strncmp(cp-1, "/../", 4) == 0)
 			return(EACCESS);
-	for (dirp = dirs; *dirp; dirp++)
-		if (strncmp(filename, *dirp, strlen(*dirp)) == 0)
-			break;
-	if (*dirp==0 && dirp!=dirs)
-		return (EACCESS);
 	if (stat(filename, &stbuf) < 0)
 		return (errno == ENOENT ? ENOTFOUND : EACCESS);
 	if (mode == RRQ) {
@@ -303,7 +316,7 @@ validate_access(filename, mode)
 }
 
 int	timeout;
-jmp_buf	timeoutbuf;
+sigjmp_buf	timeoutbuf;
 
 void
 timer()
@@ -312,18 +325,19 @@ timer()
 	timeout += rexmtval;
 	if (timeout >= maxtimeout)
 		exit(1);
-	longjmp(timeoutbuf, 1);
+	siglongjmp(timeoutbuf, 1);
 }
 
 /*
  * Send the requested file.
  */
-sendfile(pf)
-	struct formats *pf;
+static void
+sendfile(struct formats *pf)
 {
 	struct tftphdr *dp, *r_init();
 	register struct tftphdr *ap;    /* ack packet */
-	register int block = 1, size, n;
+	volatile int block = 1;
+	int size, n;
 
 	signal(SIGALRM, timer);
 	dp = r_init();
@@ -337,7 +351,7 @@ sendfile(pf)
 		dp->th_opcode = htons((u_short)DATA);
 		dp->th_block = htons((u_short)block);
 		timeout = 0;
-		(void) setjmp(timeoutbuf);
+		(void) sigsetjmp(timeoutbuf, 1);
 
 send_data:
 		if (send(peer, dp, size + 4, 0) != size + 4) {
@@ -387,12 +401,13 @@ justquit()
 /*
  * Receive a file.
  */
-recvfile(pf)
-	struct formats *pf;
+static void
+recvfile(struct formats *pf)
 {
 	struct tftphdr *dp, *w_init();
-	register struct tftphdr *ap;    /* ack buffer */
-	register int block = 0, n, size;
+	struct tftphdr *ap;    /* ack buffer */
+	volatile int block = 0;
+	int n, size;
 
 	signal(SIGALRM, timer);
 	dp = w_init();
@@ -402,7 +417,7 @@ recvfile(pf)
 		ap->th_opcode = htons((u_short)ACK);
 		ap->th_block = htons((u_short)block);
 		block++;
-		(void) setjmp(timeoutbuf);
+		(void) sigsetjmp(timeoutbuf, 1);
 send_ack:
 		if (send(peer, ackbuf, 4, 0) != 4) {
 			syslog(LOG_ERR, "tftpd: write: %m\n");
@@ -480,8 +495,8 @@ struct errmsg {
  * standard TFTP codes, or a UNIX errno
  * offset by 100.
  */
-nak(error)
-	int error;
+static void
+nak(int error)
 {
 	register struct tftphdr *tp;
 	int length;

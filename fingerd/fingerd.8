@@ -30,7 +30,7 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)fingerd.8	6.4 (Berkeley) 3/16/91
-.\"	$Id: fingerd.8,v 1.1 1994/06/08 15:12:24 rzsfl Exp rzsfl $
+.\"	$Id: fingerd.8,v 1.3 1996/07/13 23:21:21 dholland Exp $
 .\"
 .Dd March 16, 1991
 .Dt FINGERD 8
@@ -40,22 +40,31 @@
 .Nd remote user information server
 .Sh SYNOPSIS
 .Nm fingerd
-.Op Fl w
+.Op Fl wl
 .Sh DESCRIPTION
 .Nm Fingerd
 is a simple protocol based on
 .%T RFC742
 that provides an interface to the
-Name and Finger programs at several network sites.
+.Dq name
+and
+.Dq finger
+programs at most network sites.
 The program is supposed to return a friendly,
 human-oriented status report on either the system at the moment
-or a particular person in depth. If the
+or a particular person in depth. 
+.Pp
+If the
 .Fl w
 option is given, remote users will get an additional "Welcome to ..." banner
 which also shows some informations (e.g. uptime, operating system name and
 release) about the system the
 .Nm fingerd
 is running on.
+.Pp
+If the
+.Fl l
+option is given, information about requests made is logged.
 .Pp
 There is no required format and the
 protocol consists mostly of specifying a single

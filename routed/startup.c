@@ -31,10 +31,12 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)startup.c	5.19 (Berkeley) 2/28/91";*/
-static char rcsid[] = "$Id: startup.c,v 1.1 1994/05/23 09:08:12 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)startup.c	5.19 (Berkeley) 2/28/91
+ */
+char startup_rcsid[] = 
+  "$Id: startup.c,v 1.3 1996/07/15 17:45:59 dholland Exp $";
+
 
 /*
  * Routing Table Management Daemon
@@ -44,6 +46,7 @@ static char rcsid[] = "$Id: startup.c,v 1.1 1994/05/23 09:08:12 rzsfl Exp rzsfl 
 #include <net/if.h>
 #include <syslog.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include "pathnames.h"
 
 struct	interface *ifnet;
@@ -59,7 +62,8 @@ struct	sockaddr loopaddr;		/* our address on loopback */
  * ARPANET IMP), set the lookforinterfaces flag so we'll
  * come back later and look again.
  */
-ifinit()
+void
+ifinit(void)
 {
 	struct interface ifs, *ifp;
 	int s;
@@ -93,7 +97,7 @@ ifinit()
 	for (cp = buf; cp < cplim;
 			cp += sizeof (ifr->ifr_name) + size(ifr->ifr_addr)) {
 		ifr = (struct ifreq *)cp;
-		bzero((char *)&ifs, sizeof(ifs));
+		memset(&ifs, 0, sizeof(ifs));
 		ifs.int_addr = ifr->ifr_addr;
 		ifreq = *ifr;
                 if (ioctl(s, SIOCGIFFLAGS, (char *)&ifreq) < 0) {
@@ -238,8 +242,8 @@ ifinit()
  * otherwise a route to this (sub)network.
  * INTERNET SPECIFIC.
  */
-addrouteforif(ifp)
-	register struct interface *ifp;
+void
+addrouteforif(struct interface *ifp)
 {
 	struct sockaddr_in net;
 	struct sockaddr *dst;
@@ -301,8 +305,8 @@ addrouteforif(ifp)
  * If a route to this network is being sent to neighbors on other nets,
  * mark this route as subnet so we don't have to propagate it too.
  */
-add_ptopt_localrt(ifp)
-	register struct interface *ifp;
+void
+add_ptopt_localrt(struct interface *ifp)
 {
 	struct rt_entry *rt;
 	struct sockaddr *dst;
@@ -344,7 +348,8 @@ add_ptopt_localrt(ifp)
  *
  * PASSIVE ENTRIES AREN'T NEEDED OR USED ON GATEWAYS RUNNING EGP.
  */
-gwkludge()
+void
+gwkludge(void)
 {
 	struct sockaddr_in dst, gate;
 	FILE *fp;
@@ -363,10 +368,12 @@ gwkludge()
 	bzero((char *)&dst, sizeof (dst));
 	bzero((char *)&gate, sizeof (gate));
 	bzero((char *)&route, sizeof(route));
+
 /* format: {net | host} XX gateway XX metric DD [passive | external]\n */
 #define	readentry(fp) \
 	fscanf((fp), "%s %s gateway %s metric %d %s\n", \
 		type, dname, gname, &metric, qual)
+
 	for (;;) {
 		if ((n = readentry(fp)) == EOF)
 			break;
@@ -425,9 +432,8 @@ gwkludge()
 	fclose(fp);
 }
 
-getnetorhostname(type, name, sin)
-	char *type, *name;
-	struct sockaddr_in *sin;
+int
+getnetorhostname(char *type, char *name, struct sockaddr_in *sin)
 {
 
 	if (strcmp(type, "net") == 0) {
@@ -462,7 +468,7 @@ getnetorhostname(type, name, sin)
 		else {
 			if (hp->h_addrtype != AF_INET)
 				return (0);
-			bcopy(hp->h_addr, &sin->sin_addr, hp->h_length);
+			memcpy(&sin->sin_addr, hp->h_addr, hp->h_length);
 		}
 		sin->sin_family = AF_INET;
 		return (1);
@@ -470,9 +476,8 @@ getnetorhostname(type, name, sin)
 	return (0);
 }
 
-gethostnameornumber(name, sin)
-	char *name;
-	struct sockaddr_in *sin;
+int
+gethostnameornumber(char *name, struct sockaddr_in *sin)
 {
 	struct hostent *hp;
 

@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)ctl.c	5.7 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: ctl.c,v 1.1 1994/07/16 09:38:38 florian Exp florian $";
-#endif /* not lint */
+/* 
+ * From: @(#)ctl.c	5.7 (Berkeley) 3/1/91
+ */
+char ctl_rcsid[] = 
+  "$Id: ctl.c,v 1.4 1996/07/20 20:59:41 dholland Exp $";
 
 /*
  * This file handles haggling with the various talk daemons to
@@ -71,7 +72,8 @@ int	invitation_waiting = 0;
 
 CTL_MSG msg;
 
-open_sockt()
+void
+open_sockt(void)
 {
 	int length;
 
@@ -88,7 +90,8 @@ open_sockt()
 }
 
 /* open the ctl socket */
-open_ctl() 
+void
+open_ctl(void) 
 {
 	int length;
 
@@ -107,13 +110,13 @@ open_ctl()
 }
 
 /* print_addr is a debug print routine */
-print_addr(addr)
-	struct sockaddr_in addr;
+void
+print_addr(struct sockaddr_in addr)
 {
 	int i;
 
 	printf("addr = %x, port = %o, family = %o zero = ",
-		addr.sin_addr, addr.sin_port, addr.sin_family);
+		addr.sin_addr.s_addr, addr.sin_port, addr.sin_family);
 	for (i = 0; i<8;i++)
 	printf("%o ", (int)addr.sin_zero[i]);
 	putchar('\n');

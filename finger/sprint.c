@@ -36,17 +36,23 @@
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)sprint.c	5.8 (Berkeley) 12/4/90";*/
-static char rcsid[] = "$Id: sprint.c,v 1.1 1994/05/23 09:03:29 rzsfl Exp rzsfl $";
+char sprint_rcsid[] = "$Id: sprint.c,v 1.3 1996/07/13 22:27:54 dholland Exp $";
 #endif /* not lint */
 
 #include <sys/types.h>
 #include <sys/time.h>
-#include <tzfile.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <bsd/tzfile.h>
 #include "finger.h"
+
+static void stimeprint(WHERE *w);
+static int psort(const void *a, const void *b);
+static PERSON **sort(void);
 
 extern int entries;
 
+void
 sflag_print()
 {
 	extern time_t now;
@@ -54,9 +60,7 @@ sflag_print()
 	register WHERE *w;
 	register int cnt;
 	register char *p;
-	PERSON **list, **sort();
-	time_t time();
-	char *ctime(), *prphone();
+	PERSON **list;
 
 	list = sort();
 	/*
@@ -121,12 +125,11 @@ office:
 	}
 }
 
-PERSON **
-sort()
+static PERSON **
+sort(void)
 {
 	register PERSON *pn, **lp;
 	PERSON **list;
-	int psort();
 	char *malloc();
 
 	if (!(list = (PERSON **)malloc((u_int)(entries * sizeof(PERSON *))))) {
@@ -139,14 +142,15 @@ sort()
 	return(list);
 }
 
-psort(p, t)
-	PERSON **p, **t;
+static int
+psort(const void *a, const void *b)
 {
+	const PERSON **p = (const PERSON **)a, **t = (const PERSON **)b;
 	return(strcmp((*p)->name, (*t)->name));
 }
 
-stimeprint(w)
-	WHERE *w;
+static void
+stimeprint(WHERE *w)
 {
 	register struct tm *delta;
 

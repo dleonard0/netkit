@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)table.h	5.8 (Berkeley) 6/1/90
- *	$Id: table.h,v 1.1 1994/05/23 09:08:12 rzsfl Exp rzsfl $
+ *	$Id: table.h,v 1.3 1996/07/15 17:45:59 dholland Exp $
  */
 
 /*
@@ -108,3 +108,6 @@ struct	rthash nethash[ROUTEHASHSIZ];
 struct	rthash hosthash[ROUTEHASHSIZ];
 struct	rt_entry *rtlookup();
 struct	rt_entry *rtfind();
+
+void rtadd(struct sockaddr *dst, struct sockaddr *gate, int metric, int state);
+void rtchange(struct rt_entry *rt, struct sockaddr *gate, short metric);

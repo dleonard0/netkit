@@ -1,4 +1,10 @@
+all: slattach
+
+include ../MCONFIG
+include ../MRULES
+
 slattach: slattach.o
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 install: slattach
 	install -s -m744 slattach /usr/sbin/bsdslattach

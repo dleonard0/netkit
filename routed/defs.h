@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)defs.h	5.10 (Berkeley) 2/28/91
- *	$Id: defs.h,v 1.1 1994/05/23 09:08:11 rzsfl Exp rzsfl $
+ *	$Id: defs.h,v 1.3 1996/07/15 17:45:59 dholland Exp $
  */
 
 /*
@@ -88,7 +88,9 @@ char	**argv0;
 struct	servent *sp;
 
 struct	in_addr inet_makeaddr();
-int	inet_addr();
 int	sndmsg();
-int	supply();
+void supply(struct sockaddr *, int flags, struct interface *ifp, int rtstate);
 int	cleanup();
+void timevaladd(struct timeval *t1, struct timeval *t2);
+void timevalsub(struct timeval *t1, struct timeval *t2);
+void bumploglevel(void);

@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)pathnames.h	5.3 (Berkeley) 6/1/90
- *	$Id: pathnames.h,v 1.4 1993/08/01 18:24:35 mycroft Exp $
+ *	$Id: pathnames.h,v 1.1 1996/07/15 16:49:21 dholland Exp $
  */
 
 #include <paths.h>

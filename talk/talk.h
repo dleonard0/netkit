@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)talk.h	5.7 (Berkeley) 3/1/91
- *	$Id: talk.h,v 1.2 1993/08/01 18:07:57 mycroft Exp $
+ *	$Id: talk.h,v 1.2 1996/07/16 03:30:46 dholland Exp $
  */
 
-#include <curses.h>
+#include <ncurses/curses.h>
+#include <protocols/talkd.h>
 
 extern	int sockt;
 extern	int curses_initialized;
@@ -57,3 +58,22 @@ typedef struct xwin {
 extern	xwin_t my_win;
 extern	xwin_t his_win;
 extern	WINDOW *line_win;
+
+void p_error(char *string);
+void quit(void);
+void message(char *msg);
+void get_names(int argc, char *argv[]);
+void get_addrs(char *, char *);
+void init_display(void);
+void open_ctl(void);
+void open_sockt(void);
+void start_msgs(void);
+int check_local(void);
+void invite_remote(void);
+void end_msgs(void);
+void set_edit_chars(void);
+void talk(void);
+void send_delete(void);
+void display(xwin_t *, char *, int);
+struct in_addr;
+void ctl_transact(struct in_addr, CTL_MSG, int, CTL_RESPONSE *);

@@ -36,31 +36,29 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <string.h>
 #include <utmp.h>
 
-
-logwtmp(line, name, host)
-	char *line, *name, *host;
+void
+logwtmp(const char *line, const char *name, const char *host)
 {
 	struct utmp ut;
 	struct stat buf;
 	int fd;
-	time_t time();
-	char *strncpy();
 
 	if ((fd = open(_PATH_WTMP, O_WRONLY|O_APPEND, 0)) < 0)
 		return;
 	if (fstat(fd, &buf) == 0) {
 		ut.ut_pid = getpid();
 		ut.ut_type = (name[0] != '\0')? USER_PROCESS : DEAD_PROCESS;
-		(void) strncpy(ut.ut_id, "", 2);
-		(void) strncpy(ut.ut_line, line, sizeof(ut.ut_line));
-		(void) strncpy(ut.ut_name, name, sizeof(ut.ut_name));
-		(void) strncpy(ut.ut_host, host, sizeof(ut.ut_host));
-		(void) time(&ut.ut_time);
+		strncpy(ut.ut_id, "", 2);
+		strncpy(ut.ut_line, line, sizeof(ut.ut_line));
+		strncpy(ut.ut_name, name, sizeof(ut.ut_name));
+		strncpy(ut.ut_host, host, sizeof(ut.ut_host));
+		time(&ut.ut_time);
 		if (write(fd, (char *)&ut, sizeof(struct utmp)) !=
 		    sizeof(struct utmp))
-			(void) ftruncate(fd, buf.st_size);
+			ftruncate(fd, buf.st_size);
 	}
-	(void) close(fd);
+	close(fd);
 }

@@ -31,37 +31,43 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)init_disp.c	5.4 (Berkeley) 6/1/90";*/
-static char rcsid[] = "$Id: init_disp.c,v 1.1 1994/07/16 09:45:13 florian Exp florian $";
-#endif /* not lint */
+/*
+ * From: @(#)init_disp.c	5.4 (Berkeley) 6/1/90
+ */
+char id_rcsid[] = 
+  "$Id: init_disp.c,v 1.4 1996/07/20 20:59:41 dholland Exp $";
 
 /*
  * Initialization code for the display package,
  * as well as the signal handling routines.
  */
 
-#include "talk.h"
-#include <signal.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <signal.h>
+#include <termios.h>
+
+#include "talk.h"
+
+void sig_sent();
 
 /* 
  * Set up curses, catch the appropriate signals,
  * and build the various windows.
  */
-init_display()
+void
+init_display(void)
 {
-	void sig_sent();
-	struct sigvec sigv;
+	struct sigaction sigac;
 
 	LINES = COLS = 0;
 	if (initscr() == NULL) {
 		printf("initscr failed: TERM is unset or unknown terminal type.\n");
 		exit(-1);
 	}
-	(void) sigvec(SIGTSTP, (struct sigvec *)0, &sigv);
-	sigv.sv_mask |= sigmask(SIGALRM);
-	(void) sigvec(SIGTSTP, &sigv, (struct sigvec *)0);
+	(void) sigaction(SIGTSTP, NULL, &sigac);
+	sigac.sa_mask |= sigmask(SIGALRM);
+	(void) sigaction(SIGTSTP, &sigac, NULL);
 	curses_initialized = 1;
 	clear();
 	refresh();
@@ -96,21 +102,22 @@ init_display()
  * the first three characters each talk transmits after
  * connection are the three edit characters.
  */
-set_edit_chars()
+void
+set_edit_chars(void)
 {
 	char buf[3];
 	int cc;
-	struct sgttyb tty;
-	struct ltchars ltc;
+	struct termios tios;
 
-	ioctl(0, TIOCGETP, &tty);
-	ioctl(0, TIOCGLTC, (struct sgttyb *)&ltc);
-	my_win.cerase = tty.sg_erase;
-	my_win.kill = tty.sg_kill;
-	if (ltc.t_werasc == (char) -1)
+	tcgetattr(0, &tios);
+	my_win.cerase = tios.c_cc[VERASE];
+	my_win.kill = tios.c_cc[VKILL];
+	my_win.werase = tios.c_cc[VWERASE];
+
+	if (my_win.werase == (char) -1) {
 		my_win.werase = '\027';	 /* control W */
-	else
-		my_win.werase =  ltc.t_werasc;
+	}
+
 	buf[0] = my_win.cerase;
 	buf[1] = my_win.kill;
 	buf[2] = my_win.werase;
@@ -126,19 +133,18 @@ set_edit_chars()
 }
 
 void
-sig_sent()
+sig_sent(void)
 {
-
 	message("Connection closing. Exiting");
 	quit();
 }
 
 /*
- * All done talking...hang up the phone and reset terminal thingy's
+ * All done talking...hang up the phone and reset terminal thingy
  */
-quit()
+void
+quit(void)
 {
-
 	if (curses_initialized) {
 		wmove(his_win.x_win, his_win.x_nlines-1, 0);
 		wclrtoeol(his_win.x_win);

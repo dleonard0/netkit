@@ -31,16 +31,14 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1983, 1990 The Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+ "@(#) Copyright (c) 1983, 1990 The Regents of the University of California.\n"
+ "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)rcp.c	5.32 (Berkeley) 2/25/91";*/
-static char rcsid[] = "$Id: rcp.c,v 1.1 1994/05/23 09:07:47 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)rcp.c	5.32 (Berkeley) 2/25/91
+ */
+char rcsid[] = "$Id: rcp.c,v 1.5 1996/07/22 01:01:36 dholland Exp $";
 
 /*
  * rcp
@@ -61,29 +59,13 @@ static char rcsid[] = "$Id: rcp.c,v 1.1 1994/05/23 09:07:47 rzsfl Exp rzsfl $";
 #include <errno.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include "pathnames.h"
 
-#ifdef KERBEROS
-#include <kerberosIV/des.h>
-#include <kerberosIV/krb.h>
-char	dst_realm_buf[REALM_SZ];
-char	*dest_realm = NULL;
-int	use_kerberos = 1;
-CREDENTIALS 	cred;
-Key_schedule	schedule;
-extern	char	*krb_realmofhost();
-#ifdef CRYPT
-int	doencrypt = 0;
-#define	OPTIONS	"dfk:prtx"
-#else
-#define	OPTIONS	"dfk:prt"
-#endif
-#else
 #define	OPTIONS "dfprt"
-#endif
 
 struct passwd *pwd;
 u_short	port;
@@ -99,17 +81,30 @@ typedef struct _buf {
 	char	*buf;
 } BUF;
 
-void lostconn();
+static void lostconn(int);
+static char *colon(char *);
+static int response(void);
+static void verifydir(const char *cp);
+static int okname(const char *cp0);
+static int susystem(const char *s);
+static void source(int argc, char *argv[]);
+static void rsource(char *name, struct stat *statp);
+static void sink(int argc, char *argv[]);
+static BUF *allocbuf(BUF *bp, int fd, int blksize);
+static void nospace(void);
+static void usage(void);
+static void toremote(char *targ, int argc, char *argv[]);
+static void tolocal(int argc, char *argv[]);
+static void error(const char *fmt, ...);
 
-main(argc, argv)
-	int argc;
-	char **argv;
+int
+main(int argc, char *argv[])
 {
 	extern int optind;
 	extern char *optarg;
 	struct servent *sp;
 	int ch, fflag, tflag;
-	char *targ, *shell, *colon();
+	char *targ, *shell;
 
 	fflag = tflag = 0;
 	while ((ch = getopt(argc, argv, OPTIONS)) != EOF)
@@ -121,18 +116,6 @@ main(argc, argv)
 		case 'r':
 			++iamrecursive;
 			break;
-#ifdef	KERBEROS
-		case 'k':
-			strncpy(dst_realm_buf, optarg, REALM_SZ);
-			dest_realm = dst_realm_buf;
-			break;
-#ifdef CRYPT
-		case 'x':
-			doencrypt = 1;
-			/* des_set_key(cred.session, schedule); */
-			break;
-#endif
-#endif
 		/* rshd-invoked options (server) */
 		case 'd':
 			targetshouldbedirectory = 1;
@@ -153,24 +136,7 @@ main(argc, argv)
 	argc -= optind;
 	argv += optind;
 
-#ifdef KERBEROS
-#ifdef CRYPT
-	shell = doencrypt ? "ekshell" : "kshell";
-#else
-	shell = "kshell";
-#endif
-	sp = getservbyname(shell, "tcp");
-	if (sp == NULL) {
-		char	msgbuf[64];
-		use_kerberos = 0;
-		(void)snprintf(msgbuf, sizeof(msgbuf),
-		    "can't get entry for %s/tcp service", shell);
-		old_warning(msgbuf);
-		sp = getservbyname(shell = "shell", "tcp");
-	}
-#else
 	sp = getservbyname(shell = "shell", "tcp");
-#endif
 	if (sp == NULL) {
 		(void)fprintf(stderr, "rcp: %s/tcp: unknown service\n", shell);
 		exit(1);
@@ -204,24 +170,13 @@ main(argc, argv)
 
 	rem = -1;
 	/* command to be executed on remote system using "rsh" */
-#ifdef	KERBEROS
-	(void)snprintf(cmd, sizeof(cmd),
-	    "rcp%s%s%s%s", iamrecursive ? " -r" : "",
-#ifdef CRYPT
-	    ((doencrypt && use_kerberos) ? " -x" : ""),
-#else
-	    "",
-#endif
-	    pflag ? " -p" : "", targetshouldbedirectory ? " -d" : "");
-#else
 	(void)snprintf(cmd, sizeof(cmd), "rcp%s%s%s",
 	    iamrecursive ? " -r" : "", pflag ? " -p" : "",
 	    targetshouldbedirectory ? " -d" : "");
-#endif
 
 	(void)signal(SIGPIPE, lostconn);
 
-	if (targ = colon(argv[argc - 1]))
+	if ((targ = colon(argv[argc - 1]))!=NULL)
 		toremote(targ, argc, argv);	/* destination is remote host */
 	else {
 		tolocal(argc, argv);		/* destination is local host */
@@ -231,20 +186,17 @@ main(argc, argv)
 	exit(errs);
 }
 
-toremote(targ, argc, argv)
-	char *targ;
-	int argc;
-	char **argv;
+static void
+toremote(char *targ, int argc, char *argv[])
 {
 	int i, len, tos;
 	char *bp, *host, *src, *suser, *thost, *tuser;
-	char *colon();
 
 	*targ++ = 0;
 	if (*targ == 0)
 		targ = ".";
 
-	if (thost = index(argv[argc - 1], '@')) {
+	if ((thost = strchr(argv[argc - 1], '@'))!=NULL) {
 		/* user@host */
 		*thost++ = 0;
 		tuser = argv[argc - 1];
@@ -263,7 +215,7 @@ toremote(targ, argc, argv)
 			*src++ = 0;
 			if (*src == 0)
 				src = ".";
-			host = index(argv[i], '@');
+			host = strchr(argv[i], '@');
 			len = strlen(_PATH_RSH) + strlen(argv[i]) +
 			    strlen(src) + (tuser ? strlen(tuser) : 0) +
 			    strlen(thost) + strlen(targ) + CMDNEEDS + 20;
@@ -296,13 +248,6 @@ toremote(targ, argc, argv)
 					nospace();
 				(void)snprintf(bp, len, "%s -t %s", cmd, targ);
 				host = thost;
-#ifdef KERBEROS
-				if (use_kerberos)
-					rem = kerberos(&host, bp,
-					    pwd->pw_name,
-					    tuser ? tuser : pwd->pw_name);
-				else
-#endif
 					rem = rcmd(&host, port, pwd->pw_name,
 					    tuser ? tuser : pwd->pw_name,
 					    bp, 0);
@@ -324,13 +269,11 @@ toremote(targ, argc, argv)
 	}
 }
 
-tolocal(argc, argv)
-	int argc;
-	char **argv;
+static void
+tolocal(int argc, char *argv[])
 {
 	int i, len, tos;
 	char *bp, *host, *src, *suser;
-	char *colon();
 
 	for (i = 0; i < argc - 1; i++) {
 		if (!(src = colon(argv[i]))) {	/* local to local */
@@ -348,7 +291,7 @@ tolocal(argc, argv)
 		*src++ = 0;
 		if (*src == 0)
 			src = ".";
-		host = index(argv[i], '@');
+		host = strchr(argv[i], '@');
 		if (host) {
 			*host++ = 0;
 			suser = argv[i];
@@ -364,11 +307,6 @@ tolocal(argc, argv)
 		if (!(bp = malloc(len)))
 			nospace();
 		(void)snprintf(bp, len, "%s -f %s", cmd, src);
-#ifdef KERBEROS
-		if (use_kerberos)
-			rem = kerberos(&host, bp, pwd->pw_name, suser);
-		else
-#endif
 			rem = rcmd(&host, port, pwd->pw_name, suser, bp, 0);
 		(void)free(bp);
 		if (rem < 0)
@@ -387,8 +325,8 @@ tolocal(argc, argv)
 	}
 }
 
-verifydir(cp)
-	char *cp;
+static void
+verifydir(const char *cp)
 {
 	struct stat stb;
 
@@ -401,24 +339,23 @@ verifydir(cp)
 	exit(1);
 }
 
-char *
-colon(cp)
-	register char *cp;
+static char *
+colon(char *cp)
 {
 	for (; *cp; ++cp) {
 		if (*cp == ':')
 			return(cp);
 		if (*cp == '/')
-			return(0);
+			return NULL;
 	}
-	return(0);
+	return NULL;
 }
 
-okname(cp0)
-	char *cp0;
+static int
+okname(const char *cp0)
 {
-	register char *cp = cp0;
-	register int c;
+	const char *cp = cp0;
+	int c;
 
 	do {
 		c = *cp;
@@ -430,18 +367,20 @@ okname(cp0)
 	return(1);
 bad:
 	(void)fprintf(stderr, "rcp: invalid user name %s\n", cp0);
-	return(0);
+	return 0;
 }
 
-susystem(s)
-	char *s;
+typedef void (*sighandler)(int);
+
+static int
+susystem(const char *s)
 {
 	int status, pid, w;
-	register sig_t istat, qstat;
+	sighandler istat, qstat;
 
 	if ((pid = vfork()) == 0) {
 		(void)setuid(userid);
-		execl(_PATH_BSHELL, "sh", "-c", s, (char *)0);
+		execl(_PATH_BSHELL, "sh", "-c", s, NULL);
 		_exit(127);
 	}
 	istat = signal(SIGINT, SIG_IGN);
@@ -455,9 +394,8 @@ susystem(s)
 	return(status);
 }
 
-source(argc, argv)
-	int argc;
-	char **argv;
+static void
+source(int argc, char *argv[])
 {
 	struct stat stb;
 	static BUF buffer;
@@ -465,7 +403,6 @@ source(argc, argv)
 	off_t i;
 	int x, readerr, f, amt;
 	char *last, *name, buf[BUFSIZ];
-	BUF *allocbuf();
 
 	for (x = 0; x < argc; x++) {
 		name = argv[x];
@@ -492,7 +429,7 @@ notreg:			(void)close(f);
 			error("rcp: %s: not a plain file\n", name);
 			continue;
 		}
-		last = rindex(name, '/');
+		last = strrchr(name, '/');
 		if (last == 0)
 			last = name;
 		else
@@ -539,9 +476,8 @@ notreg:			(void)close(f);
 	}
 }
 
-rsource(name, statp)
-	char *name;
-	struct stat *statp;
+static void
+rsource(char *name, struct stat *statp)
 {
 	DIR *dirp;
 	struct dirent *dp;
@@ -551,7 +487,7 @@ rsource(name, statp)
 		error("rcp: %s: %s\n", name, strerror(errno));
 		return;
 	}
-	last = rindex(name, '/');
+	last = strrchr(name, '/');
 	if (last == 0)
 		last = name;
 	else
@@ -572,7 +508,7 @@ rsource(name, statp)
 		closedir(dirp);
 		return;
 	}
-	while (dp = readdir(dirp)) {
+	while ((dp = readdir(dirp))!=NULL) {
 		if (dp->d_ino == 0)
 			continue;
 		if (!strcmp(dp->d_name, ".") || !strcmp(dp->d_name, ".."))
@@ -590,57 +526,58 @@ rsource(name, statp)
 	(void)response();
 }
 
-response()
+static int
+response(void)
 {
 	register char *cp;
 	char ch, resp, rbuf[BUFSIZ];
 
 	if (read(rem, &resp, sizeof(resp)) != sizeof(resp))
-		lostconn();
+		lostconn(0);
 
 	cp = rbuf;
 	switch(resp) {
-	case 0:				/* ok */
-		return(0);
-	default:
+	  case 0:			/* ok */
+		return 0;
+	  default:
 		*cp++ = resp;
 		/* FALLTHROUGH */
-	case 1:				/* error, followed by err msg */
-	case 2:				/* fatal error, "" */
+	  case 1:			/* error, followed by err msg */
+	  case 2:			/* fatal error, "" */
 		do {
 			if (read(rem, &ch, sizeof(ch)) != sizeof(ch))
-				lostconn();
+				lostconn(0);
 			*cp++ = ch;
 		} while (cp < &rbuf[BUFSIZ] && ch != '\n');
 
 		if (!iamremote)
-			(void)write(2, rbuf, cp - rbuf);
+			write(2, rbuf, cp - rbuf);
 		++errs;
 		if (resp == 1)
-			return(-1);
+			return -1;
 		exit(1);
 	}
 	/*NOTREACHED*/
+	return 0;
 }
 
-void
-lostconn()
+static void
+lostconn(int ignore)
 {
 	if (!iamremote)
 		(void)fprintf(stderr, "rcp: lost connection\n");
 	exit(1);
 }
 
-sink(argc, argv)
-	int argc;
-	char **argv;
+static void
+sink(int argc, char *argv[])
 {
 	register char *cp;
 	static BUF buffer;
 	struct stat stb;
 	struct timeval tv[2];
 	enum { YES, NO, DISPLAYED } wrerr;
-	BUF *bp, *allocbuf();
+	BUF *bp;
 	off_t i, j;
 	char ch, *targ, *why;
 	int amt, count, exists, first, mask, mode;
@@ -850,10 +787,8 @@ screwup:
 	exit(1);
 }
 
-BUF *
-allocbuf(bp, fd, blksize)
-	BUF *bp;
-	int fd, blksize;
+static BUF *
+allocbuf(BUF *bp, int fd, int blksize)
 {
 	struct stat stb;
 	size_t size;
@@ -871,118 +806,43 @@ allocbuf(bp, fd, blksize)
 		bp->buf = malloc(size);
 		if (!bp->buf) {
 			error("rcp: malloc: out of memory\n");
-			return(0);
+			return NULL;
 		}
 	}
 	bp->cnt = size;
 	return(bp);
 }
 
-/* VARARGS1 */
-error(fmt, a1, a2, a3)
-	char *fmt;
-	int a1, a2, a3;
+void
+error(const char *fmt, ...)
 {
 	static FILE *fp;
+	va_list ap;
+
+	va_start(ap, fmt);
 
 	++errs;
 	if (!fp && !(fp = fdopen(rem, "w")))
 		return;
-	(void)fprintf(fp, "%c", 0x01);
-	(void)fprintf(fp, fmt, a1, a2, a3);
-	(void)fflush(fp);
-	if (!iamremote)
-		(void)fprintf(stderr, fmt, a1, a2, a3);
+	fprintf(fp, "%c", 0x01);
+	vfprintf(fp, fmt, ap);
+	fflush(fp);
+	if (!iamremote)	vfprintf(stderr, fmt, ap);
+
+	va_end(ap);
 }
 
-nospace()
+static void 
+nospace(void)
 {
 	(void)fprintf(stderr, "rcp: out of memory.\n");
 	exit(1);
 }
 
-
-usage()
+static void
+usage(void)
 {
-#ifdef KERBEROS
-#ifdef CRYPT
-	(void)fprintf(stderr, "%s\n\t%s\n",
-	    "usage: rcp [-k realm] [-px] f1 f2",
-	    "or: rcp [-k realm] [-rpx] f1 ... fn directory");
-#else
-	(void)fprintf(stderr, "%s\n\t%s\n",
-	    "usage: rcp [-k realm] [-p] f1 f2",
-	    "or: rcp [-k realm] [-rp] f1 ... fn directory");
-#endif
-#else
 	(void)fprintf(stderr,
 	    "usage: rcp [-p] f1 f2; or: rcp [-rp] f1 ... fn directory\n");
-#endif
 	exit(1);
 }
-
-#ifdef KERBEROS
-old_warning(str)
-	char *str;
-{
-	(void)fprintf(stderr, "rcp: warning: %s, using standard rcp\n", str);
-}
-
-int
-kerberos(host, bp, locuser, user)
-
-	char **host, *bp, *locuser, *user;
-{
-	struct servent *sp;
-
-again:
-	if (use_kerberos) {
-		rem = KSUCCESS;
-		errno = 0;
-		if (dest_realm == NULL)
-			dest_realm = krb_realmofhost(*host);
-
-#ifdef CRYPT
-		if (doencrypt)
-			rem = krcmd_mutual(
-				host, port,
-				user, bp, 0,
-		    		dest_realm,
-				&cred, schedule);
-		else
-#endif
-			rem = krcmd(
-				host, port,
-				user, bp, 0, dest_realm);
-
-		if (rem < 0) {
-			use_kerberos = 0;
-			sp = getservbyname("shell", "tcp");
-			if (sp == NULL) {
-				(void)fprintf(stderr,
-			    	    "rcp: unknown service shell/tcp\n");
-				exit(1);
-			}
-			if (errno == ECONNREFUSED)
-				old_warning(
-				    "remote host doesn't support Kerberos");
-
-			if (errno == ENOENT)
-				old_warning(
-				    "Can't provide Kerberos auth data");
-			port = sp->s_port;
-			goto again;
-		}
-	} else {
-#ifdef CRYPT
-		if (doencrypt) {
-			fprintf(stderr,
-			    "The -x option requires Kerberos authentication\n");
-			exit(1);
-		}
-#endif
-		rem = rcmd(host, sp->s_port, locuser, user, bp, 0);
-	}
-	return(rem);
-}
-#endif /* KERBEROS */

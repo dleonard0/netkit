@@ -1,4 +1,10 @@
+all: arp
+
+include ../MCONFIG
+include ../MRULES
+
 arp: arp.o
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 install: arp
 	install -s -m744 arp /usr/sbin

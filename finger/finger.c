@@ -38,16 +38,15 @@
  * Mail status reporting added 931007 by Luke Mewburn, <zak@rmit.edu.au>.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1989 The Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1989 The Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)finger.c	5.22 (Berkeley) 6/29/90";*/
-static char rcsid[] = "$Id: finger.c,v 1.1 1994/05/23 09:03:28 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/* 
+ * from: @(#)finger.c	5.22 (Berkeley) 6/29/90 
+ */
+char finger_rcsid[] = \
+  "$Id: finger.c,v 1.4 1996/07/13 22:32:43 dholland Exp $";
 
 /*
  * Finger prints out information about users.  It is not portable since
@@ -62,61 +61,81 @@ static char rcsid[] = "$Id: finger.c,v 1.1 1994/05/23 09:03:28 rzsfl Exp rzsfl $
  * mail info, and .plan/.project files.
  */
 
+#include <paths.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <getopt.h>
+/*
 #include <sys/param.h>
 #include <sys/file.h>
-#include <stdio.h>
-#include <paths.h>
+*/
 #include "finger.h"
+
+/* from libbsd.a */
+void setpassent(int);
+
+static void loginlist(void);
+static void userlist(int argc, char *argv[]);
 
 time_t now;
 int lflag, sflag, mflag, pplan;
-char tbuf[1024];
+char tbuf[TBUFLEN];
 
-main(argc, argv)
-	int argc;
-	char **argv;
+PERSON *phead, *ptail;		/* the linked list of all people */
+int entries;			/* number of people */
+
+
+int
+main(int argc, char *argv[])
 {
 	extern int optind;
 	int ch;
-	time_t time();
 
-	while ((ch = getopt(argc, argv, "lmps")) != EOF)
+	while ((ch = getopt(argc, argv, "lmps")) != EOF) {
 		switch(ch) {
-		case 'l':
+		  case 'l':
 			lflag = 1;		/* long format */
 			break;
-		case 'm':
-			mflag = 1;		/* force exact match of names */
+		  case 'm':
+			mflag = 1;		/* do exact match of names */
 			break;
-		case 'p':
+		  case 'p':
 			pplan = 1;		/* don't show .plan/.project */
 			break;
-		case 's':
+		  case 's':
 			sflag = 1;		/* short format */
 			break;
-		case '?':
-		default:
-			(void)fprintf(stderr,
-			    "usage: finger [-lmps] [login ...]\n");
-			exit(1);
+		  case '?':
+		  case 'h':
+		  default:
+			fprintf(stderr, "usage: finger [-lmps] [login ...]\n");
+			return 1;
 		}
+	}
 	argc -= optind;
 	argv += optind;
 
-	(void)time(&now);
+	time(&now);
+
+	/* Replace with setpwent() if no -lbsd desired */
 	setpassent(1);
+
 	if (!*argv) {
 		/*
 		 * Assign explicit "small" format if no names given and -l
 		 * not selected.  Force the -s BEFORE we get names so proper
 		 * screening will be done.
 		 */
-		if (!lflag)
+	        if (!lflag) {
 			sflag = 1;	/* if -l not explicit, force -s */
+		}
 		loginlist();
-		if (entries == 0)
-			(void)printf("No one logged on.\n");
-	} else {
+		if (entries == 0) {
+			printf("No one logged on.\n");
+		}
+	} 
+	else {
 		userlist(argc, argv);
 		/*
 		 * Assign explicit "large" format if names given and -s not
@@ -127,23 +146,22 @@ main(argc, argv)
 			lflag = 1;	/* if -s not explicit, force -l */
 	}
 	if (entries != 0) {
-		if (lflag)
-			lflag_print();
-		else
-			sflag_print();
+		if (lflag) lflag_print();
+		else sflag_print();
 	}
-	exit(0);
+	return 0;
 }
 
-loginlist()
+static void
+loginlist(void)
 {
-	register PERSON *pn;
+	PERSON *pn;
 	struct passwd *pw;
 	struct utmp user;
 	char name[UT_NAMESIZE + 1];
 
 	if (!freopen(_PATH_UTMP, "r", stdin)) {
-		(void)fprintf(stderr, "finger: can't read %s.\n", _PATH_UTMP);
+		fprintf(stderr, "finger: can't read %s.\n", _PATH_UTMP);
 		exit(2);
 	}
 	name[UT_NAMESIZE] = '\0';
@@ -154,7 +172,7 @@ loginlist()
 		if (user.ut_type != USER_PROCESS) continue;
 #endif
 		if ((pn = find_person(user.ut_name)) == NULL) {
-			bcopy(user.ut_name, name, UT_NAMESIZE);
+			memcpy(name, user.ut_name, UT_NAMESIZE);
 			if ((pw = getpwnam(name)) == NULL)
 				continue;
 			pn = enter_person(pw);
@@ -165,39 +183,10 @@ loginlist()
 		enter_lastlog(pn);
 }
 
-userlist(argc, argv)
-	register argc;
-	register char **argv;
-{
-	register i;
-	register PERSON *pn;
-	PERSON *nethead, **nettail;
-	struct utmp user;
+
+static void do_local(int argc, char *argv[], int *used) {
+	int i;
 	struct passwd *pw;
-	int dolocal, *used;
-	char *index();
-
-	if (!(used = (int *)calloc((u_int)argc, (u_int)sizeof(int)))) {
-		(void)fprintf(stderr, "finger: out of space.\n");
-		exit(1);
-	}
-
-	/* pull out all network requests */
-	for (i = 0, dolocal = 0, nettail = &nethead; i < argc; i++) {
-		if (!index(argv[i], '@')) {
-			dolocal = 1;
-			continue;
-		}
-		pn = palloc();
-		*nettail = pn;
-		nettail = &pn->next;
-		pn->name = argv[i];
-		used[i] = -1;
-	}
-	*nettail = NULL;
-
-	if (!dolocal)
-		goto net;
 
 	/*
 	 * traverse the list of possible login names and check the login name
@@ -209,7 +198,7 @@ userlist(argc, argv)
 				enter_person(pw);
 				used[i] = 1;
 			}
-	} else while (pw = getpwent())
+	} else for (pw = getpwent(); pw; pw = getpwent())
 		for (i = 0; i < argc; i++)
 			if (used[i] >= 0 &&
 			    (!strcasecmp(pw->pw_name, argv[i]) ||
@@ -224,8 +213,41 @@ userlist(argc, argv)
 			(void)fprintf(stderr,
 			    "finger: %s: no such user.\n", argv[i]);
 
+}
+
+static void
+userlist(int argc, char *argv[])
+{
+	int i;
+	PERSON *pn;
+	PERSON *nethead, **nettail;
+	struct utmp user;
+	int dolocal, *used;
+
+	used = calloc(argc, sizeof(int));
+	if (!used) {
+		fprintf(stderr, "finger: out of space.\n");
+		exit(1);
+	}
+
+	/* pull out all network requests */
+	for (i = 0, dolocal = 0, nettail = &nethead; i < argc; i++) {
+		if (!strchr(argv[i], '@')) {
+			dolocal = 1;
+			continue;
+		}
+		pn = palloc();
+		*nettail = pn;
+		nettail = &pn->next;
+		pn->name = argv[i];
+		used[i] = -1;
+	}
+	*nettail = NULL;
+
+	if (dolocal) do_local(argc, argv, used);
+
 	/* handle network requests */
-net:	for (pn = nethead; pn; pn = pn->next) {
+	for (pn = nethead; pn; pn = pn->next) {
 		netfinger(pn->name);
 		if (pn->next || entries)
 			putchar('\n');

@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)msgs.c	5.6 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: msgs.c,v 1.2 1993/08/01 18:07:46 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)msgs.c	5.6 (Berkeley) 3/1/91
+ */
+char msgs_rcsid[] = 
+  "$Id: msgs.c,v 1.3 1996/07/20 20:59:41 dholland Exp $";
 
 /* 
  * A package to display what is happening every MSG_INTERVAL seconds
@@ -52,12 +53,13 @@ char	*current_state;
 int	current_line = 0;
 
 void
-disp_msg()
+disp_msg(int ignore)
 {
 	message(current_state);
 }
 
-start_msgs()
+void
+start_msgs(void)
 {
 	struct itimerval itimer;
 
@@ -68,7 +70,8 @@ start_msgs()
 	setitimer(ITIMER_REAL, &itimer, (struct itimerval *)0);
 }
 
-end_msgs()
+void
+end_msgs(void)
 {
 	struct itimerval itimer;
 

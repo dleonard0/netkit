@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)defs.h	5.10 (Berkeley) 3/1/91
- *	$Id: defs.h,v 1.1 1994/05/23 09:11:54 rzsfl Exp rzsfl $
+ *	$Id: defs.h,v 1.5 1996/07/20 21:02:16 dholland Exp $
  */
 
 /*
@@ -40,6 +40,9 @@
 #include <sys/types.h>
 #include <sys/param.h>
 
+#define ENV_VAR NEW_ENV_VAR
+#define ENV_VALUE NEW_ENV_VALUE
+#define TELOPT_ENVIRON TELOPT_NEW_ENVIRON
 
 #ifndef	BSD
 # define	BSD 43

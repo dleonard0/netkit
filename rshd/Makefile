@@ -1,7 +1,18 @@
-# -DKERBEROS -DCRYPT
-# -lutil -lkrb -ldes
+all: rshd
 
-rshd: rshd.o # des_rw.o
+include ../MCONFIG
+include ../MRULES
+
+OBJS = rshd.o
+
+ifeq ($(USE_PAM),1)
+CFLAGS += -DUSE_PAM
+LDFLAGS += -ldl -lpam
+OBJS += pamconv.o
+endif
+
+rshd: $(OBJS)
+	$(CC) $(LDFLAGS) $^ $(LIBS) -lbsd -o $@
 
 install: rshd
 	install -s -m744 rshd /usr/sbin/in.rshd

@@ -31,16 +31,15 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1983 Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1983 Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)main.c	5.10 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: main.c,v 1.3 1993/08/01 18:07:07 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)main.c	5.10 (Berkeley) 3/1/91
+ */
+char main_rcsid[] = 
+  "$Id: main.c,v 1.4 1996/07/20 21:04:16 dholland Exp $";
 
 /* Many bug fixes are from Jim Guyton <guyton@rand-unix> */
 
@@ -51,14 +50,18 @@ static char rcsid[] = "$Id: main.c,v 1.3 1993/08/01 18:07:07 mycroft Exp $";
 #include <sys/socket.h>
 #include <sys/file.h>
 
+#include <arpa/inet.h>
 #include <netinet/in.h>
 
 #include <signal.h>
 #include <stdio.h>
 #include <errno.h>
+#include <stdlib.h>
 #include <setjmp.h>
+#include <string.h>
 #include <ctype.h>
 #include <netdb.h>
+#include <unistd.h>
 
 #define	TIMEOUT		5		/* secs between rexmt's */
 
@@ -73,20 +76,38 @@ char	line[200];
 int	margc;
 char	*margv[20];
 char	*prompt = "tftp";
-jmp_buf	toplevel;
+sigjmp_buf	toplevel;
 void	intr();
 struct	servent *sp;
 
-int	quit(), help(), setverbose(), settrace(), status();
-int     get(), put(), setpeer(), modecmd(), setrexmt(), settimeout();
-int     setbinary(), setascii();
+void sendfile(int fd, char *name, char *mode);
+void recvfile(int fd, char *name, char *mode);
+
+void makeargv(void);
+void command(int top);
+void quit(int argc, char *argv[]);
+void help(int argc, char *argv[]);
+void setverbose(int argc, char *argv[]);
+void settrace(int argc, char *argv[]);
+void status(int argc, char *argv[]);
+void get(int argc, char *argv[]);
+void put(int argc, char *argv[]);
+void setpeer(int argc, char *argv[]);
+void modecmd(int argc, char *argv[]);
+void setrexmt(int argc, char *argv[]);
+void settimeout(int argc, char *argv[]);
+void setbinary(int argc, char *argv[]);
+void setascii(int argc, char *argv[]);
+void setmode(const char *newmode);
+void putusage(const char *s);
+void getusage(const char *s);
 
 #define HELPINDENT (sizeof("connect"))
 
 struct cmd {
 	char	*name;
 	char	*help;
-	int	(*handler)();
+	void	(*handler)(int, char *[]);
 };
 
 char	vhelp[] = "toggle verbose mode";
@@ -117,7 +138,7 @@ struct cmd cmdtab[] = {
 	{ "rexmt",	xhelp,		setrexmt },
 	{ "timeout",	ihelp,		settimeout },
 	{ "?",		hhelp,		help },
-	0
+	{ 0 }
 };
 
 struct	cmd *getcmd();
@@ -125,8 +146,8 @@ char	*tail();
 char	*index();
 char	*rindex();
 
-main(argc, argv)
-	char *argv[];
+int
+main(int argc, char *argv[])
 {
 	struct sockaddr_in s_in;
 	int top;
@@ -141,7 +162,7 @@ main(argc, argv)
 		perror("tftp: socket");
 		exit(3);
 	}
-	bzero((char *)&s_in, sizeof (s_in));
+	memset(&s_in, 0, sizeof(s_in));
 	s_in.sin_family = AF_INET;
 	if (bind(f, (struct sockaddr *)&s_in, sizeof (s_in)) < 0) {
 		perror("tftp: bind");
@@ -150,20 +171,19 @@ main(argc, argv)
 	strcpy(mode, "netascii");
 	signal(SIGINT, intr);
 	if (argc > 1) {
-		if (setjmp(toplevel) != 0)
+		if (sigsetjmp(toplevel, 1) != 0)
 			exit(0);
 		setpeer(argc, argv);
 	}
-	top = setjmp(toplevel) == 0;
+	top = sigsetjmp(toplevel, 1) == 0;
 	for (;;)
 		command(top);
 }
 
 char    hostname[100];
 
-setpeer(argc, argv)
-	int argc;
-	char *argv[];
+void
+setpeer(int argc, char *argv[])
 {
 	struct hostent *host;
 
@@ -182,7 +202,7 @@ setpeer(argc, argv)
 	host = gethostbyname(argv[1]);
 	if (host) {
 		s_in.sin_family = host->h_addrtype;
-		bcopy(host->h_addr, &s_in.sin_addr, host->h_length);
+		memcpy(&s_in.sin_addr, host->h_addr, host->h_length);
 		strcpy(hostname, host->h_name);
 	} else {
 		s_in.sin_family = AF_INET;
@@ -220,8 +240,8 @@ struct	modes {
 	{ 0,		0 }
 };
 
-modecmd(argc, argv)
-	char *argv[];
+void
+modecmd(int argc, char *argv[])
 {
 	register struct modes *p;
 	char *sep;
@@ -253,18 +273,20 @@ modecmd(argc, argv)
 	return;
 }
 
-setbinary(argc, argv)
-char *argv[];
-{       setmode("octet");
+void
+setbinary(int argc, char *argv[])
+{
+	setmode("octet");
 }
 
-setascii(argc, argv)
-char *argv[];
-{       setmode("netascii");
+void
+setascii(int argc, char *argv[])
+{
+	setmode("netascii");
 }
 
-setmode(newmode)
-char *newmode;
+void
+setmode(const char *newmode)
 {
 	strcpy(mode, newmode);
 	if (verbose)
@@ -275,8 +297,8 @@ char *newmode;
 /*
  * Send file(s).
  */
-put(argc, argv)
-	char *argv[];
+void
+put(int argc, char *argv[])
 {
 	int fd;
 	register int n;
@@ -355,8 +377,8 @@ put(argc, argv)
 	}
 }
 
-putusage(s)
-	char *s;
+void
+putusage(const char *s)
 {
 	printf("usage: %s file ... host:target, or\n", s);
 	printf("       %s file ... target (when already connected)\n", s);
@@ -365,8 +387,8 @@ putusage(s)
 /*
  * Receive file(s).
  */
-get(argc, argv)
-	char *argv[];
+void
+get(int argc, char *argv[])
 {
 	int fd;
 	register int n;
@@ -439,8 +461,8 @@ get(argc, argv)
 	}
 }
 
-getusage(s)
-char * s;
+void
+getusage(const char *s)
 {
 	printf("usage: %s host:file host:file ... file, or\n", s);
 	printf("       %s file file ... file if connected\n", s);
@@ -448,8 +470,8 @@ char * s;
 
 int	rexmtval = TIMEOUT;
 
-setrexmt(argc, argv)
-	char *argv[];
+void
+setrexmt(int argc, char *argv[])
 {
 	int t;
 
@@ -467,15 +489,15 @@ setrexmt(argc, argv)
 	}
 	t = atoi(argv[1]);
 	if (t < 0)
-		printf("%s: bad value\n", t);
+		printf("%s: bad value\n", argv[1]);
 	else
 		rexmtval = t;
 }
 
 int	maxtimeout = 5 * TIMEOUT;
 
-settimeout(argc, argv)
-	char *argv[];
+void
+settimeout(int argc, char *argv[])
 {
 	int t;
 
@@ -493,13 +515,13 @@ settimeout(argc, argv)
 	}
 	t = atoi(argv[1]);
 	if (t < 0)
-		printf("%s: bad value\n", t);
+		printf("%s: bad value\n", argv[1]);
 	else
 		maxtimeout = t;
 }
 
-status(argc, argv)
-	char *argv[];
+void
+status(int argc, char *argv[])
 {
 	if (connected)
 		printf("Connected to %s.\n", hostname);
@@ -512,11 +534,11 @@ status(argc, argv)
 }
 
 void
-intr()
+intr(int ignore)
 {
 	signal(SIGALRM, SIG_IGN);
 	alarm(0);
-	longjmp(toplevel, -1);
+	siglongjmp(toplevel, -1);
 }
 
 char *
@@ -539,8 +561,8 @@ tail(filename)
 /*
  * Command parser.
  */
-command(top)
-	int top;
+void
+command(int top)
 {
 	register struct cmd *c;
 
@@ -550,7 +572,7 @@ command(top)
 		printf("%s> ", prompt);
 		if (gets(line) == 0) {
 			if (feof(stdin)) {
-				quit();
+				quit(0, NULL);
 			} else {
 				continue;
 			}
@@ -582,7 +604,7 @@ getcmd(name)
 	longest = 0;
 	nmatches = 0;
 	found = 0;
-	for (c = cmdtab; p = c->name; c++) {
+	for (c = cmdtab; (p = c->name)!=NULL; c++) {
 		for (q = name; *q == *p++; q++)
 			if (*q == 0)		/* exact match? */
 				return (c);
@@ -603,7 +625,8 @@ getcmd(name)
 /*
  * Slice a string up into argc/argv.
  */
-makeargv()
+void
+makeargv(void)
 {
 	register char *cp;
 	register char **argp = margv;
@@ -625,8 +648,8 @@ makeargv()
 	*argp++ = 0;
 }
 
-/*VARARGS*/
-quit()
+void
+quit(int ign1, char *ign2[])
 {
 	exit(0);
 }
@@ -634,9 +657,8 @@ quit()
 /*
  * Help command.
  */
-help(argc, argv)
-	int argc;
-	char *argv[];
+void
+help(int argc, char *argv[])
 {
 	register struct cmd *c;
 
@@ -659,15 +681,15 @@ help(argc, argv)
 	}
 }
 
-/*VARARGS*/
-settrace()
+void
+settrace(int ign1, char *ign2[])
 {
 	trace = !trace;
 	printf("Packet tracing %s.\n", trace ? "on" : "off");
 }
 
-/*VARARGS*/
-setverbose()
+void
+setverbose(int ign1, char *ign2[])
 {
 	verbose = !verbose;
 	printf("Verbose mode %s.\n", verbose ? "on" : "off");

@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)table.c	5.7 (Berkeley) 2/26/91";*/
-static char rcsid[] = "$Id: table.c,v 1.1 1994/07/16 09:59:02 florian Exp florian $";
-#endif /* not lint */
+/*
+ * From: @(#)table.c	5.7 (Berkeley) 2/26/91
+ */
+char table_rcsid[] = 
+  "$Id: table.c,v 1.3 1996/07/16 05:01:32 dholland Exp $";
 
 /*
  * Routines to handle insertion, deletion, etc on the table
@@ -53,14 +54,14 @@ static char rcsid[] = "$Id: table.c,v 1.1 1994/07/16 09:59:02 florian Exp floria
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "proto.h"
 
 #define MAX_ID 16000	/* << 2^15 so I don't have sign troubles */
 
 #define NIL ((TABLE_ENTRY *)0)
 
 extern	int debug;
-struct	timeval tp;
-struct	timezone txp;
+static struct timeval tp;
 
 typedef struct table_entry TABLE_ENTRY;
 
@@ -72,22 +73,19 @@ struct table_entry {
 };
 
 TABLE_ENTRY *table = NIL;
-CTL_MSG *find_request();
-CTL_MSG *find_match();
-static void delete (TABLE_ENTRY *ptr);
+static void deleteit(TABLE_ENTRY *ptr);
 
 /*
  * Look in the table for an invitation that matches the current
  * request looking for an invitation
  */
 CTL_MSG *
-find_match(request)
-	register CTL_MSG *request;
+find_match(CTL_MSG *request)
 {
-	register TABLE_ENTRY *ptr;
+	TABLE_ENTRY *ptr;
 	time_t current_time;
 
-	gettimeofday(&tp, &txp);
+	gettimeofday(&tp, NULL);
 	current_time = tp.tv_sec;
 	if (debug)
 		print_request("find_match", request);
@@ -97,7 +95,7 @@ find_match(request)
 			if (debug)
 				print_request("deleting expired entry",
 				    &ptr->request);
-			delete(ptr);
+			deleteit(ptr);
 			continue;
 		}
 		if (debug)
@@ -107,7 +105,7 @@ find_match(request)
 		     ptr->request.type == LEAVE_INVITE)
 			return (&ptr->request);
 	}
-	return ((CTL_MSG *)0);
+	return NULL;
 }
 
 /*
@@ -115,13 +113,12 @@ find_match(request)
  * one as find_match does 
  */
 CTL_MSG *
-find_request(request)
-	register CTL_MSG *request;
+find_request(CTL_MSG *request)
 {
 	register TABLE_ENTRY *ptr;
 	time_t current_time;
 
-	gettimeofday(&tp, &txp);
+	gettimeofday(&tp, NULL);
 	current_time = tp.tv_sec;
 	/*
 	 * See if this is a repeated message, and check for
@@ -135,7 +132,7 @@ find_request(request)
 			if (debug)
 				print_request("deleting expired entry",
 				    &ptr->request);
-			delete(ptr);
+			deleteit(ptr);
 			continue;
 		}
 		if (debug)
@@ -149,17 +146,16 @@ find_request(request)
 			return (&ptr->request);
 		}
 	}
-	return ((CTL_MSG *)0);
+	return NULL;
 }
 
-insert_table(request, response)
-	CTL_MSG *request;
-	CTL_RESPONSE *response;
+void
+insert_table(CTL_MSG *request, CTL_RESPONSE *response)
 {
 	register TABLE_ENTRY *ptr;
 	time_t current_time;
 
-	gettimeofday(&tp, &txp);
+	gettimeofday(&tp, NULL);
 	current_time = tp.tv_sec;
 	request->id_num = new_id();
 	response->id_num = htonl(request->id_num);
@@ -181,7 +177,8 @@ insert_table(request, response)
 /*
  * Generate a unique non-zero sequence number
  */
-new_id()
+int
+new_id(void)
 {
 	static int current_id = 0;
 
@@ -189,48 +186,46 @@ new_id()
 	/* 0 is reserved, helps to pick up bugs */
 	if (current_id == 0)
 		current_id = 1;
-	return (current_id);
+	return current_id;
 }
 
 /*
  * Delete the invitation with id 'id_num'
  */
-delete_invite(id_num)
-	int id_num;
+int
+delete_invite(int id_num)
 {
-	register TABLE_ENTRY *ptr;
+	TABLE_ENTRY *ptr;
 
 	ptr = table;
-	if (debug)
-		syslog(LOG_DEBUG, "delete_invite(%d)", id_num);
+	if (debug) syslog(LOG_DEBUG, "delete_invite(%d)", id_num);
+
 	for (ptr = table; ptr != NIL; ptr = ptr->next) {
 		if (ptr->request.id_num == id_num)
 			break;
-		if (debug)
-			print_request("", &ptr->request);
+		if (debug) print_request("", &ptr->request);
 	}
 	if (ptr != NIL) {
-		delete(ptr);
-		return (SUCCESS);
+		deleteit(ptr);
+		return SUCCESS;
 	}
-	return (NOT_HERE);
+	return NOT_HERE;
 }
 
 /*
  * Classic delete from a double-linked list
  */
 static void
-delete(ptr)
-	register TABLE_ENTRY *ptr;
+deleteit(TABLE_ENTRY *ptr)
 {
 
 	if (debug)
-		print_request("delete", &ptr->request);
+		print_request("deleteit", &ptr->request);
 	if (table == ptr)
 		table = ptr->next;
 	else if (ptr->last != NIL)
 		ptr->last->next = ptr->next;
 	if (ptr->next != NIL)
 		ptr->next->last = ptr->last;
-	free((char *)ptr);
+	free(ptr);
 }

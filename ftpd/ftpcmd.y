@@ -42,7 +42,7 @@
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)ftpcmd.y	5.24 (Berkeley) 2/25/91";*/
-static char rcsid[] = "$Id: ftpcmd.y,v 1.1 1994/05/23 09:03:46 rzsfl Exp rzsfl $";
+static char rcsid[] = "$Id: ftpcmd.y,v 1.2 1996/07/14 20:24:23 dholland Exp $";
 #endif /* not lint */
 
 #include <sys/param.h>

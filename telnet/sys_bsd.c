@@ -31,16 +31,16 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)sys_bsd.c	5.2 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: sys_bsd.c,v 1.1 1994/05/23 09:11:49 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)sys_bsd.c	5.2 (Berkeley) 3/1/91
+ */
+char bsd_rcsid[] = 
+  "$Id: sys_bsd.c,v 1.5 1996/07/20 21:01:24 dholland Exp $";
 
 /*
  * The following routines try to encapsulate what is system dependent
  * (at least between 4.x and dos) which is used in telnet.c.
  */
-
 
 #include <fcntl.h>
 #include <sys/types.h>
@@ -48,6 +48,9 @@ static char rcsid[] = "$Id: sys_bsd.c,v 1.1 1994/05/23 09:11:49 rzsfl Exp rzsfl 
 #include <sys/socket.h>
 #include <signal.h>
 #include <errno.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/ioctl.h>
 #include <arpa/telnet.h>
 
 #include "ring.h"
@@ -57,6 +60,7 @@ static char rcsid[] = "$Id: sys_bsd.c,v 1.1 1994/05/23 09:11:49 rzsfl Exp rzsfl 
 #include "defines.h"
 #include "externs.h"
 #include "types.h"
+#include "proto.h"
 
 #if	defined(CRAY) || (defined(USE_TERMIO) && !defined(SYSV_TERMIO))
 #define	SIG_FUNC_RET	void
@@ -124,19 +128,11 @@ init_sys()
 }
 
 
-    int
-TerminalWrite(buf, n)
-    char *buf;
-    int  n;
-{
+int TerminalWrite(const char *buf, int n) {
     return write(tout, buf, n);
 }
 
-    int
-TerminalRead(buf, n)
-    char *buf;
-    int  n;
-{
+int TerminalRead(char *buf, int n) {
     return read(tin, buf, n);
 }
 
@@ -144,8 +140,8 @@ TerminalRead(buf, n)
  *
  */
 
-    int
-TerminalAutoFlush()
+int
+TerminalAutoFlush(void)
 {
 #if	defined(LNOFLSH)
     int flush;
@@ -174,9 +170,8 @@ extern int kludgelinemode;
 
 void intp(), sendbrk(), sendabort();
 
-    int
-TerminalSpecialChars(c)
-    int	c;
+int
+TerminalSpecialChars(int c)
 {
     void xmitAO(), xmitEL(), xmitEC();
 
@@ -733,10 +728,8 @@ struct termspeeds {
 	{ -1,     B115200 }
 };
 
-    void
-TerminalSpeeds(ispeed, ospeed)
-    long *ispeed;
-    long *ospeed;
+void
+TerminalSpeeds(long *ispeed, long *ospeed)
 {
     register struct termspeeds *tp;
     register long in, out;
@@ -758,9 +751,8 @@ TerminalSpeeds(ispeed, ospeed)
 }
 #endif /* USE_TERMIO && !SYSV_TERMIO */
 
-    int
-TerminalWindowSize(rows, cols)
-    long *rows, *cols;
+int
+TerminalWindowSize(long *rows, long *cols)
 {
 #ifdef	TIOCGWINSZ
     struct winsize ws;
@@ -774,10 +766,7 @@ TerminalWindowSize(rows, cols)
     return 0;
 }
 
-    int
-NetClose(fd)
-    int	fd;
-{
+int NetClose(int fd) {
     return close(fd);
 }
 
@@ -820,7 +809,7 @@ deadpeer(sig)
     int sig;
 {
 	setcommandmode();
-	longjmp(peerdied, -1);
+	siglongjmp(peerdied, -1);
 }
 
     /* ARGSUSED */
@@ -833,7 +822,7 @@ intr(sig)
 	return;
     }
     setcommandmode();
-    longjmp(toplevel, -1);
+    siglongjmp(toplevel, -1);
 }
 
     /* ARGSUSED */
@@ -936,9 +925,9 @@ sys_telnet_init()
  *	The return value is 1 if something happened, 0 if not.
  */
 
-    int
-process_rings(netin, netout, netex, ttyin, ttyout, poll)
-    int poll;		/* If 0, then block until something to do */
+int
+process_rings(int netin, int netout, int netex, int ttyin, int ttyout, 
+	      int poll /* If 0, then block until something to do */)
 {
     register int c;
 		/* One wants to be a bit careful about setting returnValue

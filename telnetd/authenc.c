@@ -17,9 +17,11 @@
  * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#ifndef lint
-static char sccsid[] = "@(#)authenc.c	5.1 (Berkeley) 3/1/91";
-#endif /* not lint */
+/*
+ * From: @(#)authenc.c	5.1 (Berkeley) 3/1/91
+ */
+char authenc_rcsid[] =
+  "$Id: authenc.c,v 1.3 1996/07/16 08:58:22 dholland Exp $";
 
 #if	defined(ENCRYPT) || defined(AUTHENTICATE)
 #include "telnetd.h"

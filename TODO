@@ -1,0 +1,21 @@
+ * Integrate PAM patches
+ * Put lprng and plp on zen
+ - Specify location of finger on fingerd's command line.
+ - Optionally reject "finger @host" in fingerd.
+ - Make rejection of finger forwarding optional in fingerd.
+ - Remove the need for fingerd to fork.
+ - Clean up ftp source.
+ - Clean up ping source.
+ - Clean up rcp source.
+ - Make rlogin use sigaction.
+ - Clean up rpc.rusersd.
+ - Clean up rusers.
+ - make talk request messages check for 8 bit tty and not clear to 7 bits
+ - make telnet/telnetd behave when linked with ncurses.
+ - integrate one of the antiflash-logging talkd patches
+ - Remove logwtmp.c, if it's fixed in libc (how was it broken?)
+ - Clean up telnet.
+ - Use getusershell(), not /etc/shells directly
+ - rcp pukes on /proc files.
+ - rwall doesn't seem to work.
+ - Some nameservers hose on "", patch finger to work around it

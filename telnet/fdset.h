@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)fdset.h	5.1 (Berkeley) 9/14/90
- *	$Id: fdset.h,v 1.2 1993/08/01 18:07:30 mycroft Exp $
+ *	$Id: fdset.h,v 1.1 1996/07/16 05:17:22 dholland Exp $
  */
 
 /*

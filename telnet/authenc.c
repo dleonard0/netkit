@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)authenc.c	5.1 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: authenc.c,v 1.2 1993/08/01 18:07:26 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)authenc.c	5.1 (Berkeley) 3/1/91
+ */
+char au_rcsid[] = 
+  "$Id: authenc.c,v 1.3 1996/07/20 21:01:24 dholland Exp $";
 
 #if	defined(ENCRYPT) || defined(AUTHENTICATE)
 #include <sys/types.h>
@@ -47,6 +48,7 @@ static char rcsid[] = "$Id: authenc.c,v 1.2 1993/08/01 18:07:26 mycroft Exp $";
 #include "externs.h"
 #include "defines.h"
 #include "types.h"
+#include "proto.h"
 
 	int
 net_write(str, len)
@@ -102,7 +104,8 @@ telnet_gets(prompt, result, length, echo)
 	if (echo) {
 		printf("%s", prompt);
 		res = fgets(result, length, stdin);
-	} else if (res = getpass(prompt)) {
+	} 
+	else if ((res = getpass(prompt))!=NULL) {
 		strncpy(result, res, length);
 		res = result;
 	}

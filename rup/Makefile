@@ -1,9 +1,15 @@
-#	$Id: Makefile,v 1.3 1993/08/02 17:55:38 mycroft Exp $
+all: rup
 
-PROG = rup
-MAN1=	rup.0
+include ../MCONFIG
+include ../MRULES
 
-DPADD=	${LIBRPCSVC}
-LDADD=	-lrpcsvc
+rup: rup.o
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
-.include <bsd.prog.mk>
+install: rup
+	install -s -m744 rup /usr/bin/
+	install -m644 rup.1 /usr/man/man1/
+
+clean:
+	rm -f *.o rup
+

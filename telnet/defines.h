@@ -31,8 +31,12 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)defines.h	5.1 (Berkeley) 9/14/90
- *	$Id: defines.h,v 1.2 1993/08/01 18:07:32 mycroft Exp $
+ *	$Id: defines.h,v 1.2 1996/07/16 05:37:02 dholland Exp $
  */
+
+#define ENV_VAR NEW_ENV_VAR
+#define ENV_VALUE NEW_ENV_VALUE
+#define TELOPT_ENVIRON TELOPT_NEW_ENVIRON
 
 #define	settimer(x)	clocks.x = clocks.system++
 

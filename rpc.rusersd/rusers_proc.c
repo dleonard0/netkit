@@ -27,7 +27,7 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: rusers_proc.c,v 1.1 1994/05/23 09:08:21 rzsfl Exp rzsfl $";
+static char rcsid[] = "$Id: rusers_proc.c,v 1.4 1996/07/20 20:53:31 dholland Exp $";
 #endif /* not lint */
 
 #include <signal.h>
@@ -94,12 +94,12 @@ FILE *ufp;
 #ifdef XIDLE
 Display *dpy;
 
-static jmp_buf openAbort;
+static sigjmp_buf openAbort;
 
 static void
 abortOpen ()
 {
-    longjmp (openAbort, 1);
+    siglongjmp (openAbort, 1);
 }
 
 XqueryIdle(char *display)
@@ -109,7 +109,7 @@ XqueryIdle(char *display)
 
         (void) signal (SIGALRM, abortOpen);
         (void) alarm ((unsigned) 10);
-        if (!setjmp (openAbort)) {
+        if (!sigsetjmp(openAbort, 1)) {
                 if (!(dpy= XOpenDisplay(display))) {
                         syslog(LOG_ERR, "Cannot open display %s", display);
                         return(-1);

@@ -34,20 +34,30 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)lprint.c	5.13 (Berkeley) 10/31/90";*/
-static char rcsid[] = "$Id: lprint.c,v 1.1 1994/05/23 09:03:29 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * from: @(#)lprint.c	5.13 (Berkeley) 10/31/90
+ */
+char lprint_rcsid[] = 
+  "$Id: lprint.c,v 1.4 1996/07/13 22:32:43 dholland Exp $";
 
+#include <stdio.h>
+#include <ctype.h>
+#include <paths.h>
 #include <sys/types.h>
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <tzfile.h>
-#include <stdio.h>
-#include <ctype.h>
-#include <paths.h>
+#include <bsd/tzfile.h>
 #include "finger.h"
+
+extern int pplan;
+extern time_t now;
+
+static void lprint(PERSON *pn);
+static int demi_print(char *str, int oddfield);
+static int show_text(const char *directory, const char *file_name, 
+		     const char *header);
+static void vputc(int ch);
 
 #define	LINE_LEN	80
 #define	TAB_LEN		8		/* 8 spaces between tabs */
@@ -55,17 +65,17 @@ static char rcsid[] = "$Id: lprint.c,v 1.1 1994/05/23 09:03:29 rzsfl Exp rzsfl $
 #define	_PATH_PLAN	".plan"
 #define	_PATH_PROJECT	".project"
 
-lflag_print()
+void 
+lflag_print(void)
 {
-	extern int pplan;
-	register PERSON *pn;
-
-	for (pn = phead;;) {
+	register PERSON *pn = phead;
+	while (1) {
 		lprint(pn);
 		if (!pplan) {
-			(void)show_text(pn->dir, _PATH_PROJECT, "Project:");
-			if (!show_text(pn->dir, _PATH_PLAN, "Plan:"))
-				(void)printf("No Plan.\n");
+			show_text(pn->dir, _PATH_PROJECT, "Project:\n");
+			if (!show_text(pn->dir, _PATH_PLAN, "Plan:\n")) {
+				printf("No Plan.\n");
+			}
 		}
 		if (!(pn = pn->next))
 			break;
@@ -73,17 +83,14 @@ lflag_print()
 	}
 }
 
-lprint(pn)
-	register PERSON *pn;
+static void
+lprint(PERSON *pn)
 {
-	extern time_t now;
-	register struct tm *delta;
-	register WHERE *w;
-	register int cpr, len, maxlen;
-	struct tm *tp;
+	struct tm *delta, *tp;
+	WHERE *w;
+	int cpr, len, maxlen;
 	int oddfield;
-	time_t time();
-	char *t, *tzn, *prphone();
+	char *t, *tzn;
 
 	/*
 	 * long format --
@@ -93,9 +100,9 @@ lprint(pn)
 	 *	shell
 	 *	office, office phone, home phone if available
 	 */
-	(void)printf("Login: %-15s\t\t\tName: %s\nDirectory: %-25s",
-	    pn->name, pn->realname, pn->dir);
-	(void)printf("\tShell: %-s\n", *pn->shell ? pn->shell : _PATH_BSHELL);
+	printf("Login: %-15s\t\t\tName: %s\nDirectory: %-25s",
+	       pn->name, pn->realname, pn->dir);
+	printf("\tShell: %-s\n", *pn->shell ? pn->shell : _PATH_BSHELL);
 
 	/*
 	 * try and print office, office phone, and home phone on one line;
@@ -106,28 +113,30 @@ lprint(pn)
 	oddfield = 0;
 	if (pn->office && pn->officephone &&
 	    strlen(pn->office) + strlen(pn->officephone) +
-	    sizeof(OFFICE_TAG) + 2 <= 5 * TAB_LEN) {
-		(void)sprintf(tbuf, "%s: %s, %s", OFFICE_TAG, pn->office,
-		    prphone(pn->officephone));
+	    sizeof(OFFICE_TAG) + 2 <= 5 * TAB_LEN) 
+	{
+		snprintf(tbuf, TBUFLEN, "%s: %s, %s", OFFICE_TAG, pn->office,
+			 prphone(pn->officephone));
 		oddfield = demi_print(tbuf, oddfield);
-	} else {
+	} 
+	else {
 		if (pn->office) {
-			(void)sprintf(tbuf, "%s: %s", OFFICE_TAG, pn->office);
+			snprintf(tbuf, TBUFLEN, "%s: %s", OFFICE_TAG, 
+				 pn->office);
 			oddfield = demi_print(tbuf, oddfield);
 		}
 		if (pn->officephone) {
-			(void)sprintf(tbuf, "%s: %s", OFFICE_PHONE_TAG,
-			    prphone(pn->officephone));
+			snprintf(tbuf, TBUFLEN, "%s: %s", OFFICE_PHONE_TAG,
+				 prphone(pn->officephone));
 			oddfield = demi_print(tbuf, oddfield);
 		}
 	}
 	if (pn->homephone) {
-		(void)sprintf(tbuf, "%s: %s", "Home Phone",
-		    prphone(pn->homephone));
+		snprintf(tbuf, TBUFLEN, "%s: %s", "Home Phone",
+			 prphone(pn->homephone));
 		oddfield = demi_print(tbuf, oddfield);
 	}
-	if (oddfield)
-		putchar('\n');
+	if (oddfield) putchar('\n');
 
 	/*
 	 * long format con't: * if logged in
@@ -145,7 +154,7 @@ lprint(pn)
 	/* find rest of entries for user */
 	for (w = pn->whead; w != NULL; w = w->next) {
 		switch (w->info) {
-		case LOGGEDIN:
+		  case LOGGEDIN:
 			tp = localtime(&w->loginat);
 			t = asctime(tp);
 			tzset();
@@ -222,7 +231,7 @@ lprint(pn)
 	}
 
 	/* If the user forwards mail elsewhere, tell us about it */
-	print_forward(pn->dir, _PATH_FORWARD, "Mail forwarded to ");
+	show_text(pn->dir, _PATH_FORWARD, "Mail forwarded to ");
 
 	/* Print the standard mailbox information. */
 		if (pn->mailrecv == -1)
@@ -250,9 +259,8 @@ lprint(pn)
 		}
 }
 
-demi_print(str, oddfield)
-	char *str;
-	int oddfield;
+static int
+demi_print(char *str, int oddfield)
 {
 	static int lenlast;
 	int lenthis, maxlen;
@@ -289,58 +297,43 @@ demi_print(str, oddfield)
 	return(oddfield);
 }
 
-print_forward(directory, file_name, header)
-	char *directory, *file_name, *header;
+static int
+show_text(const char *directory, const char *file_name, const char *header)
 {
-	register int ch, lastc;
-	register FILE *fp;
+	int ch, lastc = 0;
+	FILE *fp;
 
-	(void)sprintf(tbuf, "%s/%s", directory, file_name);
-	if ((fp = fopen(tbuf, "r")) == NULL)
-		return(0);
-	(void)printf("%s", header);
-	while ((ch = getc(fp)) != EOF)
-		vputc(lastc = ch);
-	if (lastc != '\n')
-		(void)putchar('\n');
-	(void)fclose(fp);
-	return(1);
+	snprintf(tbuf, TBUFLEN, "%s/%s", directory, file_name);
+	fp = fopen(tbuf, "r");
+	if (fp == NULL) return 0;
+
+	printf("%s", header);
+	while ((ch = getc(fp)) != EOF) {
+		vputc(ch);
+		lastc = ch;
+	}
+	if (lastc != '\n') putchar('\n');
+
+	fclose(fp);
+	return 1;
 }
 
-show_text(directory, file_name, header)
-	char *directory, *file_name, *header;
+static void
+vputc(int ch)
 {
-	register int ch, lastc;
-	register FILE *fp;
-
-	(void)sprintf(tbuf, "%s/%s", directory, file_name);
-	if ((fp = fopen(tbuf, "r")) == NULL)
-		return(0);
-	(void)printf("%s\n", header);
-	while ((ch = getc(fp)) != EOF)
-		vputc(lastc = ch);
-	if (lastc != '\n')
-		(void)putchar('\n');
-	(void)fclose(fp);
-	return(1);
-}
-
-vputc(ch)
-	register int ch;
-{
-	int meta;
-
+	int meta = 0;
 	if (!isascii(ch)) {
-		(void)putchar('M');
-		(void)putchar('-');
+		putchar('M');
+		putchar('-');
 		ch = toascii(ch);
 		meta = 1;
-	} else
-		meta = 0;
-	if (isprint(ch) || !meta && (ch == ' ' || ch == '\t' || ch == '\n'))
-		(void)putchar(ch);
+	} 
+
+	if (isprint(ch) || (!meta && (ch==' ' || ch=='\t' || ch=='\n'))) {
+		putchar(ch);
+	}
 	else {
-		(void)putchar('^');
-		(void)putchar(ch == '\177' ? '?' : ch | 0100);
+		putchar('^');
+		putchar(ch==0x7f ? '?' : ch|0x80);
 	}
 }

@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)if.c	5.6 (Berkeley) 6/1/90";*/
-static char rcsid[] = "$Id: if.c,v 1.4 1993/08/01 18:24:30 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)if.c	5.6 (Berkeley) 6/1/90
+ */
+char if_rcsid[] = 
+  "$Id: if.c,v 1.2 1996/07/15 17:45:59 dholland Exp $";
 
 /*
  * Routing Table Management Daemon
@@ -47,13 +48,12 @@ extern	struct interface *ifnet;
  * Find the interface with address addr.
  */
 struct interface *
-if_ifwithaddr(addr)
-	struct sockaddr *addr;
+if_ifwithaddr(struct sockaddr *addr)
 {
 	register struct interface *ifp;
 
-#define	same(a1, a2) \
-	(bcmp((caddr_t)((a1)->sa_data), (caddr_t)((a2)->sa_data), 14) == 0)
+#define	same(a1, a2) (memcmp((a1)->sa_data, (a2)->sa_data, 14) == 0)
+
 	for (ifp = ifnet; ifp; ifp = ifp->int_next) {
 		if (ifp->int_flags & IFF_REMOTE)
 			continue;
@@ -72,8 +72,7 @@ if_ifwithaddr(addr)
  * Find the point-to-point interface with destination address addr.
  */
 struct interface *
-if_ifwithdstaddr(addr)
-	struct sockaddr *addr;
+if_ifwithdstaddr(struct sockaddr *addr)
 {
 	register struct interface *ifp;
 
@@ -91,8 +90,7 @@ if_ifwithdstaddr(addr)
  * of the specified address.
  */
 struct interface *
-if_ifwithnet(addr)
-	register struct sockaddr *addr;
+if_ifwithnet(struct sockaddr *addr)
 {
 	register struct interface *ifp;
 	register int af = addr->sa_family;
@@ -118,8 +116,7 @@ if_ifwithnet(addr)
  * interface a packet came in on -- for tracing.
  */
 struct interface *
-if_iflookup(addr)
-	struct sockaddr *addr;
+if_iflookup(struct sockaddr *addr)
 {
 	register struct interface *ifp, *maybe;
 	register int af = addr->sa_family;

@@ -1,14 +1,22 @@
-# -DRESTRICT_FTP if you want to deny all users in /etc/ftusers to use rexecd
+all: rexecd
 
-ifdef HAVE_TCP_WRAPPER_LIBRARY
-CFLAGS += -DTCP_WRAPPER
+include ../MCONFIG
+include ../MRULES
+
+#ifdef HAVE_TCP_WRAPPER_LIBRARY
+#CFLAGS += -DTCP_WRAPPER
+#endif
+
+ifeq ($(USE_PAM),1)
+CFLAGS += -DUSE_PAM
+LDFLAGS += -ldl -lpam
 endif
 
+# -DRESTRICT_FTP if you want to deny all users in /etc/ftpusers to use rexecd
 CFLAGS += -DRESTRICT_FTP
-# -DKERBEROS -DCRYPT
-# -lutil -lkrb -ldes
 
 rexecd: rexecd.o
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 install: rexecd
 	install -s -m744 rexecd /usr/sbin/in.rexecd

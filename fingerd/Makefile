@@ -1,4 +1,12 @@
+all: fingerd
+
+include ../MCONFIG
+include ../MRULES
+
 fingerd: fingerd.o
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
+
+fingerd.o: pathnames.h
 
 install: fingerd
 	install -s -m755 fingerd /usr/sbin/in.fingerd

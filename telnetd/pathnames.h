@@ -31,22 +31,8 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)pathnames.h	5.5 (Berkeley) 6/28/90
- *	$Id: pathnames.h,v 1.2 1993/08/01 18:29:21 mycroft Exp $
+ *	$Id: pathnames.h,v 1.2 1996/07/16 08:58:22 dholland Exp $
  */
 
-#if BSD > 43
+#include <paths.h>
 
-# include <paths.h>
-
-# define	_PATH_LOGIN	"/usr/bin/login"
-
-#else
- 
-# define	_PATH_TTY	"/dev/tty"
-# define	_PATH_LOGIN	"/bin/login"
-
-#endif
-
-#ifdef BFTPDAEMON
-#define		BFTPPATH	"/usr/ucb/bftp"
-#endif  /* BFTPDAEMON */

@@ -28,9 +28,11 @@
  * Mountain View, California  94043
  */
 
-#ifndef lint
-static char sccsid[] = "@(#)rpc_clntout.c 1.11 89/02/22 (C) 1987 SMI";
-#endif
+/*
+ * From: @(#)rpc_clntout.c 1.11 89/02/22 (C) 1987 SMI
+ */
+char clntout_rcsid[] = 
+  "$Id: rpc_clntout.c,v 1.2 1996/07/15 19:31:27 dholland Exp $";
 
 /*
  * rpc_clntout.c, Client-stub outputter for the RPC protocol compiler
@@ -41,16 +43,19 @@ static char sccsid[] = "@(#)rpc_clntout.c 1.11 89/02/22 (C) 1987 SMI";
 #include <rpc/types.h>
 #include "rpc_parse.h"
 #include "rpc_util.h"
-
-extern pdeclaration();
-void printarglist();
+#include "proto.h"
 
 #define DEFAULT_TIMEOUT 25	/* in seconds */
 static char RESULT[] = "clnt_res";
 
+static void write_program(definition *def);
+static void printbody(proc_list *proc);
+static char *ampr(char *type);
+static void printbody(proc_list *proc);
+
 
 void
-write_stubs()
+write_stubs(void)
 {
 	list *l;
 	definition *def;
@@ -67,9 +72,8 @@ write_stubs()
 	}
 }
 
-static
-write_program(def)
-	definition *def;
+static void
+write_program(definition *def)
 {
 	version_list *vp;
 	proc_list *proc;
@@ -155,13 +159,12 @@ ampr(type)
 	}
 }
 
-static
-printbody(proc)
-	proc_list *proc;
+static void
+printbody(proc_list *proc)
 {
   decl_list *l;
   bool_t args2 = (proc->arg_num > 1);
-  int i;
+/*  int i; */
 
   /* For new style with multiple arguments, need a structure in which
      to stuff the arguments. */

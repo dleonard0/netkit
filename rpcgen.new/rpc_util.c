@@ -28,18 +28,23 @@
  * Mountain View, California  94043
  */
 
-#ifndef lint
-static char sccsid[] = "@(#)rpc_util.c 1.11 89/02/22 (C) 1987 SMI";
-#endif
+/* 
+ * From: @(#)rpc_util.c 1.11 89/02/22 (C) 1987 SMI
+ */
+char util_rcsid[] =
+  "$Id: rpc_util.c,v 1.2 1996/07/15 19:31:27 dholland Exp $";
 
 /*
  * rpc_util.c, Utility routines for the RPC protocol compiler 
  */
 #include <stdio.h>
 #include <ctype.h>
+#include <string.h>
+#include <unistd.h>
 #include "rpc_scan.h"
 #include "rpc_parse.h"
 #include "rpc_util.h"
+#include "proto.h"
 
 #define ARGEXT "argument"
 
@@ -58,10 +63,18 @@ FILE *fin;			/* file pointer of current input */
 
 list *defined;			/* list of defined things */
 
+static int findit(definition *def, char *type);
+static char *fixit(char *type, char *orig);
+static int typedefed(definition *def, char *type);
+static char *toktostr(tok_kind kind);
+static void printbuf(void);
+static void printwhere(void);
+
 /*
  * Reinitialize the world 
  */
-reinitialize()
+void
+reinitialize(void)
 {
 	memset(curline, 0, MAXLINESIZE);
 	where = curline;
@@ -72,9 +85,8 @@ reinitialize()
 /*
  * string equality 
  */
-streq(a, b)
-	char *a;
-	char *b;
+int
+streq(const char *a, const char *b)
 {
 	return (strcmp(a, b) == 0);
 }
@@ -83,11 +95,7 @@ streq(a, b)
  * find a value in a list 
  */
 definition *
-findval(lst, val, cmp)
-	list *lst;
-	char *val;
-	int (*cmp) ();
-
+findval(list *lst, char *val, int (*cmp)())
 {
          
 	for (; lst != NULL; lst = lst->next) {
@@ -102,9 +110,7 @@ findval(lst, val, cmp)
  * store a value in a list 
  */
 void
-storeval(lstp, val)
-	list **lstp;
-	definition *val;
+storeval(list **lstp, definition *val)
 {
 	list **l;
 	list *lst;
@@ -117,18 +123,14 @@ storeval(lstp, val)
 	*l = lst;
 }
 
-static
-findit(def, type)
-	definition *def;
-	char *type;
+static int
+findit(definition *def, char *type)
 {
 	return (streq(def->def_name, type));
 }
 
 static char *
-fixit(type, orig)
-	char *type;
-	char *orig;
+fixit(char *type, char *orig)
 {
 	definition *def;
 
@@ -147,15 +149,13 @@ fixit(type, orig)
 }
 
 char *
-fixtype(type)
-	char *type;
+fixtype(char *type)
 {
 	return (fixit(type, type));
 }
 
 char *
-stringfix(type)
-	char *type;
+stringfix(char *type)
 {
 	if (streq(type, "string")) {
 		return ("wrapstring");
@@ -165,10 +165,7 @@ stringfix(type)
 }
 
 void
-ptype(prefix, type, follow)
-	char *prefix;
-	char *type;
-	int follow;
+ptype(char *prefix, char *type, int follow)
 {
 	if (prefix != NULL) {
 		if (streq(prefix, "enum")) {
@@ -186,10 +183,8 @@ ptype(prefix, type, follow)
 	}
 }
 
-static
-typedefed(def, type)
-	definition *def;
-	char *type;
+static int
+typedefed(definition *def, char *type)
 {
 	if (def->def_kind != DEF_TYPEDEF || def->def.ty.old_prefix != NULL) {
 		return (0);
@@ -198,9 +193,8 @@ typedefed(def, type)
 	}
 }
 
-isvectordef(type, rel)
-	char *type;
-	relation rel;
+int
+isvectordef(char *type, relation rel)
 {
 	definition *def;
 
@@ -224,14 +218,13 @@ isvectordef(type, rel)
 }
 
 char *
-locase(str)
-	char *str;
+locase(char *str)
 {
 	char c;
 	static char buf[100];
 	char *p = buf;
 
-	while (c = *str++) {
+	while ((c = *str++)!=0) {
 		*p++ = (c >= 'A' && c <= 'Z') ? (c - 'A' + 'a') : c;
 	}
 	*p = 0;
@@ -239,17 +232,13 @@ locase(str)
 }
 
 void
-pvname_svc(pname, vnum)
-	char *pname;
-	char *vnum;
+pvname_svc(char *pname, char *vnum)
 {
 	f_print(fout, "%s_%s_svc", locase(pname), vnum);
 }
 
 void
-pvname(pname, vnum)
-	char *pname;
-	char *vnum;
+pvname(char *pname, char *vnum)
 {
 	f_print(fout, "%s_%s", locase(pname), vnum);
 }
@@ -258,8 +247,7 @@ pvname(pname, vnum)
  * print a useful (?) error message, and then die 
  */
 void
-error(msg)
-	char *msg;
+error(const char *msg)
 {
 	printwhere();
 	f_print(stderr, "%s, line %d: ", infilename, linenum);
@@ -271,7 +259,8 @@ error(msg)
  * Something went wrong, unlink any files that we may have created and then
  * die. 
  */
-crash()
+void
+crash(void)
 {
 	int i;
 
@@ -282,8 +271,7 @@ crash()
 }
 
 void
-record_open(file)
-	char *file;
+record_open(char *file)
 {
 	if (nfiles < NFILES) {
 		outfiles[nfiles++] = file;
@@ -300,8 +288,7 @@ static char *toktostr();
  * error, token encountered was not the expected one 
  */
 void
-expected1(exp1)
-	tok_kind exp1;
+expected1(tok_kind exp1)
 {
 	s_print(expectbuf, "expected '%s'",
 		toktostr(exp1));
@@ -312,8 +299,7 @@ expected1(exp1)
  * error, token encountered was not one of two expected ones 
  */
 void
-expected2(exp1, exp2)
-	tok_kind exp1, exp2;
+expected2(tok_kind exp1, tok_kind exp2)
 {
 	s_print(expectbuf, "expected '%s' or '%s'",
 		toktostr(exp1),
@@ -325,8 +311,7 @@ expected2(exp1, exp2)
  * error, token encountered was not one of 3 expected ones 
  */
 void
-expected3(exp1, exp2, exp3)
-	tok_kind exp1, exp2, exp3;
+expected3(tok_kind exp1, tok_kind exp2, tok_kind exp3)
 {
 	s_print(expectbuf, "expected '%s', '%s' or '%s'",
 		toktostr(exp1),
@@ -336,9 +321,7 @@ expected3(exp1, exp2, exp3)
 }
 
 void
-tabify(f, tab)
-	FILE *f;
-	int tab;
+tabify(FILE *f, int tab)
 {
 	while (tab--) {
 		(void) fputc('\t', f);
@@ -384,8 +367,7 @@ static token tokstrings[] = {
 };
 
 static char *
-toktostr(kind)
-	tok_kind kind;
+toktostr(tok_kind kind)
 {
 	token *sp;
 
@@ -393,8 +375,8 @@ toktostr(kind)
 	return (sp->str);
 }
 
-static
-printbuf()
+static void
+printbuf(void)
 {
 	char c;
 	int i;
@@ -402,7 +384,7 @@ printbuf()
 
 #	define TABSIZE 4
 
-	for (i = 0; c = curline[i]; i++) {
+	for (i = 0; (c = curline[i])!=0; i++) {
 		if (c == '\t') {
 			cnt = 8 - (i % TABSIZE);
 			c = ' ';
@@ -415,8 +397,8 @@ printbuf()
 	}
 }
 
-static
-printwhere()
+static void
+printwhere(void)
 {
 	int i;
 	char c;
@@ -438,9 +420,7 @@ printwhere()
 }
 
 char * 
-make_argname(pname, vname) 
-    char *pname;
-    char *vname;
+make_argname(char *pname, char *vname) 
 {
 	char *name;
 	
@@ -456,9 +436,8 @@ make_argname(pname, vname)
 bas_type *typ_list_h;
 bas_type *typ_list_t;
 
-add_type(len,type)
-int len;
-char *type;
+void
+add_type(int len, char *type)
 {
   bas_type *ptr;
 
@@ -488,8 +467,7 @@ char *type;
 }
 
 
-bas_type *find_type(type)
-char *type;
+bas_type *find_type(char *type)
 {
   bas_type * ptr;
 

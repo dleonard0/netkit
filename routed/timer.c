@@ -31,10 +31,12 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)timer.c	5.10 (Berkeley) 2/28/91";*/
-static char rcsid[] = "$Id: timer.c,v 1.1 1994/05/23 09:08:13 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)timer.c	5.10 (Berkeley) 2/28/91
+ */
+char timer_rcsid[] = 
+  "$Id: timer.c,v 1.3 1996/07/15 17:45:59 dholland Exp $";
+
 
 /*
  * Routing Table Management Daemon
@@ -51,7 +53,7 @@ int	faketime;
  * each time called.
  */
 void
-timer()
+timer(void)
 {
 	register struct rthash *rh;
 	register struct rt_entry *rt;
@@ -105,7 +107,8 @@ again:
 /*
  * On hangup, let everyone know we're going away.
  */
-hup()
+void
+hup(void)
 {
 	register struct rthash *rh;
 	register struct rt_entry *rt;
