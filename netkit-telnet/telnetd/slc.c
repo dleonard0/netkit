@@ -35,7 +35,7 @@
  * From: @(#)slc.c	5.7 (Berkeley) 3/1/91
  */
 char slc_rcsid[] = 
-  "$Id: slc.c,v 1.3 1996/08/16 18:49:26 dholland Exp $";
+  "$Id: slc.c,v 1.5 1999/12/12 14:59:44 dholland Exp $";
 
 #include "telnetd.h"
 
@@ -46,8 +46,21 @@ char slc_rcsid[] =
 static unsigned char *def_slcbuf = (unsigned char *)0;
 static int def_slclen = 0;
 static int slcchange;	/* change to slc is requested */
-static unsigned char *slcptr;	/* pointer into slc buffer */
+static int slcoff;                      /* offset into slc buffer */
 static unsigned char slcbuf[NSLC*6];	/* buffer for slc negotiation */
+
+static void add_slcbuf_raw_char(unsigned char ch) {
+   if (slcoff < sizeof(slcbuf)) {
+      slcbuf[slcoff++] = ch;
+   }
+}
+
+static void add_slcbuf_char(unsigned char ch) {
+   add_slcbuf_raw_char(ch);
+   if (ch==0xff) {
+      add_slcbuf_raw_char(0xff);
+   }
+}
 
 /*
  * send_slc
@@ -117,15 +130,9 @@ void get_slc_defaults(void) {
  * Add an slc triplet to the slc buffer.
  */
 void add_slc(char func, char flag, cc_t val) {
-    if ((*slcptr++ = (unsigned char)func) == 0xff) {
-	*slcptr++ = 0xff;
-    }
-    if ((*slcptr++ = (unsigned char)flag) == 0xff) {
-		*slcptr++ = 0xff;
-    }
-    if ((*slcptr++ = (unsigned char)val) == 0xff) {
-	*slcptr++ = 0xff;
-    }
+    add_slcbuf_char(func);
+    add_slcbuf_char(flag);
+    add_slcbuf_char(val);
 }
 
 /*
@@ -139,8 +146,9 @@ void add_slc(char func, char flag, cc_t val) {
 void start_slc(int getit) {
     slcchange = 0;
     if (getit) init_termbuf();
-    sprintf(slcbuf, "%c%c%c%c", IAC, SB, TELOPT_LINEMODE, LM_SLC);
-    slcptr = slcbuf + 4;
+    snprintf(slcbuf, sizeof(slcbuf), "%c%c%c%c", 
+	     IAC, SB, TELOPT_LINEMODE, LM_SLC);
+    slcoff = 4;
 }
 
 /*
@@ -149,7 +157,6 @@ void start_slc(int getit) {
  * Finish up the slc negotiation.  If something to send, then send it.
  */
 int end_slc(unsigned char **bufp) {
-    int len;
     /*
      * If a change has occured, store the new terminal control
      * structures back to the terminal driver.
@@ -168,16 +175,15 @@ int end_slc(unsigned char **bufp) {
 	return 0;
     }
 
-    if (slcptr > (slcbuf + 4)) {
+    if (slcoff > 4) {
 	if (bufp) {
 	    *bufp = &slcbuf[4];
-	    return(slcptr - slcbuf - 4);
+	    return(slcoff - 4);
 	} 
 	else {
-	    sprintf(slcptr, "%c%c", IAC, SE);
-	    slcptr += 2;
-	    len = slcptr - slcbuf;
-	    writenet(slcbuf, len);
+	    snprintf(slcbuf+slcoff, sizeof(slcbuf)-slcoff, "%c%c", IAC, SE);
+	    slcoff += 2;
+	    writenet(slcbuf, slcoff);
 	    netflush();  /* force it out immediately */
 	}
     }
@@ -348,7 +354,7 @@ void change_slc(char func, char flag, cc_t val) {
     }
 }
 
-#if defined(USE_TERMIO) && (VEOF == VMIN)
+#if (VEOF == VMIN)
 cc_t oldeofc = '\004';
 #endif
 
@@ -363,7 +369,7 @@ cc_t oldeofc = '\004';
 void check_slc(void) {
     int i;
     for (i = 1; i <= NSLC; i++) {
-#if defined(USE_TERMIO) && (VEOF == VMIN)
+#if (VEOF == VMIN)
 	/*
 	 * In a perfect world this would be a neat little
 	 * function.  But in this world, we should not notify
@@ -375,7 +381,7 @@ void check_slc(void) {
 	    if (!tty_isediting()) continue;
 	    else if (slctab[i].sptr) oldeofc = *(slctab[i].sptr);
 	}
-#endif	/* USE_TERMIO and VEOF==VMIN */
+#endif	/* VEOF==VMIN */
 
 	if (slctab[i].sptr && (*(slctab[i].sptr) != slctab[i].current.val)) {
 	    slctab[i].current.val = *(slctab[i].sptr);

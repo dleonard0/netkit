@@ -1,4 +1,36 @@
-??-Jun-1997:
+12-Dec-1999:
+	Withdrew -R option; finger can figure out on its own if it needs
+	  to emit CRs.
+	Also, make printing of pts/* ttys work right.
+
+14-Sep-1999:
+	Rewrote output handling of finger to deal with 8-bit characters 
+	  correctly. Also fixed what I think was some uninitialized data
+	  displaying ":0" utmp entries.
+	Backed out patch 1.15 of finger/util.c because it was completely
+	  wrong. Fixed gecos processing _again_.
+	Added -R option to finger that causes it to emit CR before every
+	  LF. Changed fingerd to use it. This means fingerd no longer 
+	  needs to fork.
+
+1-Aug-1999:
+	Complete y2k and y2038 audit.
+
+31-Jul-1999:
+	Redid makefiles/config stuff for new confgen version.
+
+23-Sep-1997:
+	fingerd should now refuse to run as root and bail if it can't find
+	"nobody". 
+
+22-Sep-1997:
+	Fix finger to not destroy gethostbyname() results with
+	getservbyname(). 
+
+02-Aug-1997:
+	Fix fingerd to complain if it can't switch from root.
+
+12-Jun-1997:
 	bsd-finger-0.10 released.
 
 08-Jun-1997:

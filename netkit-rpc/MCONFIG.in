@@ -1,0 +1,20 @@
+# Dirs
+INSTALLROOT
+BINDIR
+MANDIR
+
+# Modes
+BINMODE
+MANMODE
+
+# Compiling
+ALLWARNINGS
+CC
+CFLAGS
+LDFLAGS
+LIBS
+
+# Features
+BSDSIGNAL
+GLIBC
+FN(snprintf)

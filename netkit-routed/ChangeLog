@@ -1,22 +1,33 @@
-26-Aug-1998:
-	* "query" and "trace" directories renamed to "routed-query"
-	  and "routed-trace", and moved to upper directory
-	* some cosmetic changes in "trace.c" from "routed-trace" and
-	  in "query.c" from "routed-query"
-	* "routed-trace/Makefile" supplied
-	* "ripquery" target from "routed-query/Makefile" changed to
-	  "routed-query" to avoid confusion with gated's "ripquery"
-	* routed: introduced new "-r" commandline parameter. By default,
-	  routed will not accept RIPCMD_TRACEON/OFF requests sent by
-	  remote host, unless "-r" is specified. I know this is more
-	  like kludge, but I had no idea on how this could be done
-	  more efficiently. But the security is important. Acceptance
-	  of RIPCMD_TRACEON/OFF sent remotely is done via
-	  "ripcmd_trace_accepted" variable for now.
-	* "routed" manpage updated
-	* new man pages for "routed-trace" and "routed-query" introduced
+12-Dec-1999:
+	Apply backlogged 64-bit bug fix. (Dr. Graeme Wilford, 
+	  G.Wilford@ee.surrey.ac.uk)
+	Old doc fixes from Debian. (Peter Tobias, tobias@et-inf.fho-emden.de)
 
-	Jan Rafaj	<rafaj@vabo.cz>
+1-Aug-1999:
+	Complete y2k and y2038 audit.
+
+1-Aug-1999:
+	Code cleanup.
+
+31-Jul-1999:
+	Redid makefiles/config stuff for new confgen version.
+
+19-May-1998:
+	Rearranged security fix; basically you can only log to
+	  /var/log/routed/*. Make this directory if you want it to log
+	  anything.
+
+8-May-1998:
+	Added a security 'feature' to routed that prevents it writing any
+	  file as root and instead uses user nobody instead (defined in
+	  defs.h) routed will write to syslog to tell you what fun files
+	  it's trying to create.
+
+22-Sep-1997:
+	Reorganized dirs so ripquery isn't hiding under routed.
+
+12-Jun-1997:
+	netkit-routed-0.10 released.
 
 19-May-1997:
 	glibc fixes from Red Hat.

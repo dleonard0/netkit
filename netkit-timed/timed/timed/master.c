@@ -35,15 +35,17 @@
  * From: @(#)master.c	5.1 (Berkeley) 5/11/93
  */
 char master_rcsid[] =
-  "$Id: master.c,v 1.4 1996/08/29 19:53:54 dholland Exp $";
+  "$Id: master.c,v 1.7 1999/11/25 04:48:41 netbug Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.4 $"
+#ident "$Revision: 1.7 $"
 #endif
 
 #include "globals.h"
-#include <sys/file.h>
-#include <sys/types.h>
+#ifndef __alpha__
+	#include <sys/file.h>
+	#include <sys/types.h>
+#endif
 #include <sys/times.h>
 #include <setjmp.h>
 #ifdef sgi
@@ -85,11 +87,10 @@ extern	void	logwtmp(struct timeval*, struct timeval*);
  * master's name, remote requests to set the network time, ...), and
  * takes the appropriate action.
  */
-int
-master()
+void master(void)
 {
 	struct hosttbl *htp;
-	long pollingtime;
+	time_t pollingtime;
 #define POLLRATE 4
 	int polls;
 	struct timeval wait, ntime;
@@ -501,8 +502,7 @@ synch(long mydelta)
  * sends the time to each slave after the master
  * has received the command to set the network time
  */
-void
-spreadtime()
+void spreadtime(void)
 {
 	struct hosttbl *htp;
 	struct tsp to;
@@ -666,6 +666,7 @@ addmach(char *name, struct sockaddr_in *addr, struct netinfo *ntp)
 		ret->addr = *addr;
 		ret->ntp = ntp;
 		(void)strncpy(ret->name, name, sizeof(ret->name));
+		ret->name[sizeof(ret->name)-1] = 0;
 		ret->good = good_host_name(name);
 		ret->l_fwd = &self;
 		ret->l_bak = self.l_bak;

@@ -3,11 +3,7 @@ all: rwhod
 include ../MCONFIG
 include ../MRULES
 
-ifneq ($(USE_GLIBC),1)
-CFLAGS += -D_GNU_SOURCE
-endif
-
-CFLAGS += -I ../include
+CFLAGS += -I../include
 OBJS = rwhod.o daemon.o
 
 rwhod: $(OBJS)

@@ -35,15 +35,14 @@
  * From: @(#)slave.c	5.1 (Berkeley) 5/11/93
  */
 char slave_rcsid[] =
-  "$Id: slave.c,v 1.4 1996/08/29 19:53:54 dholland Exp $";
+  "$Id: slave.c,v 1.6 1999/12/05 06:03:02 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.4 $"
+#ident "$Revision: 1.6 $"
 #endif
 
 #include "globals.h"
 #include <setjmp.h>
-#include "pathnames.h"
 
 extern sigjmp_buf jmpenv;
 extern int Mflag;
@@ -65,8 +64,7 @@ extern void logwtmp(struct timeval *, struct timeval *);
 extern void logwtmp(const char *, const char *, const char *);
 #endif /* sgi */
 
-int
-slave(void)
+void slave(void)
 {
 	int tries;
 	long electiontime, refusetime, looktime, looptime, adjtimes;

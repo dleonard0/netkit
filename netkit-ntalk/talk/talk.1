@@ -30,11 +30,11 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)talk.1	6.6 (Berkeley) 4/22/91
-.\"	$Id: talk.1,v 1.2 1997/06/08 20:13:51 dholland Exp $
+.\"	$Id: talk.1,v 1.8 1999/12/14 12:52:53 dholland Exp $
 .\"
-.Dd April 22, 1991
+.Dd November 24, 1999
 .Dt TALK 1
-.Os BSD 4.2
+.Os "Linux NetKit (0.16)"
 .Sh NAME
 .Nm talk
 .Nd talk to another user
@@ -64,43 +64,55 @@ argument may be used to indicate the appropriate terminal
 name, where
 .Ar ttyname
 is of the form
-.Ql ttyXX .
+.Ql ttyXX
+or
+.Ql pts/X .
 .El
 .Pp
 When first called,
 .Nm talk
-sends the message
+contacts the talk daemon on the other user's machine, which sends the
+message
 .Bd -literal -offset indent -compact
 Message from TalkDaemon@his_machine...
 talk: connection requested by your_name@your_machine.
 talk: respond with: talk your_name@your_machine
 .Ed
 .Pp
-to the user you wish to talk to. At this point, the recipient
-of the message should reply by typing
+to that user. At this point, he then replies by typing
 .Pp
 .Dl talk \ your_name@your_machine
 .Pp
 It doesn't matter from which machine the recipient replies, as
-long as his login-name is the same.  Once communication is established,
-the two parties may type simultaneously, with their output appearing
-in separate windows.  Typing control-L
-.Ql ^L
+long as his login name is the same.  Once communication is established,
+the two parties may type simultaneously; their output will appear
+in separate windows.  Typing control-L (^L)
+.\".Ql ^L
 will cause the screen to
-be reprinted, while your erase, kill, and word kill characters will
-behave normally.  To exit, just type your interrupt character;
+be reprinted. The erase, kill line, and word erase characters
+(normally ^H, ^U, and ^W respectively)
+will behave normally.  To exit, just type the interrupt character
+(normally ^C);
 .Nm talk
 then moves the cursor to the bottom of the screen and restores the
 terminal to its previous state.
 .Pp
-Permission to talk may be denied or granted by use of the
+As of netkit-ntalk 0.15
+.Nm talk
+supports scrollback; use ^P and ^N
+to scroll your window,
+and meta-p and meta-n
+to scroll the other window. (You can also use escape-p and escape-n.)
+.Pp
+If you do not want to receive talk requests, you may block them using the
 .Xr mesg 1
-command.  At the outset talking is allowed.  Certain commands, in
-particular
-.Xr nroff 1
+command.  By default, talk requests are normally not blocked.
+Certain commands, in particular
+.Xr nroff 1 ,
+.Xr pine 1 ,
 and
 .Xr pr 1 ,
-disallow messages in order to
+may block messages temporarily in order to
 prevent messy output.
 .Pp
 .Sh FILES
@@ -114,21 +126,25 @@ to find the recipient's tty
 .Xr mail 1 ,
 .Xr mesg 1 ,
 .Xr who 1 ,
-.Xr write 1
+.Xr write 1 ,
+.Xr talkd 8
 .Sh BUGS
-The version of
+The protocol used to communicate with the talk daemon is braindead.
+.Pp
+Also, the version of
 .Xr talk 1
 released with
-.Bx 4.3
-uses a protocol that
-is incompatible with the protocol used in the version released with
 .Bx 4.2
-(SunOS/Solaris uses this old protocol).
-+.PP
-Another problem might occur with talk connections over point-to-point
-links (SLIP/PPP). To get it working you have to change the hostname
-to the hostname matching the IP address of the SLIP/PPP interface while
-the connection exist.
+uses a different and even more braindead protocol that is completely
+incompatible. Some vendor Unixes (particularly those from Sun) have
+been found to use this old protocol.
+.Pp
+Old versions of
+.Nm talk
+may have trouble running on machines with more than one IP address,
+such as machines with dynamic SLIP or PPP connections. This problem is
+fixed as of netkit-ntalk 0.11, but may affect people you are trying to
+communicate with.
 .Sh HISTORY
 The
 .Nm

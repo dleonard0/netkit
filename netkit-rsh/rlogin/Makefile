@@ -3,18 +3,17 @@ all: rlogin
 include ../MCONFIG
 include ../MRULES
 
-ifeq ($(USE_GLIBC),1)
-CFLAGS += -DGNU_LIBC -D_GNU_SOURCE
-endif
-
+PROG=rlogin
 OBJS=rlogin.o
 
-rlogin: $(OBJS)
+$(PROG): $(OBJS)
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
-install: rlogin
-	install -s -o root -m$(SUIDMODE) rlogin $(INSTALLROOT)$(BINDIR)
-	install -m$(MANMODE) rlogin.1 $(INSTALLROOT)$(MANDIR)/man1
+install: $(PROG)
+	install -s -o root -m$(SUIDMODE) $(PROG) $(INSTALLROOT)$(BINDIR)
+	install -m $(MANMODE) $(PROG).1 $(INSTALLROOT)$(MANDIR)/man1
 
 clean:
-	rm -f *.o rlogin
+	rm -f *.o $(PROG)
+
+$(OBJS): ../version.h

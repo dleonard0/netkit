@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)ftp_var.h	5.9 (Berkeley) 6/1/90
- *	$Id: ftp_var.h,v 1.8 1997/03/08 12:44:58 dholland Exp $
+ *	$Id: ftp_var.h,v 1.12 1999/10/02 18:39:17 dholland Exp $
  */
 
 /*
@@ -54,6 +54,7 @@
 /*
  * Options and other state info.
  */
+Extern int	rl_inhibit;	/* disable readline support */
 Extern int	traceflag;	/* trace packets exchanged */
 Extern int	hash;		/* print # for each buffer transferred */
 Extern int	tick;		/* print byte counter during transfers */
@@ -137,6 +138,7 @@ struct macel {
 Extern int macnum;			/* number of defined macros */
 Extern struct macel macros[16];
 Extern char macbuf[4096];
+#define MACBUF_SIZE 4096
 
 char *hookup(char *host, int port);
 struct cmd *getcmd(const char *);

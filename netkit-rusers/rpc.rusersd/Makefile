@@ -29,6 +29,7 @@ install: rusersd
 clean:
 	rm -f *.o rusersd rusers.h rusers_xdr.c rusers.x
 
+rusersd.o: ../version.h
 rusersd.o rusers_proc.o: rusers.h
 rusers_xdr.o: rusers_xdr.c rusers.h
 

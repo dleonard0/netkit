@@ -35,7 +35,7 @@
  * From: @(#)invite.c	5.8 (Berkeley) 3/1/91
  */
 char inv_rcsid[] = 
-  "$Id: invite.c,v 1.11 1998/11/27 10:55:58 dholland Exp $";
+  "$Id: invite.c,v 1.12 1999/09/28 22:04:15 netbug Exp $";
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -73,8 +73,10 @@ invite_remote(void)
 	struct itimerval itimer;
 	CTL_RESPONSE response;
 	struct sockaddr_in sn;
-	size_t size = sizeof(sn);
+	socklen_t size = sizeof(sn);
 
+	unsigned long int endvalue=-1;
+	
 	itimer.it_value.tv_sec = RING_WAIT;
 	itimer.it_value.tv_usec = 0;
 	itimer.it_interval = itimer.it_value;
@@ -89,7 +91,7 @@ invite_remote(void)
 	msg.addr.ta_port = sn.sin_port;
 	msg.addr.ta_addr = 0;  /* will be patched up in ctl_transact */
 
-	msg.id_num = htonl(-1);		/* an impossible id_num */
+	msg.id_num = htonl(endvalue);		/* an impossible id_num */
 	invitation_waiting = 1;
 	announce_invite();
 	/*

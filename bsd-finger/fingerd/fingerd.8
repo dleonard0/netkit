@@ -30,18 +30,19 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)fingerd.8	6.4 (Berkeley) 3/16/91
-.\"	$Id: fingerd.8,v 1.7 1997/02/01 22:39:46 dholland Exp $
+.\"	$Id: fingerd.8,v 1.13 1999/12/14 12:52:47 dholland Exp $
 .\"
 .Dd August 29, 1996
 .Dt FINGERD 8
-.Os "Linux NetKit 0.08"
+.Os "Linux NetKit (0.16)"
 .Sh NAME
 .Nm fingerd
 .Nd remote user information server
 .Sh SYNOPSIS
 .Nm fingerd
-.Op Fl wul
+.Op Fl wulf
 .Op Fl pL Ar path
+.Op Fl t Ar timeout
 .Sh DESCRIPTION
 .Nm Fingerd
 is a simple daemon based on
@@ -76,6 +77,12 @@ option is given, information about requests made is logged. This
 option probably violates users' privacy and should not be used on
 multiuser boxes.
 .Pp
+If the
+.Fl f
+option is given, finger forwarding (user@host1@host2) is allowed.
+Useful behind firewalls, but probably not wise for security and
+resource reasons.
+.Pp
 The 
 .Fl p
 option allows specification of an alternate location for fingerd to find
@@ -84,6 +91,11 @@ the
 program. The
 .Fl L
 option is equivalent.
+.Pp
+The
+.Fl t
+option specifies the time to wait for a request before closing the
+connection.  A value of 0 waits forever.  The default is 60 seconds.
 .Pp
 Options to fingerd should be specified in 
 .Pa /etc/inetd.conf .

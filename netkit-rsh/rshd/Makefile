@@ -5,15 +5,10 @@ include ../MRULES
 
 OBJS = rshd.o
 
-ifeq ($(USE_GLIBC),1)
-CFLAGS += -DGNU_LIBC -D_GNU_SOURCE
-else
-LIBS += -lbsd
-endif
-
 ifeq ($(USE_PAM),1)
-CFLAGS += -DUSE_PAM
-LIBS += -ldl -lpam -lpam_misc
+# ?
+CFLAGS += # -DUSE_PAM
+LIBS += -ldl # -lpam -lpam_misc
 endif
 
 rshd: $(OBJS)
@@ -27,3 +22,4 @@ install: rshd
 clean:
 	rm -f *.o rshd
 
+$(OBJS): ../version.h

@@ -2,65 +2,416 @@
  * Copyright (c) 1983 Regents of the University of California.
  * All rights reserved.
  *
+ * Copyright 1999 David A. Holland. All rights reserved.
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *    notices, this list of conditions, and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
+ *    notices, this list of conditions, and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
  * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:
+ *    must display the following acknowledgements:
  *	This product includes software developed by the University of
  *	California, Berkeley and its contributors.
+ *	This product includes software developed by David A. Holland.
  * 4. Neither the name of the University nor the names of its contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission.
+ *    nor the names of other copyright holders may be used to endorse or 
+ *    promote products derived from this software without specific prior 
+ *    written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS, CONTRIBUTORS, AND OTHER AUTHORS
+ * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED 
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR 
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS, CONTRIBUTORS, OR
+ * OTHER AUTHORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, 
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, 
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+ * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR 
+ * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF 
+ * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 /*
  * From: @(#)display.c	5.4 (Berkeley) 6/1/90
+ *
+ * Heavily modified 11/99 by dholland to add scrollback support.
  */
 char display_rcsid[] = 
-  "$Id: display.c,v 1.7 1998/11/27 11:30:43 dholland Exp $";
+  "$Id: display.c,v 1.10 1999/11/27 23:35:02 dholland Exp $";
 
 /*
  * The window 'manager', initializes curses and handles the actual
  * displaying of text
  */
+#include <string.h>
+#include <stdlib.h>
+#include <signal.h>
+#include <errno.h>
+#include <assert.h>
+#include <curses.h>
 #include "talk.h"
 
-static void xscroll(xwin_t *win, int flag);
-static int readwin(WINDOW *win, int line, int col);
+#define MAX_MAXLINES 16384
 
-xwin_t	my_win;
-xwin_t	his_win;
-WINDOW	*line_win;
+typedef struct {
+	char *l_text;
+} line;
 
-int	curses_initialized = 0;
+typedef struct {
+	line *s_lines;          /* Text in scroll buffer */
+	int   s_nlines;         /* Number of valid lines in s_lines[] */
+	int   s_maxlines;       /* Max already-allocated number of lines */
+	int   s_scrollup;       /* Number of lines scrolled back */
+	char *s_typebuf;        /* Current input line */
+        int   s_typebufpos;     /* Current position in input line */
+	int   s_typebufmax;     /* Max length of input line */
+	char  cerase;           /* Erase-character key */
+	char  werase;           /* Erase-word key */
+	char  lerase;           /* Erase-line key */
+} window;
+
+static const char *topmessage;  /* Message at top of screen, if any */
+static window my_win;           /* Scrolling data for top window */
+static window his_win;          /* Scrolling data for bottom window */
+static int sepline;             /* Line where separator is */
+static int last_was_bot;        /* if 1, last win with activity was bottom */
+
+static
+void
+init_window(window *win)
+{
+	win->s_maxlines = 32;
+	win->s_nlines = 0;
+	win->s_lines = malloc(win->s_maxlines * sizeof(line));
+	if (!win->s_lines) p_error("Out of memory");
+
+	win->s_scrollup = 0;
+
+	win->s_typebufmax = COLS+1;
+	win->s_typebufpos = 0;
+	win->s_typebuf = malloc(win->s_typebufmax);
+	if (!win->s_typebuf) p_error("Out of memory");
+
+	win->cerase = 2;   /* ^B */
+	win->werase = 23;  /* ^W */
+	win->lerase = 21;  /* ^U */
+}
+
+void
+real_init_display(void)
+{
+	struct sigaction sigac;
+
+	/* Open curses. */
+	LINES = COLS = 0;
+	if (initscr() == NULL) {
+		printf("initscr failed: TERM is not set or set to an "
+		       "unknown terminal type.\n");
+		exit(1);
+	}
+
+	/* Block SIGALRM while handling SIGTSTP (curses catches SIGTSTP). */
+	sigaction(SIGTSTP, NULL, &sigac);
+	sigaddset(&sigac.sa_mask, SIGALRM);
+	sigaction(SIGTSTP, &sigac, NULL);
+
+	/* Set curses modes. */
+	cbreak();
+	noecho();
+	nl();        /* force cr->lf */
+
+	init_window(&my_win);
+	init_window(&his_win);
+
+	topmessage = NULL;
+	sepline = LINES/2;
+
+	/* Forcibly clear the screen. */
+	clear();
+	dorefresh();
+}
+
+void
+set_my_edit_chars(int cerase, int lerase, int werase)
+{
+	my_win.cerase = cerase;
+	my_win.lerase = lerase;
+	my_win.werase = werase;
+}
+
+void
+set_his_edit_chars(int cerase, int lerase, int werase)
+{
+	his_win.cerase = cerase;
+	his_win.lerase = lerase;
+	his_win.werase = werase;
+}
+
+/**************************************************************/
+
+void 
+dobeep(void)
+{
+	beep();
+}
+
+static
+void
+refresh_window(window *win, int nlines, int typeline)
+{
+	int i, line, topline = typeline-nlines+1;
+	for (i=nlines-1; i>=0; i--) {
+		move(topline+i, 0);
+		line = win->s_nlines - (nlines - 1) + i - win->s_scrollup;
+		if (line >=0 && line < win->s_nlines) {
+			addstr(win->s_lines[line].l_text);
+		}
+		else if (line==win->s_nlines) {
+			addstr(win->s_typebuf);
+		}
+		clrtoeol();
+	}
+}
+
+void
+dorefresh(void)
+{
+	int i;
+	erase();
+
+	/* Separator */
+	move(sepline, 0);
+	for (i=0; i<COLS; i++) addch(ACS_HLINE);
+
+	/* Top window */
+	refresh_window(&my_win, sepline, sepline-1);
+	
+	/* Bottom window */
+	refresh_window(&his_win, LINES-sepline-1, LINES-1);
+
+	/* Message */
+	if (topmessage) {
+		move(0, 0);
+		addch('[');
+		addstr(topmessage);
+		addch(']');
+	}
+
+	/* Scroll indicators */
+	if (my_win.s_scrollup) {
+		move(sepline, 4);
+		addstr("[upper scroll]");
+	}
+	if (his_win.s_scrollup) {
+		move(sepline, COLS-4-14);
+		addstr("[lower scroll]");
+	}
+
+	if (last_was_bot) {
+		if (his_win.s_scrollup) {
+			move(sepline, COLS-5);
+		}
+		else {
+			move(LINES-1, his_win.s_typebufpos);
+		}
+	}
+	else {
+		if (my_win.s_scrollup) {
+			move(sepline, 17);
+		}
+		else {
+			move(sepline-1, my_win.s_typebufpos);
+		}
+	}
+
+	refresh();
+}
+
+/**************************************************************/
+
+static
+void
+doscroll(window *win, int delta)
+{
+	int nsc = win->s_scrollup + delta;
+	if (nsc<0) nsc = 0;
+	if (nsc>win->s_nlines) nsc = win->s_nlines;
+	win->s_scrollup = nsc;
+	dorefresh();
+}
+
+static
+int
+do_one_getch(void)
+{
+	static int gotesc = 0;
+	unsigned char ch = getch();
+	if (!gotesc && ch==27) {
+		gotesc = 1;
+		return -1;
+	}
+	if (gotesc) {
+		gotesc = 0;
+		return ch|128;
+	}
+	return ch;
+}
 
 /*
- * max HAS to be a function, it is called with
- * a argument of the form --foo at least once.
+ * Note: at this level we trap scrolling keys and other local phenomena.
+ * Erase/word erase/line erase, newlines, and so forth get passed through,
+ * sent to the other guy, and ultimately come out in display().
  */
-static inline int
-max(int a, int b)
+int
+dogetch(void)
 {
+	int k = do_one_getch();
 
-	return (a > b ? a : b);
+	if (k==('p'|128)) {          /* M-p: scroll other window up */
+		doscroll(&his_win, 1);
+	}
+	else if (k==('n'|128)) {     /* M-n: scroll other window down */
+		doscroll(&his_win, -1);
+	}
+	else if (k==('p'&31)) {      /* C-p: scroll our window up */
+		doscroll(&my_win, 1);
+	}
+	else if (k==('n'&31)) {      /* C-n: scroll our window down */
+		doscroll(&my_win, -1);
+	}
+	else if (k == '\f') {        /* C-l: reprint */
+		clear();
+		dorefresh();
+	}
+	else if (k>=0) {
+		return k;
+	}
+	return -1;
+}
+
+/**************************************************************/
+
+static
+void
+display_lerase(window *win)
+{
+	win->s_typebuf[0] = 0;
+	win->s_typebufpos = 0;
+}
+
+static
+void
+discard_top_line(window *win)
+{
+	int i;
+	assert(win->s_nlines>0);
+	free(win->s_lines[0].l_text);
+	for (i=0; i<win->s_nlines-1; i++) {
+		win->s_lines[i] = win->s_lines[i+1];
+	}
+	win->s_nlines--;
+}
+
+static
+void
+display_eol(window *win)
+{
+	line *tmpl;
+	char *tmps;
+
+	if (win->s_nlines == win->s_maxlines) {
+		if (win->s_maxlines < MAX_MAXLINES) {
+			win->s_maxlines *= 2;
+			tmpl = realloc(win->s_lines, 
+				       win->s_maxlines*sizeof(line));
+		}
+		else {
+			/* Reached size limit - pretend realloc failed */
+			tmpl = NULL;
+		}
+
+		if (!tmpl) {
+			discard_top_line(win);
+		}
+		else {
+			win->s_lines = tmpl;
+		}
+	}
+	assert(win->s_nlines < win->s_maxlines);
+	
+	while ((tmps = strdup(win->s_typebuf))==NULL && win->s_nlines>0) {
+		discard_top_line(win);
+	}
+	if (!tmps) {
+		p_error("Out of memory");
+	}
+
+	win->s_lines[win->s_nlines++].l_text = tmps;
+
+	display_lerase(win);
+
+	if (win==&my_win) topmessage = NULL;
+}
+
+static
+void
+display_addch(window *win, int ch)
+{
+	/*
+	 * Leave one extra byte of space in the type buffer. This is so that
+	 * the last column of the screen doesn't get used, because the refresh
+	 * code does clreol after it, and that clears the next line of the 
+	 * screen, which makes a mess.
+	 */
+	if (win->s_typebufpos+2 == win->s_typebufmax) {
+		display_eol(win);
+	}
+	win->s_typebuf[win->s_typebufpos++] = ch;
+	win->s_typebuf[win->s_typebufpos] = 0;
+}
+
+static
+void
+display_tab(window *win) {
+	while (win->s_typebufpos%8 != 0) {
+		display_addch(win, ' ');
+	}
+}
+
+static
+void
+display_cerase(window *win)
+{
+	if (win->s_typebufpos > 0) {
+		win->s_typebuf[--win->s_typebufpos] = 0;
+	}
+}
+
+static
+void
+display_werase(window *win)
+{
+	/*
+	 * Search backwards until we find the beginning of a word or 
+	 * the beginning of the line.
+	 */
+	int lastpos=win->s_typebufpos;
+	int pos = lastpos;
+
+	while (pos>=0) {
+		int onword = pos<lastpos && win->s_typebuf[pos]!=' ';
+		int prevspace = pos==0 || win->s_typebuf[pos-1]==' ';
+		if (onword && prevspace) break;
+		pos--;
+	}
+	if (pos<0) pos = 0;
+
+	win->s_typebuf[pos] = 0;
+	win->s_typebufpos = pos;
 }
 
 /*
@@ -68,134 +419,146 @@ max(int a, int b)
  * characters while we are at it.
  */
 void
-display(xwin_t *win, unsigned char *text, int size)
+display(int hiswin, unsigned char *text, int size)
 {
 	int j;
-	unsigned char cch;
+	window *win = hiswin ? &his_win : &my_win;
+	last_was_bot = hiswin;
 
 	for (j = 0; j < size; j++) {
-		if (*text == '\n') {
-			xscroll(win, 0);
-			text++;
-			continue;
+		if (text[j] == '\n' || text[j]=='\r') {
+			display_eol(win);
 		}
+		else if (text[j]=='\b' || 
+			 text[j]==127 || 
+			 text[j]==win->cerase) {
 
-		/* someday erase characters will work properly in unix */
-		if (*text == '\b' || *text == 127) *text = win->cerase;
-
-		/* erase character */
-		if (*text == win->cerase) {
-			wmove(win->x_win, win->x_line, max(--win->x_col, 0));
-			getyx(win->x_win, win->x_line, win->x_col);
-			waddch(win->x_win, ' ');
-			wmove(win->x_win, win->x_line, win->x_col);
-			getyx(win->x_win, win->x_line, win->x_col);
-			text++;
-			continue;
+			/* someday erase characters will work right in unix */
+			display_cerase(win);
 		}
-		/*
-		 * On word erase search backwards until we find
-		 * the beginning of a word or the beginning of
-		 * the line.
-		 */
-		if (*text == win->werase) {
-			int endcol, xcol, i, c;
-
-			endcol = win->x_col;
-			xcol = endcol - 1;
-			while (xcol >= 0) {
-				c = readwin(win->x_win, win->x_line, xcol);
-				if (c != ' ')
-					break;
-				xcol--;
-			}
-			while (xcol >= 0) {
-				c = readwin(win->x_win, win->x_line, xcol);
-				if (c == ' ')
-					break;
-				xcol--;
-			}
-			wmove(win->x_win, win->x_line, xcol + 1);
-			for (i = xcol + 1; i < endcol; i++)
-				waddch(win->x_win, ' ');
-			wmove(win->x_win, win->x_line, xcol + 1);
-			getyx(win->x_win, win->x_line, win->x_col);
-			continue;
+		else if (text[j] == win->werase) {
+			display_werase(win);
 		}
-		/* line kill */
-		if (*text == win->kill) {
-			wmove(win->x_win, win->x_line, 0);
-			wclrtoeol(win->x_win);
-			getyx(win->x_win, win->x_line, win->x_col);
-			text++;
-			continue;
+		else if (text[j] == win->lerase) {
+			/* line kill */
+			display_lerase(win);
 		}
-		if (*text == '\f') {
-			if (win == &my_win)
-				wrefresh(curscr);
-			text++;
-			continue;
-		}
-		if (*text == '\a') {
+		else if (text[j] == '\a') {
 			beep();
-			wrefresh(curscr);
-			text++;
-			continue;
 		}
-		if (win->x_col == COLS-1) {
-			/* check for wraparound */
-			xscroll(win, 0);
+		else if (text[j] == '\f') {
+			/* nothing */
 		}
-		if ((*text & 0x7F) < ' ' && *text != '\t') {
-			waddch(win->x_win, '^');
-			getyx(win->x_win, win->x_line, win->x_col);
-			if (win->x_col == COLS-1) /* check for wraparound */
-				xscroll(win, 0);
-			cch = (*text & 63) + 64;
-			waddch(win->x_win, cch);
-		} else
-			waddch(win->x_win, *text);
-		getyx(win->x_win, win->x_line, win->x_col);
-		text++;
+		else if (text[j] == '\t') {
+			display_tab(win);
+		}
+		else if ((text[j] & 0x7F) < ' ') {
+			display_addch(win, '^');
+			display_addch(win, (text[j] & 63) + 64);
+		} 
+		else {
+			display_addch(win, text[j]);
+		}
 	}
-	wrefresh(win->x_win);
+	dorefresh();
+}
+
+/**************************************************************/
+
+/*
+ * Display string in the standard location
+ */
+void
+message(const char *string)
+{
+	topmessage = string;
+	dorefresh();
+}
+
+static
+int
+check_alt_screen(void)
+{
+	const char *rmcup, *smcup;
+	rmcup = tigetstr("rmcup");
+	smcup = tigetstr("smcup");
+	return rmcup || smcup;
+}
+
+static
+void
+middle_message(const char *string, const char *string2)
+{
+	int line = sepline;
+	int width, start;
+
+	dorefresh();
+
+	width = 2 + strlen(string) + strlen(string2) + 2;
+	start = (COLS - width)/2;
+	if (start<0) start = 0;
+
+	move(line, start);
+	addstr("[ ");
+	addstr(string);
+	addstr(string2);
+	addstr(" ]");
+	refresh();
+}
+
+static
+void
+do_quit(void)
+{
+	move(LINES-1, 0);
+	clrtoeol();
+	refresh();
+	endwin();
+
+	if (invitation_waiting) {
+		send_delete();
+	}
+	exit(0);
 }
 
 /*
- * Read the character at the indicated position in win
+ * p_error prints the system error message on the standard location
+ * on the screen and then exits. (i.e. a curses version of perror)
  */
-static int
-readwin(WINDOW *win, int line, int col)
+void
+p_error(const char *string) 
 {
-	int oldline, oldcol;
-	register int c;
+	char msgbuf[256];
+	int hold = check_alt_screen();
 
-	getyx(win, oldline, oldcol);
-	wmove(win, line, col);
-	c = winch(win);
-	wmove(win, oldline, oldcol);
-	return (c);
+	snprintf(msgbuf, sizeof(msgbuf), "%s: %s", string, strerror(errno));
+	middle_message(msgbuf, hold ? ". Press any key..." : "");
+
+	if (hold) {
+		/* alternative screen, wait before exiting */
+		getch();
+	}
+
+	do_quit();
 }
 
 /*
- * Scroll a window, blanking out the line following the current line
- * so that the current position is obvious
+ * All done talking...hang up the phone and reset terminal thingy
  */
-static void
-xscroll(xwin_t *win, int flag)
+void
+quit(int direct)
 {
+	int hold = check_alt_screen();
 
-	if (flag == -1) {
-		wmove(win->x_win, 0, 0);
-		win->x_line = 0;
-		win->x_col = 0;
-		return;
+	if (direct != 1 && hold) {
+		/* alternative screen, prompt before exit */
+		middle_message("Press any key to exit", "");
+		getch();
 	}
-	win->x_line = (win->x_line + 1) % win->x_nlines;
-	win->x_col = 0;
-	wmove(win->x_win, win->x_line, win->x_col);
-	wclrtoeol(win->x_win);
-	wmove(win->x_win, (win->x_line + 1) % win->x_nlines, win->x_col);
-	wclrtoeol(win->x_win);
-	wmove(win->x_win, win->x_line, win->x_col);
+	else {
+		/* Make sure any message appears */
+		dorefresh();
+	}
+
+	do_quit();
 }

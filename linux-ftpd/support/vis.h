@@ -32,7 +32,7 @@
  *
  *	@(#)vis.h	5.9 (Berkeley) 4/3/91
  *	NetBSD: vis.h,v 1.4 1994/10/26 00:56:41 cgd Exp
- *	$Id: vis.h,v 1.1 1997/05/19 12:58:37 dholland Exp $
+ *	$Id: vis.h,v 1.1.1.1 1999/07/15 21:59:06 dholland Exp $
  */
 
 #ifndef _VIS_H_

@@ -9,6 +9,7 @@ tftp: $(OBJS)
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 $(OBJS): tftpsubs.h
+tftp.o: ../version.h
 
 install: tftp
 	install -s -m$(BINMODE) tftp $(INSTALLROOT)$(BINDIR)

@@ -34,7 +34,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)finger.h	5.5 (Berkeley) 6/1/90
- *	$Id: finger.h,v 1.6 1997/02/01 22:26:56 dholland Exp $
+ *	$Id: finger.h,v 1.7 1999/09/14 10:51:11 dholland Exp $
  */
 
 #include <pwd.h>
@@ -102,3 +102,18 @@ const char *prphone(const char *num);
 #ifndef SECSPERDAY
 #define SECSPERDAY  (60 * 60 * 24)
 #endif
+
+/* turn on crnl translation on output */
+void set_crmode(void);
+
+/* Display, masking control characters and possibly doing crnl translation */
+void xputc(int ch);
+void xputs(const char *buf);
+int xprintf(const char *fmt, ...);
+
+/* Send to stderr, possibly doing crnl translation */
+int eprintf(const char *fmt, ...);
+
+/* terminal inquiries */
+int is8bit(void);
+int getscreenwidth(void);

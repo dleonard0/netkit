@@ -41,9 +41,8 @@ char copyright[] =
  *     Exp Locker: kfall
  */
 char rcsid[] = 
-  "$Id: rlogin.c,v 1.16 1997/06/08 19:42:34 dholland Exp $";
-
-char pkg[] = "netkit-rsh-0.10";
+  "$Id: rlogin.c,v 1.19 1999/10/02 21:50:52 dholland Exp $";
+#include "../version.h"
 
 /*
  * rlogin - remote login
@@ -62,7 +61,6 @@ char pkg[] = "netkit-rsh-0.10";
 #include <netdb.h>
 #include <termios.h>
 #include <setjmp.h>
-#include <varargs.h>
 #include <errno.h>
 #include <pwd.h>
 #include <stdlib.h>
@@ -324,7 +322,7 @@ doit(long omask)
 #ifdef VDSUSP
 	defdsusp = tios.c_cc[VDSUSP];        /* delayed stop process */
 #else
-	defdsusp = 255;
+	defdsusp = (char)0xFF; /* cast 0xFF for 32/64 bit platforms */
 #endif
 	defreprint = tios.c_cc[VREPRINT];       /* rprint line */
 	defdiscard = tios.c_cc[VDISCARD];        /* flush output */
@@ -554,10 +552,10 @@ sendwindow(void)
 	char obuf[4 + sizeof (struct winsize)];
 
 	wp = (struct winsize *)(obuf+4);
-	obuf[0] = 0377;
-	obuf[1] = 0377;
-	obuf[2] = 's';
-	obuf[3] = 's';
+	obuf[0] = (char)0377; /* (char) casts added for 32/64 bit machines */
+	obuf[1] = (char)0377;
+	obuf[2] = (char)'s';
+	obuf[3] = (char)'s';
 	wp->ws_row = htons(winsize.ws_row);
 	wp->ws_col = htons(winsize.ws_col);
 	wp->ws_xpixel = htons(winsize.ws_xpixel);

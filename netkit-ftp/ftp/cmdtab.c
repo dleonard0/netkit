@@ -35,7 +35,7 @@
  * from: @(#)cmdtab.c	5.10 (Berkeley) 6/1/90
  */
 char cmdtab_rcsid[] = 
-  "$Id: cmdtab.c,v 1.6 1997/04/05 22:26:22 dholland Exp $";
+  "$Id: cmdtab.c,v 1.8 1999/09/28 15:36:05 dholland Exp $";
 
 #include <string.h>   /* for NULL */
 #include "ftp_var.h"
@@ -54,7 +54,7 @@ const char casehelp[] =    "toggle mget upper/lower case id mapping";
 const char cdhelp[] =      "change remote working directory";
 const char cduphelp[] = "change remote working directory to parent directory";
 const char chmodhelp[] =   "change file permissions of remote file";
-const char connecthelp[] = "connect to remote tftp";
+const char connecthelp[] = "connect to remote ftp";
 const char crhelp[] =      "toggle carriage return stripping on ascii gets";
 const char deletehelp[] =  "delete remote file";
 const char debughelp[] =   "toggle/set debugging mode";
@@ -189,7 +189,7 @@ struct cmd cmdtab[] = {
 	{ "umask",	umaskhelp,	0, 1, 1, do_umask, NULL, NULL },
 	{ "verbose",	verbosehelp,	0, 0, 0, NULL, setverbose, NULL },
 	{ "?",		helphelp,	0, 0, 1, help, NULL, NULL },
-	{ 0 },
+	{ 0, 0, 0, 0, 0, 0, 0, 0 },
 };
 
 int	NCMDS = (sizeof (cmdtab) / sizeof (cmdtab[0])) - 1;

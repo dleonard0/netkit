@@ -38,7 +38,7 @@
  * From: OpenBSD: ? 
  */
 char logwtmp_rcsid[] = 
-  "$Id: logwtmp.c,v 1.4 1997/05/19 13:04:14 dholland Exp $";
+  "$Id: logwtmp.c,v 1.5 1999/07/16 00:34:29 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/time.h>
@@ -59,7 +59,7 @@ static int fd = -1;
  * after login, but before logout).
  */
 void
-logwtmp(const char *line, const char *name, const char *host)
+ftpdlogwtmp(const char *line, const char *name, const char *host)
 {
 	struct utmp ut;
 	struct stat buf;

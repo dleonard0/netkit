@@ -36,7 +36,7 @@
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)net.c	5.5 (Berkeley) 6/1/90";*/
-char net_rcsid[] = "$Id: net.c,v 1.7 1997/02/01 22:26:56 dholland Exp $";
+char net_rcsid[] = "$Id: net.c,v 1.9 1999/09/14 10:51:11 dholland Exp $";
 #endif /* not lint */
 
 #include <sys/types.h>
@@ -45,6 +45,7 @@ char net_rcsid[] = "$Id: net.c,v 1.7 1997/02/01 22:26:56 dholland Exp $";
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <stdio.h>
+#include <errno.h>
 #include <string.h>
 #include <unistd.h>
 #include <ctype.h>
@@ -53,7 +54,7 @@ char net_rcsid[] = "$Id: net.c,v 1.7 1997/02/01 22:26:56 dholland Exp $";
 void netfinger(const char *name) {
 	register FILE *fp;
 	struct in_addr defaddr;
-	register int c, lastc = 0;
+	register int c, sawret, ateol;
 	struct hostent *hp, def;
 	struct servent *sp;
 	struct sockaddr_in sn;
@@ -62,12 +63,21 @@ void netfinger(const char *name) {
 
 	host = strrchr(name, '@');
 	if (!host) return;
-
 	*host++ = '\0';
+
+	memset(&sn, 0, sizeof(sn));
+
+	sp = getservbyname("finger", "tcp");
+	if (!sp) {
+		eprintf("finger: tcp/finger: unknown service\n");
+		return;
+	}
+	sn.sin_port = sp->s_port;
+
 	hp = gethostbyname(host);
 	if (!hp) {
 		if (!inet_aton(host, &defaddr)) {
-			fprintf(stderr, "finger: unknown host: %s\n", host);
+			eprintf("finger: unknown host: %s\n", host);
 			return;
 		}
 		def.h_name = host;
@@ -78,28 +88,21 @@ void netfinger(const char *name) {
 		def.h_aliases = 0;
 		hp = &def;
 	}
-	sp = getservbyname("finger", "tcp");
-	if (!sp) {
-		fprintf(stderr, "finger: tcp/finger: unknown service\n");
-		return;
-	}
-	memset(&sn, 0, sizeof(sn));
 	sn.sin_family = hp->h_addrtype;
 	if (hp->h_length > (int)sizeof(sn.sin_addr)) {
 	    hp->h_length = sizeof(sn.sin_addr);
 	}
 	memcpy(&sn.sin_addr, hp->h_addr, hp->h_length);
-	sn.sin_port = sp->s_port;
 
 	if ((s = socket(hp->h_addrtype, SOCK_STREAM, 0)) < 0) {
-		perror("finger: socket");
+		eprintf("finger: socket: %s\n", strerror(errno));
 		return;
 	}
 
-	/* have network connection; identify the host connected with */
-	printf("[%s]\n", hp->h_name);
+	/* print hostname before connecting, in case it takes a while */
+	xprintf("[%s]\n", hp->h_name);
 	if (connect(s, (struct sockaddr *)&sn, sizeof(sn)) < 0) {
-		perror("finger: connect");
+		eprintf("finger: connect: %s\n", strerror(errno));
 		close(s);
 		return;
 	}
@@ -119,37 +122,34 @@ void netfinger(const char *name) {
 	 * a newline; if followed by a newline character, only output one
 	 * newline.
 	 *
-	 * Otherwise, all high bits are stripped; if it isn't printable and
-	 * it isn't a space, we can simply set the 6th bit.  Every ASCII
-	 * character with bit 6 set is printable.
+	 * Text is sent to xputc() for printability analysis.
 	 */ 
 	fp = fdopen(s, "r");
 	if (!fp) {
-		perror("finger: fdopen");
+		eprintf("finger: fdopen: %s\n", strerror(errno));
 		close(s);
 		return;
 	}
 
+	sawret = 0;
+	ateol = 1;
 	while ((c = getc(fp)) != EOF) {
-		/*
-		 * Why doesn't this use vputc() from lprint.c?
-		 */
-		c &= 0x7f;
+		c &= 0xff;
+		if (c == ('\r'|0x80) || c == ('\n'|0x80)) c &= 0x7f;
 		if (c == '\r') {
-			c = '\n';
-			lastc = '\r';
+			sawret = ateol = 1;
+			xputc('\n');
 		} 
-		else {
-			if (!isprint(c) && !isspace(c)) c |= 0x40;
-				
-			if (lastc != '\r' || c != '\n') lastc = c;
-			else {
-				lastc = '\n';
-				continue;
-			}
+		else if (sawret && c == '\n') {
+			sawret = 0;
+			/* don't print */
 		}
-		putchar(c);
+		else {
+			if (c == '\n') ateol = 1;
+			sawret = 0;
+			xputc(c);
+		}
 	}
-	if (lastc != '\n') putchar('\n');
+	if (!ateol) xputc('\n');
 	fclose(fp);
 }

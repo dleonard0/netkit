@@ -10,6 +10,10 @@
 /* #define bp_address_u bp_address */
 #include <stdio.h>
 
+#include "../version.h"
+const char callbootd_rcsid[] = 
+  "$Id: callbootd.c,v 1.5 1997/09/23 08:39:26 dholland Exp $";
+
 static int printgetfile(bp_getfile_res *res);
 static int printwhoami(bp_whoami_res *res);
 

@@ -32,7 +32,7 @@
  *
  *	@(#)ftpcmd.y	8.3 (Berkeley) 4/6/94
  *	NetBSD: ftpcmd.y,v 1.7 1996/04/08 19:03:11 jtc Exp
- *      OpenBSD: ?
+ *	OpenBSD: ftpcmd.y,v 1.16 1998/05/22 06:46:09 deraadt Exp
  */
 
 /*
@@ -43,7 +43,7 @@
 %{
 
 char ftpcmd_rcsid[] = 
-  "$Id: ftpcmd.y,v 1.6 1997/05/19 13:21:19 dholland Exp $";
+  "$Id: ftpcmd.y,v 1.11 1999/10/09 02:32:12 dholland Exp $";
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -64,8 +64,11 @@ char ftpcmd_rcsid[] =
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
-#ifdef __linux__
-typedef int64_t quad_t;
+
+#ifndef __linux__
+#include <tzfile.h>
+#else
+#define TM_YEAR_BASE 1900
 #endif
 
 #include "extern.h"
@@ -86,6 +89,8 @@ extern	char proctitle[];
 extern	int usedefault;
 extern  int transflag;
 extern  char tmpline[];
+extern	int portcheck;
+extern	struct sockaddr_in his_addr;
 
 off_t	restart_point;
 
@@ -134,6 +139,7 @@ extern struct tab sitetab[];
 %type	<i> check_login octal_number byte_size
 %type	<i> struct_code mode_code type_code form_code
 %type	<s> pathstring pathname password username
+%type	<i> host_port
 
 %start	cmd_list
 
@@ -164,12 +170,30 @@ cmd
 	| PORT check_login SP host_port CRLF
 		{
 			if ($2) {
-				usedefault = 0;
-				if (pdata >= 0) {
-					(void) close(pdata);
-					pdata = -1;
+				if ($4) {
+					usedefault = 1;
+					reply(500,	
+					    "Illegal PORT rejected (range errors).");
+				} else if (portcheck &&
+				    ntohs(data_dest.sin_port) < IPPORT_RESERVED) {
+					usedefault = 1;
+					reply(500,
+					    "Illegal PORT rejected (reserved port).");
+				} else if (portcheck &&
+				    memcmp(&data_dest.sin_addr,
+				    &his_addr.sin_addr,
+				    sizeof data_dest.sin_addr)) {
+					usedefault = 1;
+					reply(500,
+					    "Illegal PORT rejected (address wrong).");
+				} else {
+					usedefault = 0;
+					if (pdata >= 0) {
+						(void) close(pdata);
+						pdata = -1;
+					}
+					reply(200, "PORT command successful.");
 				}
-				reply(200, "PORT command successful.");
 			}
 		}
 	| PASV check_login CRLF
@@ -325,7 +349,7 @@ cmd
 					fromname = (char *) 0;
 				} else {
 					reply(503, 
-                                          "Bad sequence of commands.");
+					  "Bad sequence of commands.");
 				}
 			}
 			free($4);
@@ -366,8 +390,8 @@ cmd
 			} else
 				help(cmdtab, $3);
 
-		        if ($3 != NULL)
-		        	free ($3);
+			if ($3 != NULL)
+				free ($3);
 		}
 	| NOOP CRLF
 		{
@@ -465,7 +489,7 @@ cmd
 					timeout = $6;
 					(void) alarm((unsigned) timeout);
 					reply(200,
-				         "Maximum IDLE time set to %d seconds",
+					 "Maximum IDLE time set to %d seconds",
 					    timeout);
 				}
 			}
@@ -534,7 +558,7 @@ cmd
 					t = gmtime(&stbuf.st_mtime);
 					reply(213,
 					    "%04d%02d%02d%02d%02d%02d",
-					    1900 + t->tm_year,
+					    TM_YEAR_BASE + t->tm_year,
 					    t->tm_mon+1, t->tm_mday,
 					    t->tm_hour, t->tm_min, t->tm_sec);
 				}
@@ -562,7 +586,7 @@ rcmd
 					free($4);
 				}
 			} else {
-                        	if ($4)
+				if ($4)
 					free ($4);
 			}
 		}
@@ -601,14 +625,21 @@ host_port
 		{
 			char *a, *p;
 
+			if ($1 < 0 || $1 > 255 || $3 < 0 || $3 > 255 ||
+			    $5 < 0 || $5 > 255 || $7 < 0 || $7 > 255 ||
+			    $9 < 0 || $9 > 255 || $11 < 0 || $11 > 255) {
+				$$ = 1;
+			} else {
 #ifndef __linux__
-			data_dest.sin_len = sizeof(struct sockaddr_in);
+				data_dest.sin_len = sizeof(struct sockaddr_in);
 #endif
-			data_dest.sin_family = AF_INET;
-			p = (char *)&data_dest.sin_port;
-			p[0] = $9; p[1] = $11;
-			a = (char *)&data_dest.sin_addr;
-			a[0] = $1; a[1] = $3; a[2] = $5; a[3] = $7;
+				data_dest.sin_family = AF_INET;
+				p = (char *)&data_dest.sin_port;
+				p[0] = $9; p[1] = $11;
+				a = (char *)&data_dest.sin_addr;
+				a[0] = $1; a[1] = $3; a[2] = $5; a[3] = $7;
+				$$ = 0;
+			}
 		}
 	;
 
@@ -708,7 +739,7 @@ pathname
 			 * processing, but only gives a 550 error reply.
 			 * This is a valid reply in some cases but not in others.
 			 */
-			if (logged_in && $1 && *$1 == '~') {
+			if (logged_in && $1 && strchr($1, '~') != NULL) {
 				glob_t gl;
 #ifdef __linux__
 				/* see popen.c */
@@ -717,9 +748,20 @@ pathname
 				int flags =
 				 GLOB_BRACE|GLOB_NOCHECK|GLOB_QUOTE|GLOB_TILDE;
 #endif
+				char *pptr = $1;
+
+				/*
+				 * glob() will only find a leading ~, but
+				 * Netscape kindly puts a slash in front of
+				 * it for publish URLs.  There needs to be
+				 * a flag for glob() that expands tildes
+				 * anywhere in the string.
+				 */
+				if ((pptr[0] == '/') && (pptr[1] == '~'))
+					pptr++;
 
 				memset(&gl, 0, sizeof(gl));
-				if (glob($1, flags, NULL, &gl) ||
+				if (glob(pptr, flags, NULL, &gl) ||
 				    gl.gl_pathc == 0) {
 					reply(550, "not found");
 					$$ = NULL;
@@ -863,10 +905,7 @@ static struct tab *
 static void	 sizecmd __P((char *));
 static int	 yylex __P((void));
 
-static struct tab *
-lookup(p, cmd)
-	struct tab *p;
-	char *cmd;
+static struct tab *lookup(struct tab *p, char *cmd)
 {
 
 	for (; p->name != NULL; p++)
@@ -880,11 +919,7 @@ lookup(p, cmd)
 /*
  * getline - a hacked up version of fgets to ignore TELNET escape codes.
  */
-char *
-getline(s, n, iop)
-	char *s;
-	int n;
-	FILE *iop;
+char * ftpd_getline(char *s, int n, FILE *iop)
 {
 	int c;
 	register char *cs;
@@ -956,8 +991,7 @@ getline(s, n, iop)
 	return (s);
 }
 
-void
-toolong(int signo)
+void toolong(int signo)
 {
 	(void)signo;
 
@@ -969,13 +1003,12 @@ toolong(int signo)
 	dologout(1);
 }
 
-static int
-yylex()
+static int yylex(void)
 {
 	static int cpos, state;
 	char *cp, *cp2;
 	struct tab *p;
-	int n;
+	int n, value;
 	char c;
 
 	for (;;) {
@@ -984,7 +1017,7 @@ yylex()
 		case CMD:
 			(void) signal(SIGALRM, toolong);
 			(void) alarm((unsigned) timeout);
-			if (getline(cbuf, sizeof(cbuf)-1, stdin) == NULL) {
+			if (ftpd_getline(cbuf, sizeof(cbuf)-1, stdin)==NULL) {
 				reply(221, "You could at least say goodbye.");
 				dologout(0);
 			}
@@ -1001,8 +1034,7 @@ yylex()
 					setproctitle("%s: %s", proctitle, cbuf);
 					*cp = c;
 				}
-			} else
-				setproctitle("%s: %s", proctitle, cbuf);
+			}
 #endif /* HASSETPROCTITLE */
 			if ((cp = strpbrk(cbuf, " \n")))
 				cpos = cp - cbuf;
@@ -1064,7 +1096,13 @@ yylex()
 		dostr1:
 			if (cbuf[cpos] == ' ') {
 				cpos++;
-				state = state == OSTR ? STR2 : ++state;
+				/* DOH!!! who wrote this?
+				 * state = ++state; is undefined in C!
+				 * state = state == OSTR ? STR2 : ++state;
+				 * looks elegant but not correct, adding 'value'
+				 */
+				value = state == OSTR ? STR2 : ++state;
+				state = value;
 				return (SP);
 			}
 			break;
@@ -1196,9 +1234,7 @@ yylex()
 	}
 }
 
-void
-upper(s)
-	char *s;
+void upper(char *s)
 {
 	while (*s != '\0') {
 		if (islower(*s))
@@ -1207,8 +1243,7 @@ upper(s)
 	}
 }
 
-static void
-help(struct tab *ctab, char *s)
+static void help(struct tab *ctab, char *s)
 {
 	struct tab *c;
 	int width, NCMDS;
@@ -1270,9 +1305,7 @@ help(struct tab *ctab, char *s)
 		    c->name, c->help);
 }
 
-static void
-sizecmd(filename)
-	char *filename;
+static void sizecmd(char *filename)
 {
 	switch (type) {
 	case TYPE_L:

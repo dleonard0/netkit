@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)comsat.c	5.24 (Berkeley) 2/25/91
  */
 char rcsid[] = 
-  "$Id: comsat.c,v 1.10 1997/05/20 01:37:29 dholland Exp $";
+  "$Id: comsat.c,v 1.17 1999/10/17 23:18:47 dholland Exp $";
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -59,7 +59,7 @@ char rcsid[] =
 #include <ctype.h>
 #include <string.h>
 #include <pwd.h>
-#include <paths.h>
+#include <paths.h>   /* used for _PATH_MAILDIR, _PATH_UTMP, etc. */
 #include <unistd.h>
 #include <stdlib.h>
 
@@ -81,67 +81,154 @@ static void jkfprintf(FILE *, const char *name, off_t offset, const char *cr);
 static void onalrm(int);
 
 int main(void) {
-	char msgbuf[100];
-	struct sockaddr_in from;
-	size_t fromlen;
+	char msgbuf[100];          /* network input buffer */
+	struct sockaddr_in from;   /* name of socket */
+	socklen_t fromlen;         /* holds sizeof(from) */
 
-	/* verify proper invocation */
+	/* 
+	 * Verify proper invocation: get the address of the local socket
+	 * that's supposed to be our stdin. If it's not a socket (the only
+	 * likely error) assume we were inadvertently run from someone's
+	 * shell and quit out.
+	 */
 	fromlen = sizeof(from);
 	if (getsockname(0, (struct sockaddr *)&from, &fromlen) < 0) {
 		fprintf(stderr, "comsat: getsockname: %s.\n", strerror(errno));
 		exit(1);
 	}
+
+	/*
+	 * openlog() opens a connection to the system logger for comsat.
+	 * We log as "comsat", with the process id, to the "LOG_DAEMON"
+	 * log channel.
+	 */
 	openlog("comsat", LOG_PID, LOG_DAEMON);
+
+	/*
+	 * Schlep over to the system mail spool.
+	 */
 	if (chdir(_PATH_MAILDIR)) {
 		syslog(LOG_ERR, "chdir: %s: %m", _PATH_MAILDIR);
 		exit(1);
 	}
+
+	/*
+	 * Record the time of the last message received (the one that
+	 * caused us to be run) so we can idle out later.
+	 */
 	time(&lastmsgtime);
+
+	/*
+	 * Grab our hostname for spewing to the user's screen.
+	 */
 	gethostname(hostname, sizeof(hostname));
+
+	/*
+	 * Make sure we won't get stopped by scribbling on the user's screen.
+	 */
 	signal(SIGTTOU, SIG_IGN);
-	/* This should prevent zombies without needing to wait. */
+
+	/* 
+	 * This declares that we're not interested in child processes' 
+	 * exit codes, so they will go away on their own without needing
+	 * to be wait()'d for.
+	 */
 	signal(SIGCHLD, SIG_IGN);
+
+	/*
+	 * Periodically reread the utmp, starting now.
+	 */
 	signal(SIGALRM, onalrm);
 	onalrm(SIGALRM);
+
+	/*
+	 * Loop forever handling biff packets.
+	 */
 	for (;;) {
+		sigset_t sigset;
 		int cc;
+
+		errno = 0;
 		cc = recv(0, msgbuf, sizeof(msgbuf) - 1, 0);
 		if (cc <= 0) {
 			if (errno != EINTR) sleep(1);
-			errno = 0;
 			continue;
 		}
-		if (!nutmp) continue; /* no one has logged in yet */
-		sigblock(sigmask(SIGALRM));
+		if (!nutmp) {
+			/* utmp is empty: no one is logged in */ 
+			continue;
+		}
+
+		/* Make sure we don't get SIGALRM while doing mailfor() */
+		sigemptyset(&sigset);
+		sigaddset(&sigset, SIGALRM);
+		sigprocmask(SIG_BLOCK, &sigset, NULL);
+
+		/* null-terminate input */
 		msgbuf[cc] = 0;
+
+		/* update time stamp */
 		time(&lastmsgtime);
+
+		/* biff the user */
 		mailfor(msgbuf);
-		sigsetmask(0L);
+
+		/* allow SIGALRM again */
+		sigprocmask(SIG_UNBLOCK, &sigset, NULL);
 	}
 }
 
+/*
+ * This function is called at startup and every fifteen seconds while 
+ * we're running, via timer signals.
+ */
 static void onalrm(int signum) {
 	static int utmpsize;		/* last malloced size for utmp */
 	static time_t utmpmtime;	/* last modification time for utmp */
-	struct stat statbuf;
+
+	struct stat statbuf;            /* scratch storage for stat() */
 	struct utmp *uptr;
 	int maxutmp;
 
+	/*
+	 * Defensive programming (this should not happen)
+	 */
 	if (signum!=SIGALRM) {
 	    dsyslog(LOG_DEBUG, "wild signal %d\n", signum);
 	    return;
 	}
 
+	/*
+	 * If we've been sitting around doing nothing, go away.
+	 */
 	if (time(NULL) - lastmsgtime >= MAXIDLE) {
 		exit(0);
 	}
+
+	/*
+	 * Come back here in another fifteen seconds.
+	 */
 	alarm(15);
+
+	/*
+	 * Check the modification time of the utmp file.
+	 */
 	if (stat(_PATH_UTMP, &statbuf) < 0) {
 		dsyslog(LOG_DEBUG, "fstat of utmp failed: %m\n");
 		return;
 	}
+
 	if (statbuf.st_mtime > utmpmtime) {
+		/*
+		 * utmp has changed since we last came here; reread it and
+		 * save the modification time.
+		 */
 		utmpmtime = statbuf.st_mtime;
+
+		/*
+		 * If it's now bigger than the space we have for it, 
+		 * get more space.
+		 */
 		if (statbuf.st_size > utmpsize) {
 			utmpsize = statbuf.st_size + 10 * sizeof(struct utmp);
 			if (utmp) {
@@ -155,28 +242,46 @@ static void onalrm(int signum) {
 				exit(1);
 			}
 		}
+
+		/* This is how many utmp entries we can possibly get */
 		maxutmp = utmpsize / sizeof(struct utmp);
-		nutmp = 0;
+
+		/* Rewind the utmp file */
 		setutent();
+
+		/*
+		 * Read the utmp file, via libc, copying each entry and
+		 * counting how many we get.
+		 */
+		nutmp = 0;
 		while ((uptr = getutent())!=NULL && nutmp < maxutmp) {
 		    utmp[nutmp] = *uptr;
 		    nutmp++;
 		}
+
+		/* Now done; close the utmp file. */
 		endutent();
 	}
 }
 
+/*
+ * We get here when we have mail to announce for the specified user.
+ * "name" holds a biff packet, which comes in the form
+ *          username@fileoffset
+ */
 static void mailfor(char *name)
 {
 	struct utmp *utp;
 	char *cp;
 	off_t offset;
 
+	/* Break off the file offset part and convert it to an integer. */
 	cp = strchr(name, '@');
 	if (!cp) return;
 	*cp = 0;
-	offset = atoi(cp + 1);
+	offset = atol(cp + 1);
 
+	/* Look through the utmp and call notify() for each matching login. */
 	utp = &utmp[nutmp];
 	while (--utp >= utmp) {
 		if (!strncmp(utp->ut_name, name, sizeof(utmp[0].ut_name)))
@@ -184,62 +289,156 @@ static void mailfor(char *name)
 	}
 }
 
+/*
+ * Check if a given tty name found in utmp is actually a legitimate tty.
+ */
+static int valid_tty(const char *line)
+{
+	const char *testline = line;
 
+	/* 
+	 * As of Linux 2.2 we can now sometimes have ttys in subdirs,
+	 * but only /dev/pts. So if the name begins with pts/, skip that
+	 * part. If there's a slash in anything else, complain loudly.
+	 */
+	if (!strncmp(testline, "pts/", 4)) testline += 4;
+
+	if (strchr(testline, '/')) {
+		/* A slash is an attempt to break security... */
+		return 0;
+	}
+	return 1;
+}
+
+/*
+ * This actually writes to the user's terminal.
+ */
 static void notify(struct utmp *utp, off_t offset)
 {
-	FILE *tp;
+	FILE *tp;                              /* file open on tty */
 	struct stat stb;
 	struct termios tbuf;
-	char tty[sizeof(utp->ut_line)+sizeof(_PATH_DEV)+1];
-	char name[sizeof(utp->ut_name) + 1];
-	char line[sizeof(utp->ut_line) + 1];
-	const char *cr;
+	char tty[sizeof(utp->ut_line)+sizeof(_PATH_DEV)+1]; /* full tty path */
+	char name[sizeof(utp->ut_name) + 1];   /* user name */
+	char line[sizeof(utp->ut_line) + 1];   /* tty name */
+	const char *cr;                        /* line delimiter */
+	sigset_t sigset;                       /* scratch signal mask */
 
+#ifdef USER_PROCESS
+	if (utp->ut_type != USER_PROCESS) {
+		return;
+	}
+#endif
+
+	/*
+	 * Be careful in case we have a hostile utmp. (Remember sunos4 
+	 * where it was mode 666?) Note that ut_line normally includes
+	 * enough space for the null-terminator, but ut_name doesn't.
+	 */
 	strncpy(line, utp->ut_line, sizeof(utp->ut_line));
 	line[sizeof(utp->ut_line)] = 0;
 
 	strncpy(name, utp->ut_name, sizeof(utp->ut_name));
 	name[sizeof(name) - 1] = '\0';
 
+	/* Get the full path to the tty. */
 	snprintf(tty, sizeof(tty), "%s%s", _PATH_DEV, line);
 
 	/*
-	 * Um. This will barf on any scheme involving ttys in subdirectories.
+	 * Again, in case we have a hostile utmp, try to make sure we've
+	 * got valid data and we're not being asked to write to, say,
+	 * /etc/passwd.
 	 */
-	if (strchr(line, '/')) {
-		/* A slash is an attempt to break security... */
-		syslog(LOG_AUTH | LOG_NOTICE, "'/' in \"%s\"", tty);
+	if (!valid_tty(line)) {
+		syslog(LOG_AUTH | LOG_NOTICE, "invalid tty \"%s\" in utmp", 
+		       tty);
 		return;
 	}
 
+	/*
+	 * If the user's tty isn't mode u+x, they don't want biffage;
+	 * skip them.
+	 */
 	if (stat(tty, &stb) || !(stb.st_mode & S_IEXEC)) {
 		dsyslog(LOG_DEBUG, "%s: wrong mode on %s", name, tty);
 		return;
 	}
 	dsyslog(LOG_DEBUG, "notify %s on %s\n", name, tty);
 
+	/*
+	 * Fork a child process to do the tty I/O. There are, traditionally, 
+	 * various ways for tty I/O to block indefinitely or otherwise hang.
+	 * Also later down we're going to setuid to make sure we can't be
+	 * used to read any file on the system.
+	 *
+	 * This of course makes a denial of service attack possible. So,
+	 * in the parent process, wait a tenth of a second before continuing.
+	 * This causes a primitive form of rate-limiting. It might be too 
+	 * much delay for a busy system. But a busy system probably shouldn't
+	 * be using comsat. If someone would like to make this smarter, feel
+	 * free.
+	 *
+	 * Note: sleep with select() and NOT sleep() because on some systems
+	 * at least sleep uses alarm(), which would interfere with our 
+	 * reload/timeout logic.
+	 */
 	if (fork()) {
 		/* parent process */
+		struct timeval tv;
+		tv.tv_sec = 0;
+		tv.tv_usec = 100000;
+		select(0, NULL, NULL, NULL, &tv);
 		return;
 	}
 	/* child process */
+
+	/*
+	 * Turn off the alarm handler and instead exit in thirty seconds.
+	 * Make sure SIGALRM isn't blocked.
+	 */
 	signal(SIGALRM, SIG_DFL);
+	sigemptyset(&sigset);
+	sigprocmask(SIG_SETMASK, &sigset, NULL);
 	alarm(30);
+
+	/*
+	 * Open the tty.
+	 */
 	if ((tp = fopen(tty, "w")) == NULL) {
 		dsyslog(LOG_ERR, "fopen of tty %s failed", tty);
 		_exit(-1);
 	}
+
+	/* 
+	 * Get the tty mode. Try to determine whether to use \n or \r\n 
+	 * for linebreaks.
+	 */
 	tcgetattr(fileno(tp), &tbuf);
 	if ((tbuf.c_oflag & OPOST) && (tbuf.c_oflag & ONLCR)) cr = "\n";
 	else cr = "\r\n";
 
+	/*
+	 * Announce the mail.
+	 */
 	fprintf(tp, "%s\aNew mail for %s@%.*s\a has arrived:%s----%s",
 		cr, name, (int)sizeof(hostname), hostname, cr, cr);
+
+	/*
+	 * Print the first few lines of the message.
+	 */
 	jkfprintf(tp, name, offset, cr);
+
+	/*
+	 * Close up and quit the child process.
+	 */
 	fclose(tp);
 	_exit(0);
 }
 
+/*
+ * This prints a few lines from the mailbox of the user "name" at offset
+ * "offset", using "cr" as the line break string, to the file "tp".
+ */
 static void jkfprintf(FILE *tp, const char *name, off_t offset, const char *cr)
 {
 	char *cp, ch;
@@ -248,7 +447,10 @@ static void jkfprintf(FILE *tp, const char *name, off_t offset, const char *cr)
 	struct passwd *p;
 	char line[BUFSIZ];
 
-	/* Set effective uid to user in case mail drop is on nfs */
+	/* 
+	 * Set uid to user in case mail drop is on nfs 
+	 * ...and also to prevent cute symlink to /etc/shadow games 
+	 */
 	if ((p = getpwnam(name)) == NULL) {
 		/*
 		 * If user is not in passwd file, assume that it's
@@ -256,12 +458,21 @@ static void jkfprintf(FILE *tp, const char *name, off_t offset, const char *cr)
 		 */
 		syslog(LOG_AUTH | LOG_NOTICE, "%s not in passwd file", name);
 		return;
-	} 
+	}
+
+	/* 
+	 * This sets both real and effective uids and clears the saved uid 
+	 * too (see posix) so it's a one-way trip.
+	 */
 	setuid(p->pw_uid);
 
+	/*
+	 * Open the user's mailbox (recall we're already in the mail spool dir)
+	 */
 	fi = fopen(name, "r");
 	if (fi == NULL)	return;
 
+	/* Move to requested offset */
 	fseek(fi, offset, L_SET);
 	/*
 	 * Print the first 7 lines or 560 characters of the new mail

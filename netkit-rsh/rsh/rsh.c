@@ -38,7 +38,8 @@ char copyright[] =
 /*
  * From: @(#)rsh.c	5.24 (Berkeley) 7/1/91
  */
-char rcsid[] = "$Id: rsh.c,v 1.10 1997/06/08 20:34:00 dholland Exp $";
+char rcsid[] = "$Id: rsh.c,v 1.11 1997/06/13 10:08:32 dholland Exp $";
+#include "../version.h"
 
 #include <sys/types.h>
 #include <signal.h>

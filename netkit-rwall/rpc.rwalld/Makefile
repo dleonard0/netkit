@@ -8,7 +8,7 @@ RPCGEN=rpcgen
 rwalld: rwalld.o daemon.o
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
-rwalld.o: rwall.h daemon.h
+rwalld.o: rwall.h daemon.h ../version.h
 daemon.o: daemon.h
 
 install: rwalld

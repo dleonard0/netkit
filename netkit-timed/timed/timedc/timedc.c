@@ -39,20 +39,22 @@ char copyright[] =
  * From: @(#)timedc.c	5.1 (Berkeley) 5/11/93
  */
 char timedc_rcsid[] =
-  "$Id: timedc.c,v 1.5 1996/08/15 06:12:04 dholland Exp $";
+  "$Id: timedc.c,v 1.7 1999/12/12 18:05:07 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.5 $"
+#ident "$Revision: 1.7 $"
 #endif
 
 #include "timedc.h"
-#include <strings.h>
+#include <string.h>
 #include <signal.h>
 #include <ctype.h>
 #include <setjmp.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <syslog.h>
+
+#include "../../version.h"
 
 int trace = 0;
 FILE *fd = 0;
@@ -175,8 +177,7 @@ getcmd(char *name)
 /*
  * Slice a string up into argc/argv.
  */
-void
-makeargv()
+void makeargv(void)
 {
 	register char *cp;
 	register char **argp = margv;
@@ -203,10 +204,7 @@ makeargv()
 /*
  * Help command.
  */
-void
-help(argc, argv)
-	int argc;
-	char *argv[];
+void help(int argc, char *argv[])
 {
 	register struct cmd *c;
 

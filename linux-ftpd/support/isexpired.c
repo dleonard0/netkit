@@ -22,7 +22,7 @@ isexpired(const struct spwd *sp)
 	if (!sp)
 		return 0;
 
-	now = ((unsigned long) time((time_t *) 0)) / (24L * 3600L);
+	now = (time(NULL) / (24L * 3600L));
 
 	if (sp->sp_expire > 0 && now >= sp->sp_expire)
 		return 3;

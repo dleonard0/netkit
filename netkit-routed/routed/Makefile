@@ -9,14 +9,11 @@ OBJS=	af.o if.o input.o main.o output.o startup.o \
 routed: $(OBJS)
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
-ripquery:
-	$(MAKE) -C query 
-
 install: all
-	install -s -m $(DAEMONMODE) routed $(INSTALLROOT)$(SBINDIR)
-	install -m $(MANMODE) routed.8.gz $(INSTALLROOT)$(MANDIR)/man8
+	install -s -m$(DAEMONMODE) routed $(INSTALLROOT)$(SBINDIR)
+	install -m$(MANMODE) routed.8 $(INSTALLROOT)$(MANDIR)/man8
 
 clean:
 	rm -f *.o routed
 
-$(OBJS): defs.h trace.h interface.h table.h af.h pathnames.h
+$(OBJS): defs.h trace.h interface.h table.h af.h pathnames.h ../version.h

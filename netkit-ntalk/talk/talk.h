@@ -31,36 +31,20 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)talk.h	5.7 (Berkeley) 3/1/91
- *	$Id: talk.h,v 1.13 1998/11/27 10:55:58 dholland Exp $
+ *	$Id: talk.h,v 1.15 1999/11/25 07:46:44 dholland Exp $
  */
 
-#include <curses.h>
+/*#include <curses.h>*/
 #include <sys/socket.h>
 #include <netinet/in.h>
 
 #include "prot_talkd.h"
 
 extern int sockt;
-extern int curses_initialized;
 extern int invitation_waiting;
 
 extern const char *current_state;
 extern int current_line;
-
-typedef struct xwin {
-	WINDOW	*x_win;
-	int	x_nlines;
-	int	x_ncols;
-	int	x_line;
-	int	x_col;
-	char	kill;
-	char	cerase;
-	char	werase;
-} xwin_t;
-
-extern	xwin_t my_win;
-extern	xwin_t his_win;
-extern	WINDOW *line_win;
 
 void p_error(const char *string);
 void quit(int);
@@ -68,6 +52,7 @@ void message(const char *mesg);
 void get_names(int argc, char *argv[]);
 void get_addrs(const char *);
 void init_display(void);
+void real_init_display(void);
 void open_ctl(void);
 void open_sockt(void);
 void start_msgs(void);
@@ -77,7 +62,13 @@ void end_msgs(void);
 void set_edit_chars(void);
 void talk(void);
 void send_delete(void);
-void display(xwin_t *, unsigned char *, int);
+void display(int hiswin, unsigned char *, int);
+
+void set_my_edit_chars(int ctrlh, int ctrlu, int ctrlw);
+void set_his_edit_chars(int ctrlh, int ctrlu, int ctrlw);
+void dobeep(void);
+void dorefresh(void);
+int dogetch(void);  /* returns 0-255 or -1 meaning no character */
 
 #define HIS_DAEMON 0
 #define MY_DAEMON 1

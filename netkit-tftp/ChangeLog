@@ -1,3 +1,27 @@
+14-Sep-1999:
+	Log attempts to use ".." in filenames in tftpd. Also don't spew
+	  every request at LOG_ERR; use LOG_NOTICE. (Olaf Kirch, 
+	  okir@caldera.de)
+
+1-Aug-1999:
+	Did complete y2k and y2038 audit. 
+
+31-Jul-1999:
+	Redid makefiles/config stuff for new confgen version.
+
+31-Jul-1999:
+	Clean up file mode handling in tftpd.
+	Fix tftp to not use gets(3).
+	
+23-Sep-1997:
+	tftpd should now refuse to run as root and bail if it can't find
+	"nobody". 
+	tftpd now opens with O_TRUNC when opening files for write.
+	(Dick Porter, dick@cymru.net)
+
+12-Jun-1997:
+	netkit-tftp-0.10 released.
+
 05-Apr-1997:
 	Added configure script to generate MCONFIG.
 

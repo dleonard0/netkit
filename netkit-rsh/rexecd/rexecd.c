@@ -29,6 +29,29 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
+ *
+ *
+ * 1-14-99 Karl R. Hakimian <hakimian@eecs.wsu.edu>
+ * 
+ * While the headers in this file claim only the purest decent from
+ * their BSD roots, this program has had unspeakable things done to it
+ * over the years. I have tried to clean things up and get them working
+ * again.
+ *
+ * Put the port connect back to the client back where it belongs.
+ * Replaced fork and coping data from stderr to error socket with a
+ *  dup2 of the error socket onto stderr. This code was in the BSD code,
+ *  but does not seem to be necessary and is broken under Linux
+ * removed file descriptor from doit call. Not needed. f = 0 assumed
+ *  throughout
+ * Removed unused variables.
+ *
+ * 3-31-99 Karl R. Hakimian <hakimian@eecs.wsu.edu>
+ *
+ * Fixed problem where stderr socket can be left open if a daemon is
+ * called from rexecd.
+ *
+ * KRH
  */
 
 char copyright[] =
@@ -39,8 +62,8 @@ char copyright[] =
  * From: @(#)rexecd.c	5.12 (Berkeley) 2/25/91
  */
 char rcsid[] = 
-  "$Id: rexecd.c,v 1.17 1997/06/08 19:42:34 dholland Exp $";
-char pkg[] = "netkit-rsh-0.10";
+  "$Id: rexecd.c,v 1.27 1999/10/02 21:50:52 dholland Exp $";
+#include "../version.h"
 
 #include <sys/param.h>
 #include <sys/ioctl.h>
@@ -53,6 +76,7 @@ char pkg[] = "netkit-rsh-0.10";
 #include <errno.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <crypt.h>    /* apparently necessary in some glibcs */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -67,7 +91,7 @@ char pkg[] = "netkit-rsh-0.10";
 #include <security/pam_appl.h>
 #endif
 
-#define _PATH_FTPUSERS        "/etc/ftpusers"
+#define _PATH_FTPUSERS	      "/etc/ftpusers"
 
 #ifdef TCP_WRAPPER
 #include <syslog.h>
@@ -88,7 +112,7 @@ int deny_severity = LOG_WARNING;
  */
 
 static void fatal(const char *);
-static void doit(int f, struct sockaddr_in *fromp);
+static void doit(struct sockaddr_in *fromp);
 static void getstr(char *buf, int cnt, const char *err);
 
 static const char *remote = NULL;
@@ -97,11 +121,12 @@ int
 main(int argc, char **argv)
 {
 	struct sockaddr_in from;
-	size_t fromlen;
+	socklen_t fromlen;
 
 	(void)argc;
 
 	fromlen = sizeof(from);
+ 
 	if (getpeername(0, (struct sockaddr *)&from, &fromlen) < 0) {
 		fprintf(stderr, "rexecd: getpeername: %s\n", strerror(errno));
 		return 1;
@@ -129,7 +154,7 @@ main(int argc, char **argv)
 	}
 #endif
 	syslog(allow_severity, "connect from %.128s", remote);
-	doit(0, &from);
+	doit(&from);
 	return 0;
 }
 
@@ -146,9 +171,9 @@ static char *PAM_username;
 static char *PAM_password;
 
 static int PAM_conv (int num_msg,
-                     const struct pam_message **msg,
-                     struct pam_response **resp,
-                     void *appdata_ptr) {
+		     const struct pam_message **msg,
+		     struct pam_response **resp,
+		     void *appdata_ptr) {
   int count = 0, replies = 0;
   struct pam_response *reply = NULL;
   int size = sizeof(struct pam_response);
@@ -159,27 +184,29 @@ static int PAM_conv (int num_msg,
   #define COPY_STRING(s) (s) ? strdup(s) : NULL
 
   for (count = 0; count < num_msg; count++) {
+    GET_MEM;
     switch (msg[count]->msg_style) {
       case PAM_PROMPT_ECHO_ON:
-        GET_MEM;
-        reply[replies].resp_retcode = PAM_SUCCESS;
-        reply[replies++].resp = COPY_STRING(PAM_username);
-          /* PAM frees resp */
-        break;
+	reply[replies].resp_retcode = PAM_SUCCESS;
+	reply[replies++].resp = COPY_STRING(PAM_username);
+	  /* PAM frees resp */
+	break;
       case PAM_PROMPT_ECHO_OFF:
-        GET_MEM;
-        reply[replies].resp_retcode = PAM_SUCCESS;
-        reply[replies++].resp = COPY_STRING(PAM_password);
-          /* PAM frees resp */
-        break;
+	reply[replies].resp_retcode = PAM_SUCCESS;
+	reply[replies++].resp = COPY_STRING(PAM_password);
+	  /* PAM frees resp */
+	break;
       case PAM_TEXT_INFO:
-        /* ignore it... */
-        break;
+	reply[replies].resp_retcode = PAM_SUCCESS;
+	reply[replies++].resp = NULL;
+	/* ignore it... */
+	break;
       case PAM_ERROR_MSG:
+	reply[replies].resp_retcode = PAM_SUCCESS;
+	reply[replies++].resp = NULL;
+	/* Must be an error of some sort... */
       default:
-        /* Must be an error of some sort... */
-        free (reply);
-        return PAM_CONV_ERR;
+	return PAM_CONV_ERR;
     }
   }
   if (reply) *resp = reply;
@@ -194,25 +221,26 @@ static struct pam_conv PAM_conversation = {
 
 
 static void
-doit(int f, struct sockaddr_in *fromp)
+doit(struct sockaddr_in *fromp)
 {
-	char cmdbuf[ARG_MAX+1], *namep, *cp;
+	char cmdbuf[ARG_MAX+1];
 	char user[16], pass[16];
 	struct passwd *pwd;
 	int s = -1;
 	u_short port;
-	int pv[2], pid, cc;
-	fd_set readfrom1, ready1;
-	char buf[BUFSIZ], sig;
 	const char *theshell;
 	const char *cp2;
+	int ifd;
+#ifdef USE_PAM
+	pam_handle_t *pamh;
+	int pam_error;
+#else /* !USE_PAM */
+	char *namep, *cp;
 #ifdef RESTRICT_FTP
+	char buf[BUFSIZ];
 	FILE *fp;
 #endif
-#ifdef USE_PAM
-       pam_handle_t *pamh;
-       int pam_error;
-#endif
+#endif /* USE_PAM */
 
 	signal(SIGINT, SIG_DFL);
 	signal(SIGQUIT, SIG_DFL);
@@ -226,14 +254,14 @@ doit(int f, struct sockaddr_in *fromp)
 	}
 #endif
 
-	dup2(f, 0);
-	dup2(f, 1);
-	dup2(f, 2);
+/* copy socket to stdout and stderr KRH */
+	dup2(0, 1);
+	dup2(0, 2);
 	alarm(60);
 	port = 0;
 	for (;;) {
 		char c;
-		if (read(f, &c, 1) != 1)
+		if (read(0, &c, 1) != 1)
 			exit(1);
 		if (c == 0)
 			break;
@@ -241,12 +269,32 @@ doit(int f, struct sockaddr_in *fromp)
 	}
 	alarm(0);
 
+/*
+ We must connect back to the client here if a port was provided. KRH
+*/
+	if (port != 0) {
+		s = socket(AF_INET, SOCK_STREAM, 0);
+		if (s < 0)
+			exit(1);
+
+#if 0 /* this shouldn't be necessary */
+		struct	sockaddr_in asin = { AF_INET };
+		if (bind(s, (struct sockaddr *)&asin, sizeof (asin)) < 0)
+			exit(1);
+#endif
+		alarm(60);
+		fromp->sin_port = htons(port);
+		if (connect(s, (struct sockaddr *)fromp, sizeof (*fromp)) < 0)
+			exit(1);
+		alarm(0);
+	}
+
 	getstr(user, sizeof(user), "username too long\n");
 	getstr(pass, sizeof(pass), "password too long\n");
 	getstr(cmdbuf, sizeof(cmdbuf), "command too long\n");
 #ifdef USE_PAM
        #define PAM_BAIL if (pam_error != PAM_SUCCESS) { \
-               pam_end(pamh, pam_error); exit(1); \
+	       pam_end(pamh, pam_error); exit(1); \
        }
        PAM_username = user;
        PAM_password = pass;
@@ -256,7 +304,7 @@ doit(int f, struct sockaddr_in *fromp)
        PAM_BAIL;
        pam_error = pam_acct_mgmt(pamh, 0);
        PAM_BAIL;
-       pam_error = pam_setcred(pamh, PAM_CRED_ESTABLISH);
+       pam_error = pam_setcred(pamh, PAM_ESTABLISH_CRED);
        PAM_BAIL;
        pam_end(pamh, PAM_SUCCESS);
        /* If this point is reached, the user has been authenticated. */
@@ -265,8 +313,8 @@ doit(int f, struct sockaddr_in *fromp)
        endpwent();
 #else /* !USE_PAM */
        /* All of the following issues are dealt with in the PAM configuration
-          file, so put all authentication/priviledge checks before the
-          corresponding #endif below. */
+	  file, so put all authentication/priviledge checks before the
+	  corresponding #endif below. */
 
 	setpwent();
 	pwd = getpwnam(user);
@@ -294,6 +342,12 @@ doit(int f, struct sockaddr_in *fromp)
 			fatal("Login incorrect.\n");
 		}
 	}
+
+	/* Erase the cleartext password from memory. */
+	memset(pass, 0, sizeof(pass));
+	/* Clear out crypt()'s internal state, too. */
+	crypt("flurgle", pwd->pw_passwd);
+
 	/* Disallow access to root account. */
 	if (pwd->pw_uid == 0) {
 		syslog(LOG_ERR, "%s LOGIN REFUSED from %.128s", user, remote);
@@ -325,79 +379,24 @@ doit(int f, struct sockaddr_in *fromp)
 		fatal("No remote directory.\n");
 	}
 
-	if (port != 0) {
-		s = socket(AF_INET, SOCK_STREAM, 0);
-		if (s < 0)
-			exit(1);
-
-#if 0 /* this shouldn't be necessary */
-		struct	sockaddr_in asin = { AF_INET };
-		if (bind(s, (struct sockaddr *)&asin, sizeof (asin)) < 0)
-			exit(1);
-#endif
-		alarm(60);
-		fromp->sin_port = htons(port);
-		if (connect(s, (struct sockaddr *)fromp, sizeof (*fromp)) < 0)
-			exit(1);
-		alarm(0);
-	}
-
 	write(2, "\0", 1);
 	if (port) {
-		if (pipe(pv)) fatal("Try again later.\n");
-		pid = fork();
-		if (pid == -1)  {
-			fatal("Try again.\n");
-		}
-		if (pid) {
-		        /* parent */
-			int one = 1;
-			int hifd = pv[0]+1;
-			if (s<=hifd) hifd = s+1;
-			close(0);
-			close(1); 
-			close(2);
-			close(f);
-			close(pv[1]);
-			FD_SET(s, &readfrom1);
-			FD_SET(pv[0], &readfrom1);
-			ioctl(pv[1], FIONBIO, (char *)&one);
-			/* should set s nbio! */
-			do {
-				ready1 = readfrom1;
-				select(hifd, &ready1, NULL, NULL, NULL);
-				if (FD_ISSET(s, &ready1)) {
-					if (read(s, &sig, 1) <= 0)
-						FD_CLR(s, &readfrom1);
-					else
-						killpg(pid, sig);
-				}
-				if (FD_ISSET(pv[0], &ready1)) {
-					cc = read(pv[0], buf, sizeof(buf));
-					if (cc <= 0) {
-						shutdown(s, 1+1);
-						FD_CLR(pv[0], &readfrom1);
-					} 
-					else write(s, buf, cc);
-				}
-			} while (FD_ISSET(pv[0], &readfrom1) && 
-				 FD_ISSET(s, &readfrom1));
-			exit(0);
-		}
-		/* child */
-		setpgrp();
-		close(s); 
-		close(pv[0]);
-		dup2(pv[1], 2);
+/* If we have a port, dup STDERR on that port KRH */
+		close(2);
+		dup2(s, 2);
+	/*
+	 * We no longer need s, close it so we don't leave it behind for a
+	 * daemon.
+	 */
+	close (s);
+
 	}
 	if (*pwd->pw_shell == 0) {
-		/* Shouldn't we deny access? */
+		/* Shouldn't we deny access? (Can be done by PAM KRH) */
 		theshell = _PATH_BSHELL;
 	}
 	else theshell = pwd->pw_shell;
-	/* shouldn't we check /etc/shells? */
-
-	if (f > 2) close(f);
+	/* shouldn't we check /etc/shells? (Can be done by PAM KRH) */
 
 	setgid(pwd->pw_gid);
 	initgroups(pwd->pw_name, pwd->pw_gid);
@@ -411,6 +410,12 @@ doit(int f, struct sockaddr_in *fromp)
 	cp2 = strrchr(theshell, '/');
 	if (cp2) cp2++;
 	else cp2 = theshell;
+
+	/*
+	 * Close all fds, in case libc has left fun stuff like 
+	 * /etc/shadow open.
+	 */
+	for (ifd=3; ifd<OPEN_MAX; ifd++) close(ifd);
 
 	execle(theshell, cp2, "-c", cmdbuf, 0, myenviron);
 	perror(theshell);
@@ -440,3 +445,4 @@ getstr(char *buf, int cnt, const char *err)
 		}
 	} while (c != 0);
 }
+

@@ -26,7 +26,7 @@ install: rusers
 clean:
 	rm -f *.o rusers rusers.h rusers_xdr.c rusers.x
 
-rusers.o: rusers.h
+rusers.o: rusers.h ../version.h
 rusers_xdr.o: rusers_xdr.c rusers.h
 
 # rpcgen includes the pathname you specify for the .x file as the

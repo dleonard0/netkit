@@ -35,7 +35,7 @@
  * From: OpenBSD: vis.c,v 1.2 1996/08/19 08:27:36 tholo Exp
  */
 char vis_rcsid[] = \
-  "$Id: vis.c,v 1.1 1997/05/19 12:58:37 dholland Exp $";
+  "$Id: vis.c,v 1.2 1999/09/29 01:28:07 netbug Exp $";
 
 #include <sys/types.h>
 #include <limits.h>
@@ -51,11 +51,7 @@ char vis_rcsid[] = \
 /*
  * vis - visually encode characters
  */
-char *
-vis(dst, c, flag, nextc)
-	register char *dst;
-	int c, nextc;
-	register int flag;
+char * vis(register char *dst, int c, int nextc, register int flag)
 {
 	if (((u_int)c <= UCHAR_MAX && isascii(c) && isgraph(c)) ||
 	   ((flag & VIS_SP) == 0 && c == ' ') ||
@@ -155,11 +151,7 @@ done:
  *	Strvisx encodes exactly len bytes from src into dst.
  *	This is useful for encoding a block of data.
  */
-int
-strvis(dst, src, flag)
-	register char *dst;
-	register const char *src;
-	int flag;
+int strvis(register char *dst, register const char *src, int flag)
 {
 	register char c;
 	char *start;
@@ -170,12 +162,7 @@ strvis(dst, src, flag)
 	return (dst - start);
 }
 
-int
-strvisx(dst, src, len, flag)
-	register char *dst;
-	register const char *src;
-	register size_t len;
-	int flag;
+int strvisx(register char *dst, register const char *src, register size_t len, int flag)
 {
 	register char c;
 	char *start;

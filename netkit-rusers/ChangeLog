@@ -1,3 +1,22 @@
+12-Dec-1999:
+	Backlogged fixes from Frodo Looijaard, frodol@dds.nl.
+
+1-Aug-1999:
+	Complete y2k and y2038 audit. Alas, we're not y2038-compliant.
+
+31-Jul-1999:
+	Redid makefiles/config stuff for new confgen version.
+
+12-Oct-1997:
+	Patches applied:
+	Robert Bihlmeyer <robbe@orcus.priv.at>
+		patches for compatibility with glibc 2.0.4's "rusers.x"
+	<askalski@acsu.buffalo.edu>
+		patches for strings which are not null-terminated
+	
+23-Sep-1997:
+	Fix suspicious strncpys in rusers.
+
 02-Aug-1997:
 	netkit-rusers-0.11 released.
 

@@ -42,7 +42,9 @@ char copyright[] =
 /*
  * From: @(#)rshd.c	5.38 (Berkeley) 3/2/91
  */
-char rcsid[] = "$Id: rshd.c,v 1.14 1996/11/23 19:31:51 dholland Exp $";
+char rcsid[] = 
+  "$Id: rshd.c,v 1.22 1999/10/02 21:45:08 dholland Exp $";
+#include "../version.h"
 
 /*
  * remote shell server:
@@ -52,6 +54,7 @@ char rcsid[] = "$Id: rshd.c,v 1.14 1996/11/23 19:31:51 dholland Exp $";
  *	command\0
  *	data
  */
+#include <sys/types.h>
 #include <sys/param.h>
 #include <sys/ioctl.h>
 #include <sys/time.h>
@@ -60,24 +63,24 @@ char rcsid[] = "$Id: rshd.c,v 1.14 1996/11/23 19:31:51 dholland Exp $";
 
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netinet/ip.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 
 #include <pwd.h>
 #include <grp.h>
 #include <syslog.h>
-#include <arpa/nameser.h>
 #include <resolv.h>
 #include <unistd.h>
 #include <errno.h>
-#include <stdio.h>
+#include <stdio.h>  /* for vsnprintf */
 #include <stdlib.h>
 #include <string.h>
 #include <paths.h>
 #include <stdarg.h>
+#include <ctype.h>
+#include <assert.h>
 
-#ifdef GNU_LIBC
+#if defined(__GLIBC__) && (__GLIBC__ >= 2)
 #define _check_rhosts_file  __check_rhosts_file
 #endif
 
@@ -85,7 +88,6 @@ char rcsid[] = "$Id: rshd.c,v 1.14 1996/11/23 19:31:51 dholland Exp $";
 #include <security/pam_appl.h>
 #include <security/pam_misc.h>
 static pam_handle_t *pamh;
-static int retcode;
 #endif /* USE_PAM */
 
 #define	OPTIONS	"ahlLn"
@@ -96,21 +98,464 @@ static int paranoid = 0;
 static int sent_null;
 static int allow_root_rhosts=0;
 
+char	username[20] = "USER=";
+char	homedir[64] = "HOME=";
+char	shell[64] = "SHELL=";
+char	path[100] = "PATH=";
+char	*envinit[] =
+	    {homedir, shell, path, username, 0};
+extern	char	**environ;
+
 static void error(const char *fmt, ...);
-static void usage(void);
 static void doit(struct sockaddr_in *fromp);
 static void getstr(char *buf, int cnt, const char *err);
 
 extern int _check_rhosts_file;
 
+/*
+ * Report error to client.
+ * Note: can't be used until second socket has connected
+ * to client, or older clients will hang waiting
+ * for that connection first.
+ */
+static void
+error(const char *fmt, ...) {
+    va_list ap;
+    char buf[BUFSIZ], *bp = buf;
+    
+    if (sent_null == 0)	*bp++ = 1;
+    va_start(ap, fmt);
+    vsnprintf(bp, sizeof(buf)-1, fmt, ap);
+    va_end(ap);
+    write(2, buf, strlen(buf));
+}
+
+static void fail(const char *errorstr, 
+		 const char *remuser, const char *hostname, 
+		 const char *locuser,
+		 const char *cmdbuf) 
+{
+	/* log the (failed) rsh request */
+	syslog(LOG_INFO|LOG_AUTH, "rsh denied to %s@%s as %s: %s",
+	       remuser, hostname, locuser, errorstr);
+	if (paranoid) {
+	    syslog(LOG_INFO|LOG_AUTH, "rsh command was '%s'", cmdbuf);
+	}
+	error(errorstr, hostname);
+	exit(1);
+}
+
+static void getstr(char *buf, int cnt, const char *err) {
+    char c;
+    do {
+	if (read(0, &c, 1) != 1) exit(1);
+	*buf++ = c;
+	if (--cnt == 0) {
+	    error("%s too long\n", err);
+	    exit(1);
+	}
+    } while (c != 0);
+}
+
+static int getint(void) {
+    int port = 0;
+    char c;
+    do {
+	if (read(0, &c, 1) != 1) exit(1);
+	if (isascii(c) && isdigit(c)) port = port*10 + c-'0';
+    } while (c != 0);
+    return port;
+}
+
+static void stderr_parent(int sock, int pype, int pid) {
+    fd_set ready, readfrom;
+    char buf[BUFSIZ], sig;
+    int one = 1;
+    int nfd, cc, done=0;
+    
+    ioctl(pype, FIONBIO, (char *)&one);
+    /* should set s nbio! */
+    
+    FD_ZERO(&readfrom);
+    FD_SET(sock, &readfrom);
+    FD_SET(pype, &readfrom);
+    if (pype > sock) nfd = pype+1;
+    else nfd = sock+1;
+    
+    while (!done) {
+	ready = readfrom;
+	if (select(nfd, &ready, NULL, NULL, NULL) < 0 && errno != EINTR) {
+	    break;
+	}
+	done = 1;
+	if (FD_ISSET(sock, &ready)) {
+	    done = 0;
+	    cc = read(sock, &sig, 1);
+	    if (cc <= 0) FD_CLR(sock, &readfrom);
+	    else killpg(pid, sig);
+	}
+	if (FD_ISSET(pype, &ready)) {
+	    done = 0;
+	    cc = read(pype, buf, sizeof(buf));
+	    if (cc <= 0) {
+		shutdown(sock, 2);
+		FD_CLR(pype, &readfrom);
+	    } 
+	    else write(sock, buf, cc);
+	}
+    }
+    
+#ifdef USE_PAM
+    /*
+     * This does not strike me as the right place for this; this is
+     * in a child process... what does this need to accomplish?
+     */
+    pam_close_session(pamh, 0);
+    pam_end(pamh, PAM_SUCCESS);
+#endif
+    exit(0);
+}
+
+
+static struct passwd *doauth(const char *remuser, 
+			     const char *hostname, 
+			     const char *locuser)
+{
+#ifdef USE_PAM
+    static struct pam_conv conv = { misc_conv, NULL };
+    int retcode;
+#endif
+    struct passwd *pwd = getpwnam(locuser);
+    if (pwd == NULL) return NULL;
+    if (pwd->pw_uid==0) paranoid = 1;
+
+#ifdef USE_PAM
+    retcode = pam_start("rsh", locuser, &conv, &pamh);
+    if (retcode != PAM_SUCCESS) {
+	syslog(LOG_ERR, "pam_start: %s\n", pam_strerror(pamh, retcode));
+	exit (1);
+    }
+    pam_set_item (pamh, PAM_RUSER, remuser);
+    pam_set_item (pamh, PAM_RHOST, hostname);
+    pam_set_item (pamh, PAM_TTY, "tty");
+    
+    retcode = pam_authenticate(pamh, 0);
+    if (retcode == PAM_SUCCESS) {
+	retcode = pam_acct_mgmt(pamh, 0);
+    }
+    if (retcode == PAM_SUCCESS) {
+	/*
+	 * Why do we need to set groups here?
+	 * Also, this stuff should be moved down near where the setuid() is.
+	 */
+	if (setgid(pwd->pw_gid) != 0) {
+	    pam_end(pamh, PAM_SYSTEM_ERR);
+	    return NULL;
+	}
+	if (initgroups(locuser, pwd->pw_gid) != 0) {
+	    pam_end(pamh, PAM_SYSTEM_ERR);
+	    return NULL;
+	}
+	retcode = pam_setcred(pamh, PAM_ESTABLISH_CRED);
+    }
+    
+    if (retcode == PAM_SUCCESS) {
+	retcode = pam_open_session(pamh,0);
+    }
+    if (retcode != PAM_SUCCESS) {
+	pam_end(pamh, retcode);
+	return NULL;
+    }
+    return pwd;
+#else
+    if (pwd->pw_uid==0 && !allow_root_rhosts) return NULL;
+    if (ruserok(hostname, pwd->pw_uid==0, remuser, locuser) < 0) {
+	return NULL;
+    }
+    return pwd;
+#endif
+}
+
+static const char *findhostname(struct sockaddr_in *fromp,
+				const char *remuser, const char *locuser,
+				const char *cmdbuf) 
+{
+	struct hostent *hp;
+	const char *hostname;
+
+	hp = gethostbyaddr((char *)&fromp->sin_addr, sizeof (struct in_addr),
+			   fromp->sin_family);
+
+	errno = ENOMEM; /* malloc (thus strdup) may not set it */
+	if (hp) hostname = strdup(hp->h_name);
+	else hostname = strdup(inet_ntoa(fromp->sin_addr));
+
+	if (hostname==NULL) {
+	    /* out of memory? */
+	    error("strdup: %s\n", strerror(errno));
+	    exit(1);
+	}
+
+	/*
+	 * Attempt to confirm the DNS. 
+	 */
+#ifdef	RES_DNSRCH
+	_res.options &= ~RES_DNSRCH;
+#endif
+	hp = gethostbyname(hostname);
+	if (hp == NULL) {
+	    syslog(LOG_INFO, "Couldn't look up address for %s", hostname);
+	    fail("Couldn't get address for your host (%s)\n", 
+		 remuser, inet_ntoa(fromp->sin_addr), locuser, cmdbuf);
+	} 
+	while (hp->h_addr_list[0] != NULL) {
+	    if (!memcmp(hp->h_addr_list[0], &fromp->sin_addr,
+			sizeof(fromp->sin_addr))) {
+		return hostname;
+	    }
+	    hp->h_addr_list++;
+	}
+	syslog(LOG_NOTICE, "Host addr %s not listed for host %s",
+	       inet_ntoa(fromp->sin_addr), hp->h_name);
+	fail("Host address mismatch for %s\n", 
+	     remuser, inet_ntoa(fromp->sin_addr), locuser, cmdbuf);
+	return NULL; /* not reachable */
+}
+
+static void
+doit(struct sockaddr_in *fromp)
+{
+	char cmdbuf[ARG_MAX+1];
+	const char *theshell, *shellname;
+	char locuser[16], remuser[16];
+	struct passwd *pwd;
+	int sock = -1;
+	const char *hostname;
+	u_short port;
+	int pv[2], pid, ifd;
+
+	signal(SIGINT, SIG_DFL);
+	signal(SIGQUIT, SIG_DFL);
+	signal(SIGTERM, SIG_DFL);
+
+	alarm(60);
+	port = getint();
+	alarm(0);
+
+	if (port != 0) {
+		int lport = IPPORT_RESERVED - 1;
+		sock = rresvport(&lport);
+		if (sock < 0) {
+		    syslog(LOG_ERR, "can't get stderr port: %m");
+		    exit(1);
+		}
+		if (port >= IPPORT_RESERVED) {
+		    syslog(LOG_ERR, "2nd port not reserved\n");
+		    exit(1);
+		}
+		fromp->sin_port = htons(port);
+		if (connect(sock, (struct sockaddr *)fromp,
+			    sizeof(*fromp)) < 0) {
+		    syslog(LOG_INFO, "connect second port: %m");
+		    exit(1);
+		}
+	}
+
+#if 0
+	/* We're running from inetd; socket is already on 0, 1, 2 */
+	dup2(f, 0);
+	dup2(f, 1);
+	dup2(f, 2);
+#endif
+
+	getstr(remuser, sizeof(remuser), "remuser");
+	getstr(locuser, sizeof(locuser), "locuser");
+	getstr(cmdbuf, sizeof(cmdbuf), "command");
+	if (!strcmp(locuser, "root")) paranoid = 1;
+
+	hostname = findhostname(fromp, remuser, locuser, cmdbuf);
+
+	setpwent();
+	pwd = doauth(remuser, hostname, locuser);
+	if (pwd == NULL) {
+		fail("Permission denied.\n", 
+		     remuser, hostname, locuser, cmdbuf);
+	}
+
+	if (chdir(pwd->pw_dir) < 0) {
+		chdir("/");
+		/*
+		 * error("No remote directory.\n");
+		 * exit(1);
+		 */
+	}
+
+
+	if (pwd->pw_uid != 0 && !access(_PATH_NOLOGIN, F_OK)) {
+		error("Logins currently disabled.\n");
+		exit(1);
+	}
+
+	(void) write(2, "\0", 1);
+	sent_null = 1;
+
+	if (port) {
+		if (pipe(pv) < 0) {
+			error("Can't make pipe.\n");
+			exit(1);
+		}
+		pid = fork();
+		if (pid == -1)  {
+			error("Can't fork; try again.\n");
+			exit(1);
+		}
+		if (pid) {
+			close(0); 
+			close(1);
+			close(2); 
+			close(pv[1]);
+			stderr_parent(sock, pv[0], pid);
+			/* NOTREACHED */
+		}
+		setpgrp();
+		close(sock); 
+		close(pv[0]);
+		dup2(pv[1], 2);
+		close(pv[1]);
+	}
+	theshell = pwd->pw_shell;
+	if (!theshell || !*theshell) {
+	    /* shouldn't we deny access? */
+	    theshell = _PATH_BSHELL;
+	}
+
+#if BSD > 43
+	if (setlogin(pwd->pw_name) < 0) {
+	    syslog(LOG_ERR, "setlogin() failed: %m");
+	}
+#endif
+#ifndef USE_PAM
+	/* if PAM, already done */
+	setgid(pwd->pw_gid);
+	initgroups(pwd->pw_name, pwd->pw_gid);
+#endif
+	setuid(pwd->pw_uid);
+	environ = envinit;
+
+	strncat(homedir, pwd->pw_dir, sizeof(homedir)-6);
+	homedir[sizeof(homedir)-1] = 0;
+
+	strcat(path, _PATH_DEFPATH);
+
+	strncat(shell, theshell, sizeof(shell)-7);
+	shell[sizeof(shell)-1] = 0;
+
+	strncat(username, pwd->pw_name, sizeof(username)-6);
+	username[sizeof(username)-1] = 0;
+
+	shellname = strrchr(theshell, '/');
+	if (shellname) shellname++;
+	else shellname = theshell;
+
+	endpwent();
+	if (paranoid) {
+	    syslog(LOG_INFO|LOG_AUTH, "%s@%s as %s: cmd='%s'",
+		   remuser, hostname, locuser, cmdbuf);
+	}
+
+	/*
+	 * Close all fds, in case libc has left fun stuff like 
+	 * /etc/shadow open.
+	 */
+	for (ifd=3; ifd<OPEN_MAX; ifd++) close(ifd);
+
+	execl(theshell, shellname, "-c", cmdbuf, 0);
+	perror(theshell);
+	exit(1);
+}
+
+static void network_init(int fd, struct sockaddr_in *fromp)
+{
+	struct linger linger;
+	socklen_t fromlen;
+	int on=1;
+	int port;
+
+	fromlen = sizeof(*fromp);
+	if (getpeername(fd, (struct sockaddr *) fromp, &fromlen) < 0) {
+		syslog(LOG_ERR, "getpeername: %m");
+		_exit(1);
+	}
+	if (keepalive &&
+	    setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *)&on,
+	    sizeof(on)) < 0)
+		syslog(LOG_WARNING, "setsockopt (SO_KEEPALIVE): %m");
+	linger.l_onoff = 1;
+	linger.l_linger = 60;			/* XXX */
+	if (setsockopt(fd, SOL_SOCKET, SO_LINGER, (char *)&linger,
+	    sizeof (linger)) < 0)
+		syslog(LOG_WARNING, "setsockopt (SO_LINGER): %m");
+
+	if (fromp->sin_family != AF_INET) {
+	    syslog(LOG_ERR, "malformed \"from\" address (af %d)\n",
+		   fromp->sin_family);
+	    exit(1);
+	}
+#ifdef IP_OPTIONS
+      {
+	u_char optbuf[BUFSIZ/3], *cp;
+	char lbuf[BUFSIZ+1], *lp;
+	socklen_t optsize = sizeof(optbuf);
+	int  ipproto;
+	struct protoent *ip;
+
+	if ((ip = getprotobyname("ip")) != NULL)
+		ipproto = ip->p_proto;
+	else
+		ipproto = IPPROTO_IP;
+	if (!getsockopt(0, ipproto, IP_OPTIONS, (char *)optbuf, &optsize) &&
+	    optsize != 0) {
+		lp = lbuf;
+
+		/*
+		 * If these are true, this will not run off the end of lbuf[].
+		 */
+		assert(optsize <= BUFSIZ/3);
+		assert(3*optsize <= BUFSIZ);
+		for (cp = optbuf; optsize > 0; cp++, optsize--, lp += 3)
+			snprintf(lp, 4, " %2.2x", *cp);
+
+		syslog(LOG_NOTICE,
+		       "Connection received from %s using IP options"
+		       " (ignored): %s",
+		       inet_ntoa(fromp->sin_addr), lbuf);
+
+		if (setsockopt(0, ipproto, IP_OPTIONS, NULL, optsize) != 0) {
+			syslog(LOG_ERR, "setsockopt IP_OPTIONS NULL: %m");
+			exit(1);
+		}
+	}
+      }
+#endif
+
+	/*
+	 * Check originating port for validity.
+	 */
+	port = ntohs(fromp->sin_port);
+	if (port >= IPPORT_RESERVED || port < IPPORT_RESERVED/2) {
+	    syslog(LOG_NOTICE|LOG_AUTH, "Connection from %s on illegal port",
+		   inet_ntoa(fromp->sin_addr));
+	    exit(1);
+	}
+}
+
 int
 main(int argc, char *argv[])
 {
-	struct linger linger;
-	int ch, on = 1;
-	size_t fromlen;
+	int ch;
 	struct sockaddr_in from;
 	_check_rhosts_file=1;
+
 	openlog("rshd", LOG_PID | LOG_ODELAY, LOG_DAEMON);
 
 	opterr = 0;
@@ -138,7 +583,7 @@ main(int argc, char *argv[])
 
 		case '?':
 		default:
-			usage();
+			syslog(LOG_ERR, "usage: rshd [-%s]", OPTIONS);
 			exit(2);
 		}
 	}
@@ -151,480 +596,11 @@ main(int argc, char *argv[])
                                "pam_rhosts_auth in /etc/pam.conf");
 #endif /* USE_PAM */
 
-	fromlen = sizeof (from);
-	if (getpeername(0, (struct sockaddr *)&from, &fromlen) < 0) {
-		syslog(LOG_ERR, "getpeername: %m");
-		_exit(1);
-	}
-	if (keepalive &&
-	    setsockopt(0, SOL_SOCKET, SO_KEEPALIVE, (char *)&on,
-	    sizeof(on)) < 0)
-		syslog(LOG_WARNING, "setsockopt (SO_KEEPALIVE): %m");
-	linger.l_onoff = 1;
-	linger.l_linger = 60;			/* XXX */
-	if (setsockopt(0, SOL_SOCKET, SO_LINGER, (char *)&linger,
-	    sizeof (linger)) < 0)
-		syslog(LOG_WARNING, "setsockopt (SO_LINGER): %m");
+	network_init(0, &from);
 	doit(&from);
 	return 0;
 }
 
-static void 
-fail(const char *errorstr, const char *errorhost, 
-     int uid, 
-     const char *remuser, const char *hostname, const char *locuser,
-     const char *cmdbuf) 
-{
-	/* log the (failed) rsh request, if paranoid */
-	if (paranoid || uid == 0)
-		syslog(LOG_INFO|LOG_AUTH,
-		       "rsh denied to %s@%s as %s: cmd='%s'; %s",
-		       remuser, hostname, locuser, cmdbuf,
-		       errorstr);
-	error(errorstr, errorhost);
-	exit(1);
-}
-
-char	username[20] = "USER=";
-char	homedir[64] = "HOME=";
-char	shell[64] = "SHELL=";
-char	path[100] = "PATH=";
-char	*envinit[] =
-	    {homedir, shell, path, username, 0};
-extern	char	**environ;
-
-static void
-doit(struct sockaddr_in *fromp)
-{
-	char cmdbuf[ARG_MAX+1];
-	const char *theshell, *shellname;
-	char locuser[16], remuser[16];
-	struct passwd *pwd;
-	int sock = -1;
-	struct hostent *hp;
-	const char *hostname, *errorhost;
-	const char *errorstr = NULL;
-	u_short port;
-	int pv[2], pid, cc;
-	int nfd;
-	fd_set ready, readfrom;
-	char buf[BUFSIZ], sig;
-	int one = 1;
-	char remotehost[2 * MAXHOSTNAMELEN + 1];
-#ifdef USE_PAM
-	char c;
-	static struct pam_conv conv = {
-	  misc_conv,
-	  NULL
-	};
-#endif /* USE_PAM */
-
-	(void) signal(SIGINT, SIG_DFL);
-	(void) signal(SIGQUIT, SIG_DFL);
-	(void) signal(SIGTERM, SIG_DFL);
-#ifdef DEBUG
-	{ int t = open(_PATH_TTY, 2);
-	  if (t >= 0) {
-		ioctl(t, TIOCNOTTY, (char *)0);
-		(void) close(t);
-	  }
-	}
-#endif
-	fromp->sin_port = ntohs((u_short)fromp->sin_port);
-	if (fromp->sin_family != AF_INET) {
-		syslog(LOG_ERR, "malformed \"from\" address (af %d)\n",
-		    fromp->sin_family);
-		exit(1);
-	}
-#ifdef IP_OPTIONS
-      {
-	u_char optbuf[BUFSIZ/3], *cp;
-	char lbuf[BUFSIZ], *lp;
-	size_t optsize = sizeof(optbuf);
-	int  ipproto;
-	struct protoent *ip;
-
-	if ((ip = getprotobyname("ip")) != NULL)
-		ipproto = ip->p_proto;
-	else
-		ipproto = IPPROTO_IP;
-	if (!getsockopt(0, ipproto, IP_OPTIONS, (char *)optbuf, &optsize) &&
-	    optsize != 0) {
-		lp = lbuf;
-		for (cp = optbuf; optsize > 0; cp++, optsize--, lp += 3)
-			sprintf(lp, " %2.2x", *cp);
-		syslog(LOG_NOTICE,
-		    "Connection received from %s using IP options (ignored):%s",
-		    inet_ntoa(fromp->sin_addr), lbuf);
-		if (setsockopt(0, ipproto, IP_OPTIONS,
-			       NULL, optsize) != 0) {
-			syslog(LOG_ERR, "setsockopt IP_OPTIONS NULL: %m");
-			exit(1);
-		}
-	}
-      }
-#endif
-
-		if (fromp->sin_port >= IPPORT_RESERVED ||
-		    fromp->sin_port < IPPORT_RESERVED/2) {
-			syslog(LOG_NOTICE|LOG_AUTH,
-			    "Connection from %s on illegal port",
-			    inet_ntoa(fromp->sin_addr));
-			exit(1);
-		}
-
-	(void) alarm(60);
-	port = 0;
-	for (;;) {
-		char c;
-		if ((cc = read(0, &c, 1)) != 1) {
-			if (cc < 0)
-				syslog(LOG_NOTICE, "read: %m");
-			shutdown(0, 1+1);
-			exit(1);
-		}
-		if (c== 0)
-			break;
-		port = port * 10 + c - '0';
-	}
-
-	(void) alarm(0);
-	if (port != 0) {
-		int lport = IPPORT_RESERVED - 1;
-		sock = rresvport(&lport);
-		if (sock < 0) {
-			syslog(LOG_ERR, "can't get stderr port: %m");
-			exit(1);
-		}
-			if (port >= IPPORT_RESERVED) {
-				syslog(LOG_ERR, "2nd port not reserved\n");
-				exit(1);
-			}
-		fromp->sin_port = htons(port);
-		if (connect(sock, (struct sockaddr *)fromp,
-			    sizeof(*fromp)) < 0) {
-			syslog(LOG_INFO, "connect second port: %m");
-			exit(1);
-		}
-	}
-
-#ifdef notdef
-	/* from inetd, socket is already on 0, 1, 2 */
-	dup2(f, 0);
-	dup2(f, 1);
-	dup2(f, 2);
-#endif
-	hp = gethostbyaddr((char *)&fromp->sin_addr, sizeof (struct in_addr),
-			   fromp->sin_family);
-	if (hp) {
-		strncpy(remotehost, hp->h_name, sizeof(remotehost) - 1);
-		remotehost[sizeof(remotehost) - 1] = 0;
-	}
-	else {
-		strncpy(remotehost, inet_ntoa(fromp->sin_addr), 
-			sizeof(remotehost) - 1);
-		remotehost[sizeof(remotehost) - 1] = 0;
-	}
-	errorhost = hostname = remotehost;
 
 
-	{
-		/*
-		 * If name returned by gethostbyaddr is in our domain,
-		 * attempt to verify that we haven't been fooled by someone
-		 * in a remote net; look up the name and check that this
-		 * address corresponds to the name.
-		 */
-#ifdef	RES_DNSRCH
-		_res.options &= ~RES_DNSRCH;
-#endif
-		hp = gethostbyname(remotehost);
-		if (hp == NULL) {
-			syslog(LOG_INFO, "Couldn't look up address for %s",
-			       remotehost);
-			errorstr = "Couldn't get address for your host (%s)\n";
-			hostname = inet_ntoa(fromp->sin_addr);
-		} 
-		else for (; ; hp->h_addr_list++) {
-			if (hp->h_addr_list[0] == NULL) {
-				syslog(LOG_NOTICE,
-				       "Host addr %s not listed for host %s",
-				       inet_ntoa(fromp->sin_addr),
-				       hp->h_name);
-				errorstr = "Host address mismatch for %s\n";
-				hostname = inet_ntoa(fromp->sin_addr);
-				break;
-			}
-			if (!memcmp(hp->h_addr_list[0],
-				    &fromp->sin_addr,
-				    sizeof(fromp->sin_addr))) break;
-		}
-	} 
 
-		getstr(remuser, sizeof(remuser), "remuser");
-
-	getstr(locuser, sizeof(locuser), "locuser");
-	getstr(cmdbuf, sizeof(cmdbuf), "command");
-	setpwent();
-	pwd = getpwnam(locuser);
-	if (pwd == NULL) {
-		if (errorstr == NULL)
-			errorstr = "Login incorrect.\n";
-		fail(errorstr, errorhost, pwd->pw_uid,
-		     remuser, hostname, locuser, cmdbuf);
-	}
-	if (chdir(pwd->pw_dir) < 0) {
-		(void) chdir("/");
-#ifdef notdef
-		error("No remote directory.\n");
-		exit(1);
-#endif
-	}
-
-
-#ifndef USE_PAM
-	if (!errorstr && pwd->pw_uid==0 && !allow_root_rhosts) {
-		errorstr = "Permission denied.\n";
-	}
-	if (!errorstr) {
-		if (ruserok(hostname, pwd->pw_uid == 0, remuser, locuser) < 0)
-			errorstr = "Permission denied.\n";
-	}
-	if (errorstr) {
-		fail(errorstr, errorhost, pwd->pw_uid,
-		     remuser, hostname, locuser, cmdbuf);
-	}
-#else
-       retcode = pam_start("rsh", locuser, &conv, &pamh);
-       if (retcode != PAM_SUCCESS) {
-               syslog (LOG_ERR, "pam_start: %s\n", pam_strerror(retcode));
-               exit (1);
-       }
-        (void) pam_set_item (pamh, PAM_RUSER, remuser);
-        (void) pam_set_item (pamh, PAM_RHOST, hostname);
-        (void) pam_set_item (pamh, PAM_TTY, "tty");
-	retcode = pam_authenticate(pamh, 0);
-	if (retcode == PAM_SUCCESS)
-	  retcode = pam_acct_mgmt(pamh, 0);
-	if (retcode == PAM_SUCCESS) {
-	  if (setgid(pwd->pw_gid) != 0) {
-	    error("Permission denied.\n");
-	    pam_end(pamh,PAM_SYSTEM_ERR);
-	    exit (1);
-	  }
-
-	  if (initgroups(locuser, pwd->pw_gid) != 0) {
-	    error("Permission denied.\n");
-	    pam_end(pamh,PAM_SYSTEM_ERR);
-	    exit (1);
-	  }
-	  retcode = pam_setcred(pamh, PAM_CRED_ESTABLISH);
-	}
-
-	if (retcode == PAM_SUCCESS)
-	  retcode = pam_open_session(pamh,0);
-	if (retcode != PAM_SUCCESS) {
-		error("Permission denied.\n");
-		pam_end(pamh,retcode);
-		exit (1);
-	}
-
-#endif
-
-	if (pwd->pw_uid && !access(_PATH_NOLOGIN, F_OK)) {
-		error("Logins currently disabled.\n");
-		exit(1);
-	}
-
-	(void) write(2, "\0", 1);
-	sent_null = 1;
-
-	if (port) {
-		if (pipe(pv) < 0) {
-			error("Can't make pipe.\n");
-			exit(1);
-		}
-		pid = fork();
-		if (pid == -1)  {
-			error("Can't fork; try again.\n");
-			exit(1);
-		}
-		if (pid) {
-			{
-				(void) close(0); (void) close(1);
-			}
-			(void) close(2); (void) close(pv[1]);
-
-			FD_ZERO(&readfrom);
-			FD_SET(sock, &readfrom);
-			FD_SET(pv[0], &readfrom);
-			if (pv[0] > sock)
-				nfd = pv[0];
-			else
-				nfd = sock;
-				ioctl(pv[0], FIONBIO, (char *)&one);
-
-			/* should set s nbio! */
-			nfd++;
-			do {
-				ready = readfrom;
-					if (select(nfd, &ready, (fd_set *)0,
-					  (fd_set *)0, (struct timeval *)0) < 0)
-						break;
-				if (FD_ISSET(sock, &ready)) {
-					int	ret;
-						ret = read(sock, &sig, 1);
-					if (ret <= 0)
-						FD_CLR(sock, &readfrom);
-					else
-						killpg(pid, sig);
-				}
-				if (FD_ISSET(pv[0], &ready)) {
-					errno = 0;
-					cc = read(pv[0], buf, sizeof(buf));
-					if (cc <= 0) {
-						shutdown(sock, 1+1);
-						FD_CLR(pv[0], &readfrom);
-					} else {
-							(void)
-							  write(sock, buf, cc);
-					}
-				}
-
-			} while (FD_ISSET(sock, &readfrom) ||
-			    FD_ISSET(pv[0], &readfrom));
-
-#ifdef USE_PAM
-                       pam_close_session(pamh, 0);
-                       pam_end (pamh, PAM_SUCCESS);
-#endif
-
-			exit(0);
-		}
-		setpgrp();
-		close(sock); 
-		close(pv[0]);
-		dup2(pv[1], 2);
-		close(pv[1]);
-	}
-	theshell = pwd->pw_shell;
-	if (!theshell || !*theshell) {
-	    /* shouldn't we deny access? */
-	    theshell = _PATH_BSHELL;
-	}
-
-#if	BSD > 43
-	if (setlogin(pwd->pw_name) < 0)
-		syslog(LOG_ERR, "setlogin() failed: %m");
-#endif
-	setgid((gid_t)pwd->pw_gid);
-#ifndef USE_PAM
-	/* if PAM, already done */
-	initgroups(pwd->pw_name, pwd->pw_gid);
-#endif
-	setuid((uid_t)pwd->pw_uid);
-	environ = envinit;
-	strncat(homedir, pwd->pw_dir, sizeof(homedir)-6);
-	homedir[sizeof(homedir)-1] = 0;
-	strcat(path, _PATH_DEFPATH);
-	strncat(shell, theshell, sizeof(shell)-7);
-	shell[sizeof(shell)-1] = 0;
-	strncat(username, pwd->pw_name, sizeof(username)-6);
-	username[sizeof(username)-1] = 0;
-	shellname = strrchr(theshell, '/');
-	if (shellname) shellname++;
-	else shellname = theshell;
-	endpwent();
-	if (paranoid || pwd->pw_uid == 0) {
-		    syslog(LOG_INFO|LOG_AUTH, "%s@%s as %s: cmd='%s'",
-			remuser, hostname, locuser, cmdbuf);
-	}
-
-	execl(theshell, shellname, "-c", cmdbuf, 0);
-	perror(theshell);
-	exit(1);
-}
-
-/*
- * Report error to client.
- * Note: can't be used until second socket has connected
- * to client, or older clients will hang waiting
- * for that connection first.
- */
-static void
-error(const char *fmt, ...)
-{
-	va_list ap;
-	char buf[BUFSIZ], *bp = buf;
-
-	if (sent_null == 0)
-		*bp++ = 1;
-	va_start(ap, fmt);
-	vsnprintf(bp, sizeof(buf)-1, fmt, ap);
-	va_end(ap);
-	write(2, buf, strlen(buf));
-}
-
-static void
-getstr(char *buf, int cnt, const char *err)
-{
-	char c;
-
-	do {
-		if (read(0, &c, 1) != 1)
-			exit(1);
-		*buf++ = c;
-		if (--cnt == 0) {
-			error("%s too long\n", err);
-			exit(1);
-		}
-	} while (c != 0);
-}
-
-#if 0
-/*
- * Check whether host h is in our local domain,
- * defined as sharing the last two components of the domain part,
- * or the entire domain part if the local domain has only one component.
- * If either name is unqualified (contains no '.'),
- * assume that the host is local, as it will be
- * interpreted as such.
- */
-static int
-local_domain(const char *h)
-{
-	char localhost[MAXHOSTNAMELEN];
-	char *p1, *p2, *topdomain();
-
-	localhost[0] = 0;
-	(void) gethostname(localhost, sizeof(localhost));
-	p1 = topdomain(localhost);
-	p2 = topdomain(h);
-	if (p1 == NULL || p2 == NULL || !strcasecmp(p1, p2))
-		return(1);
-	return(0);
-}
-
-char *
-topdomain(h)
-	char *h;
-{
-	register char *p;
-	char *maybe = NULL;
-	int dots = 0;
-
-	for (p = h + strlen(h); p >= h; p--) {
-		if (*p == '.') {
-			if (++dots == 2)
-				return (p);
-			maybe = p;
-		}
-	}
-	return maybe;
-}
-#endif /* 0 */
-
-void usage(void)
-{
-	syslog(LOG_ERR, "usage: rshd [-%s]", OPTIONS);
-}

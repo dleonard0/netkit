@@ -36,7 +36,7 @@
  * From: @(#)input.c	8.1 (Berkeley) 6/5/93
  */
 char input_rcsid[] = 
-  "$Id: input.c,v 1.6 1996/11/25 17:28:24 dholland Exp $";
+  "$Id: input.c,v 1.8 1999/08/01 19:19:16 dholland Exp $";
 
 
 /*
@@ -55,7 +55,6 @@ int needupdate;		    /* true if we need update at nextbcast */
 /*
  * Process a newly received packet.
  */
-extern struct interface *if_ifwithdstaddr(struct sockaddr *);
 
 void rip_input(struct sockaddr *from, struct rip *rip, int size)
 {
@@ -137,15 +136,13 @@ void rip_input(struct sockaddr *from, struct rip *rip, int size)
 			n->rip_metric = htonl(n->rip_metric);
 		}
 		rip->rip_cmd = RIPCMD_RESPONSE;
+		/* Warning! it is HERE that the rip structure is filled out with filename information */
 		memcpy(packet, rip, size);
-		(*afp->af_output)(s, 0, from, size);
+		(*afp->af_output)(sock, 0, from, size);
 		return;
 
 	case RIPCMD_TRACEON:
 	case RIPCMD_TRACEOFF:
-		/* first, verify whether we are allowed to act upon remote request */
-		if (ripcmd_trace_accepted == no)
-			return;
 		/* verify message came from a privileged port */
 		if ((*afp->af_portcheck)(from) == 0)
 			return;

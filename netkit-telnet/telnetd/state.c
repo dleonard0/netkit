@@ -35,7 +35,7 @@
  * From: @(#)state.c	5.10 (Berkeley) 3/22/91
  */
 char state_rcsid[] = 
-  "$Id: state.c,v 1.8 1996/08/22 23:36:36 dholland Exp $";
+  "$Id: state.c,v 1.12 1999/12/12 19:41:44 dholland Exp $";
 
 #include "telnetd.h"
 
@@ -43,10 +43,10 @@ int not42 = 1;
 
 static int envvarok(char *varp);
 
-static char doopt[] = { IAC, DO, '%', 'c', 0 };
-static char dont[] = { IAC, DONT, '%', 'c', 0 };
-char	will[] = { IAC, WILL, '%', 'c', 0 };
-char	wont[] = { IAC, WONT, '%', 'c', 0 };
+static unsigned char doopt[] = { IAC, DO, '%', 'c', 0 };
+static unsigned char dont[] = { IAC, DONT, '%', 'c', 0 };
+unsigned char	will[] = { IAC, WILL, '%', 'c', 0 };
+unsigned char	wont[] = { IAC, WONT, '%', 'c', 0 };
 
 /*
  * Buffer for sub-options, and macros
@@ -56,7 +56,7 @@ unsigned char subbuffer[512], *subpointer=subbuffer, *subend=subbuffer;
 
 #define	SB_CLEAR()	subpointer = subbuffer;
 #define	SB_TERM()	{ subend = subpointer; SB_CLEAR(); }
-#define	SB_ACCUM(c)	if (subpointer < (subbuffer+sizeof subbuffer)) { \
+#define	SB_ACCUM(c)	if (subpointer < (subbuffer + sizeof(subbuffer)-1)) { \
 				*subpointer++ = (c); \
 			}
 #define	SB_GET()	((*subpointer++)&0xff)
@@ -81,10 +81,6 @@ unsigned char subbuffer[512], *subpointer=subbuffer, *subend=subbuffer;
 void telrcv(void) {
     register int c;
     static int state = TS_DATA;
-
-#if defined(CRAY2) && defined(UNICOS5)
-    char *opfrontp = pfrontp;
-#endif
 
     while (ncc > 0) {
 	if ((&ptyobuf[BUFSIZ] - pfrontp) < 2) break;
@@ -195,8 +191,8 @@ void telrcv(void) {
 		      }
 
 		      netclear();	/* clear buffer back */
-		      *nfrontp++ = IAC;
-		      *nfrontp++ = DM;
+		      *nfrontp++ = (char)IAC;
+		      *nfrontp++ = (char)DM;
 		      neturg = nfrontp-1; /* off by one XXX */
 		      DIAG(TD_OPTIONS, printoption("td: send IAC", DM));
 		      break;
@@ -352,21 +348,6 @@ void telrcv(void) {
 	     exit(1);
 	}
     }
-#if defined(CRAY2) && defined(UNICOS5)
-    if (!linemode) {
-	char xptyobuf[BUFSIZ+NETSLOP];
-	char xbuf2[BUFSIZ];
-	register char *cp;
-	int n = pfrontp - opfrontp, oc;
-	bcopy(opfrontp, xptyobuf, n);
-	pfrontp = opfrontp;
-	pfrontp += term_input(xptyobuf, pfrontp, n, BUFSIZ+NETSLOP,
-			      xbuf2, &oc, BUFSIZ);
-	for (cp = xbuf2; oc > 0; --oc)
-	    if ((*nfrontp++ = *cp++) == IAC)
-		*nfrontp++ = IAC;
-    }
-#endif	/* defined(CRAY2) && defined(UNICOS5) */
 }
 
 /*
@@ -441,8 +422,7 @@ void send_do(int option, int init) {
 	    set_his_want_state_will(option);
 	do_dont_resp[option]++;
     }
-    sprintf(nfrontp, doopt, option);
-    nfrontp += sizeof (dont) - 2;
+    netoprintf((char *)doopt, option);
     
     DIAG(TD_OPTIONS, printoption("td: send do", option));
 }
@@ -652,8 +632,7 @@ void send_dont(int option, int init) {
 	set_his_want_state_wont(option);
 	do_dont_resp[option]++;
     }
-    sprintf(nfrontp, dont, option);
-    nfrontp += sizeof (doopt) - 2;
+    netoprintf((char *) dont, option);
 
     DIAG(TD_OPTIONS, printoption("td: send dont", option));
 }
@@ -790,8 +769,7 @@ void send_will(int option, int init) {
 	set_my_want_state_will(option);
 	will_wont_resp[option]++;
     }
-    (void) sprintf(nfrontp, will, option);
-    nfrontp += sizeof (doopt) - 2;
+    netoprintf((char *) will, option);
 
     DIAG(TD_OPTIONS, printoption("td: send will", option));
 }
@@ -939,8 +917,7 @@ void send_wont(int option, int init) {
 	set_my_want_state_wont(option);
 	will_wont_resp[option]++;
     }
-    (void) sprintf(nfrontp, wont, option);
-    nfrontp += sizeof (wont) - 2;
+    netoprintf((char *)wont, option);
     
     DIAG(TD_OPTIONS, printoption("td: send wont", option));
 }
@@ -1047,7 +1024,7 @@ void suboption(void) {
 
 	settimer(tspeedsubopt);
 	if (SB_EOF() || SB_GET() != TELQUAL_IS) return;
-	xspeed = atoi(subpointer);
+	xspeed = atoi((char *)subpointer);
 
 	while (SB_GET() != ',' && !SB_EOF());
 	if (SB_EOF()) return;
@@ -1070,7 +1047,7 @@ void suboption(void) {
 
 	terminaltype = terminalname;
 
-	while ((terminaltype < (terminalname + sizeof terminalname-1)) &&
+	while ((terminaltype < (terminalname + sizeof (terminalname) -1) ) &&
 	       !SB_EOF()) 
 	{
 	    int c;
@@ -1226,7 +1203,8 @@ void suboption(void) {
 		c = SB_GET();
 		/* FALL THROUGH */
 	    default:
-		*cp++ = c;
+	        /* I think this test is correct... */
+		if (cp < subbuffer+sizeof(subbuffer)-1) *cp++ = c;
 		break;
 	    }
 	}

@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)main.c	5.10 (Berkeley) 3/1/91
  */
 char main_rcsid[] = 
-  "$Id: main.c,v 1.9 1996/11/25 18:42:46 dholland Exp $";
+  "$Id: main.c,v 1.12 1999/09/29 02:01:31 netbug Exp $";
 
 /* Many bug fixes are from Jim Guyton <guyton@rand-unix> */
 
@@ -51,7 +51,7 @@ char main_rcsid[] =
 #include <sys/file.h>
 
 #include <netinet/in.h>
-#include <netinet/ip.h>
+/* #include <netinet/ip.h> <--- unused? */
 #include <arpa/inet.h>
 
 #include <signal.h>
@@ -143,7 +143,7 @@ struct cmd cmdtab[] = {
 	{ "rexmt",	xhelp,		setrexmt },
 	{ "timeout",	ihelp,		settimeout },
 	{ "?",		hhelp,		help },
-	{ 0 }
+	{ 0,0,0 }
 };
 
 static struct cmd *getcmd(const char *name);
@@ -189,11 +189,13 @@ void
 setpeer(int argc, char *argv[])
 {
 	struct hostent *host;
+	size_t len;
 
 	if (argc < 2) {
 		strcpy(line, "Connect ");
 		printf("(to) ");
-		gets(&line[strlen(line)]);
+		len = strlen(line);
+		fgets(line+len, sizeof(line)-len, stdin);
 		makeargv();
 		argc = margc;
 		argv = margv;
@@ -314,11 +316,13 @@ put(int argc, char *argv[])
 	int fd;
 	register int n;
 	register char *ccp, *targ;
+	size_t len;
 
 	if (argc < 2) {
 		strcpy(line, "send ");
 		printf("(file) ");
-		gets(&line[strlen(line)]);
+		len = strlen(line);
+		fgets(line+len, sizeof(line)-len, stdin);
 		makeargv();
 		argc = margc;
 		argv = margv;
@@ -410,11 +414,13 @@ get(int argc, char *argv[])
 	register int n;
 	register char *cp;
 	char *src;
+	size_t len;
 
 	if (argc < 2) {
 		strcpy(line, "get ");
 		printf("(files) ");
-		gets(&line[strlen(line)]);
+		len = strlen(line);
+		fgets(line+len, sizeof(line)-len, stdin);
 		makeargv();
 		argc = margc;
 		argv = margv;
@@ -493,11 +499,13 @@ void
 setrexmt(int argc, char *argv[])
 {
 	int t;
+	size_t len;
 
 	if (argc < 2) {
 		strcpy(line, "Rexmt-timeout ");
 		printf("(value) ");
-		gets(&line[strlen(line)]);
+		len = strlen(line);
+		fgets(line+len, sizeof(line)-len, stdin);
 		makeargv();
 		argc = margc;
 		argv = margv;
@@ -517,11 +525,13 @@ void
 settimeout(int argc, char *argv[])
 {
 	int t;
+	size_t len;
 
 	if (argc < 2) {
 		strcpy(line, "Maximum-timeout ");
 		printf("(value) ");
-		gets(&line[strlen(line)]);
+		len = strlen(line);
+		fgets(line+len, sizeof(line)-len, stdin);
 		makeargv();
 		argc = margc;
 		argv = margv;
@@ -593,7 +603,7 @@ command(int top)
 		putchar('\n');
 	for (;;) {
 		printf("%s> ", prompt);
-		if (gets(line) == 0) {
+		if (fgets(line, sizeof(line), stdin) == NULL) {
 			if (feof(stdin)) {
 				quit(0, NULL);
 			} else {

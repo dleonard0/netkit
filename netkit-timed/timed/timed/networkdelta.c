@@ -35,10 +35,10 @@
  * From: @(#)networkdelta.c	5.1 (Berkeley) 5/11/93
  */
 char nd_rcsid[] =
-  "$Id: networkdelta.c,v 1.3 1997/06/09 01:30:53 dholland Exp $";
+  "$Id: networkdelta.c,v 1.4 1999/11/25 04:48:41 netbug Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.3 $"
+#ident "$Revision: 1.4 $"
 #endif
 
 #include "globals.h"
@@ -67,8 +67,7 @@ static long median(float, float*, long*, long*, unsigned int);
  *	of the machines in the network, while discarding "obviously"
  *	bad values.
  */
-long
-networkdelta()
+long networkdelta(void)
 {
 	struct hosttbl *htp;
 	long med;

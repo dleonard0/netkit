@@ -36,7 +36,7 @@
  * From: @(#)timer.c	8.1 (Berkeley) 6/5/93
  */
 char timer_rcsid[] = 
-  "$Id: timer.c,v 1.6 1996/11/25 16:54:04 dholland Exp $";
+  "$Id: timer.c,v 1.7 1999/08/01 22:39:59 dholland Exp $";
 
 
 /*
@@ -44,7 +44,7 @@ char timer_rcsid[] =
  */
 #include "defs.h"
 
-int	faketime;
+static int faketime;
 
 /*
  * Timer routine.  Performs routing information supply

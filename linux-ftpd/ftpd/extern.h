@@ -32,7 +32,7 @@
  *
  *	@(#)extern.h	8.2 (Berkeley) 4/4/94
  *	NetBSD: extern.h,v 1.2 1995/04/11 02:44:49 cgd Exp
- *      $Id: extern.h,v 1.3 1997/05/19 11:58:33 dholland Exp $
+ *      $Id: extern.h,v 1.5 1999/07/16 01:12:54 dholland Exp $
  */
 
 void	blkfree __P((char **));
@@ -43,8 +43,8 @@ void	dologout __P((int));
 void	fatal __P((const char *));
 int	ftpd_pclose __P((FILE *));
 FILE   *ftpd_popen __P((char *, const char *));
-char   *getline __P((char *, int, FILE *));
-void	logwtmp __P((const char *, const char *, const char *));
+char   *ftpd_getline __P((char *, int, FILE *));
+void	ftpdlogwtmp __P((const char *, const char *, const char *));
 void	lreply __P((int, const char *, ...));
 void	makedir __P((char *));
 void	nack __P((const char *));
@@ -65,11 +65,11 @@ void	upper __P((char *));
 void	user __P((char *));
 void	yyerror __P((char *));
 void	toolong __P((int));
-int	yyparse(void);
+int	yyparse __P((void));
 
 struct utmp;
-void login(struct utmp *);
-int logout(char *line);
+void login(const struct utmp *);
+int logout(const char *line);
 
 #ifdef __linux__
 #include "daemon.h"

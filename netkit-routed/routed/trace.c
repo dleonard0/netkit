@@ -36,7 +36,7 @@
  * From: @(#)trace.c	8.1 (Berkeley) 6/5/93
  */
 char trace_rcsid[] = 
-  "$Id: trace.c,v 1.6 1996/11/25 17:28:24 dholland Exp $";
+  "$Id: trace.c,v 1.14 1999/09/29 01:47:36 netbug Exp $";
 
 
 /*
@@ -45,8 +45,10 @@ char trace_rcsid[] =
 #define	RIPCMDS
 #include "defs.h"
 #include <sys/stat.h>
-#include <signal.h>
+/* #include <signal.h> <--- unused? */
 #include <fcntl.h>
+#include <syslog.h>
+#include <errno.h>
 #include "pathnames.h"
 
 #define	NRECORDS	50		/* size of circular trace buffer */
@@ -96,20 +98,46 @@ static int iftraceinit(struct interface *ifp, struct ifdebug *ifd)
 void traceon(char *file)
 {
 	struct stat stbuf;
+	int fd;
+	const char *logdir = _PATH_LOGDIR;
 
 	if (ftrace != NULL)
 		return;
-	if (stat(file, &stbuf) >= 0 && !S_ISREG(stbuf.st_mode))
+
+	/*
+	 * Trace file requests could come from anywhere...
+	 */
+        
+	if (strncmp(file, logdir, strlen(logdir)) || strstr(file, "/../")) {
+		syslog(LOG_ERR, "Cannot log to %s: not under %s\n", 
+		       file, logdir);
 		return;
+	}
+               
+	fd = open(file, O_WRONLY|O_APPEND|O_CREAT|O_EXCL|O_NDELAY, 0600);
+	
+	if (fd == -1) {
+		syslog(LOG_ERR, "Cannot syslog to %s: %s\n",
+		       file, strerror(errno));
+		return;
+	}
+	if (fstat(fd, &stbuf) >= 0 && !S_ISREG(stbuf.st_mode)) {
+		syslog(LOG_ERR, "Cannot syslog to %s: not a regular file\n",
+		       file);
+		return;
+	}
+       
+	fcntl(fd, F_SETFL, 0);  /* Turn NDELAY off */
+
 	savetracename = file;
 	(void) gettimeofday(&now, (struct timezone *)NULL);
-	ftrace = fopen(file, "a");
+	ftrace = fdopen(fd, "a");
 	if (ftrace == NULL)
 		return;
 	dup2(fileno(ftrace), 1);
 	dup2(fileno(ftrace), 2);
 	traceactions = 1;
-	fprintf(ftrace, "Tracing enabled %s\n", ctime((time_t *)&now.tv_sec));
+	fprintf(ftrace, "Tracing enabled %s\n", ctime(&now.tv_sec));
 }
 
 void traceoff(void)
@@ -120,7 +148,7 @@ void traceoff(void)
 		int fd = open(_PATH_DEVNULL, O_RDWR);
 
 		fprintf(ftrace, "Tracing disabled %s\n",
-		    ctime((time_t *)&now.tv_sec));
+		    ctime(&now.tv_sec));
 		fflush(ftrace);
 		(void) dup2(fd, 1);
 		(void) dup2(fd, 2);
@@ -157,31 +185,31 @@ void sigtrace(int s)
 void bumploglevel(void)
 {
 
-	(void) gettimeofday(&now, (struct timezone *)NULL);
+	(void) gettimeofday(&now, NULL);
 	if (traceactions == 0) {
 		traceactions++;
 		if (ftrace)
 			fprintf(ftrace, "Tracing actions started %s\n",
-			    ctime((time_t *)&now.tv_sec));
+			    ctime(&now.tv_sec));
 	} else if (tracepackets == 0) {
 		tracepackets++;
 		tracehistory = 0;
 		tracecontents = 0;
 		if (ftrace)
 			fprintf(ftrace, "Tracing packets started %s\n",
-			    ctime((time_t *)&now.tv_sec));
+			    ctime(&now.tv_sec));
 	} else if (tracehistory == 0) {
 		tracehistory++;
 		if (ftrace)
 			fprintf(ftrace, "Tracing history started %s\n",
-			    ctime((time_t *)&now.tv_sec));
+			    ctime(&now.tv_sec));
 	} else {
 		tracepackets++;
 		tracecontents++;
 		tracehistory = 0;
 		if (ftrace)
 			fprintf(ftrace, "Tracing packet contents started %s\n",
-			    ctime((time_t *)&now.tv_sec));
+			    ctime(&now.tv_sec));
 	}
 	if (ftrace)
 		fflush(ftrace);
@@ -225,7 +253,7 @@ void traceaction(FILE *fd, char *action, struct rt_entry *rt)
 		{ RTF_UP,	"UP" },
 		{ RTF_GATEWAY,	"GATEWAY" },
 		{ RTF_HOST,	"HOST" },
-		{ 0 }
+		{ 0, 0 }
 	}, statebits[] = {
 		{ RTS_PASSIVE,	"PASSIVE" },
 		{ RTS_REMOTE,	"REMOTE" },
@@ -234,7 +262,7 @@ void traceaction(FILE *fd, char *action, struct rt_entry *rt)
 		{ RTS_INTERNAL,	"INTERNAL" },
 		{ RTS_EXTERNAL,	"EXTERNAL" },
 		{ RTS_SUBNET,	"SUBNET" },
-		{ 0 }
+		{ 0, 0 }
 	};
 	struct bits *p;
 	int first;
@@ -243,7 +271,7 @@ void traceaction(FILE *fd, char *action, struct rt_entry *rt)
 	if (fd == NULL)
 		return;
 	if (lastlog.tv_sec != now.tv_sec || lastlog.tv_usec != now.tv_usec) {
-		fprintf(fd, "\n%.19s:\n", ctime((time_t *)&now.tv_sec));
+		fprintf(fd, "\n%.19s:\n", ctime(&now.tv_sec));
 		lastlog = now;
 	}
 	fprintf(fd, "%s ", action);
@@ -289,7 +317,7 @@ void tracenewmetric(FILE *fd, struct rt_entry *rt, int newmetric)
 	if (fd == NULL)
 		return;
 	if (lastlog.tv_sec != now.tv_sec || lastlog.tv_usec != now.tv_usec) {
-		fprintf(fd, "\n%.19s:\n", ctime((time_t *)&now.tv_sec));
+		fprintf(fd, "\n%.19s:\n", ctime(&now.tv_sec));
 		lastlog = now;
 	}
 	dst = (struct sockaddr_in *)&rt->rt_dst;
@@ -349,11 +377,11 @@ void dumppacket(FILE *fd, char *dir, struct sockaddr *sa,
 	if (msg->rip_cmd && msg->rip_cmd < RIPCMD_MAX)
 		fprintf(fd, "%s %s %s.%d %.19s:\n", ripcmds[msg->rip_cmd],
 		    dir, inet_ntoa(who->sin_addr), ntohs(who->sin_port),
-		    ctime((time_t *)&stamp->tv_sec));
+		    ctime(&stamp->tv_sec));
 	else {
 		fprintf(fd, "Bad cmd 0x%x %s %s.%d %.19s\n", msg->rip_cmd,
 		    dir, inet_ntoa(who->sin_addr), ntohs(who->sin_port),
-		    ctime((time_t *)&stamp->tv_sec));
+		    ctime(&stamp->tv_sec));
 		fprintf(fd, "size=%d cp=%p packet=%p\n", size, cp, packet);
 		fflush(fd);
 		return;
@@ -383,13 +411,13 @@ void dumppacket(FILE *fd, char *dir, struct sockaddr *sa,
 				fprintf(fd, "\tdst %s metric %ld\n",
 #define	satosin(sa)	((struct sockaddr_in *)&sa)
 				     inet_ntoa(satosin(n->rip_dst)->sin_addr),
-				     ntohl(n->rip_metric));
+				     (long int)ntohl(n->rip_metric));
 				break;
 
 			default:
 				fprintf(fd, "\taf %d? metric %ld\n",
 				     n->rip_dst.sa_family,
-				     ntohl(n->rip_metric));
+				     (long int)ntohl(n->rip_metric));
 				break;
 			}
 		}

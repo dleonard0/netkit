@@ -35,7 +35,7 @@
  * From: @(#)terminal.c	5.3 (Berkeley) 3/22/91
  */
 char terminal_rcsid[] = 
-  "$Id: terminal.cc,v 1.22 1997/05/13 06:03:52 dholland Exp $";
+  "$Id: terminal.cc,v 1.25 1999/12/12 19:48:05 dholland Exp $";
 
 #include <arpa/telnet.h>
 #include <sys/types.h>
@@ -228,8 +228,8 @@ datasink *ttysink = &chan1;
 ringbuf::source *ttysrc = &chan2;
 
 
-struct termios old_tc = { 0 };
-struct termios new_tc = { 0 };
+struct termios old_tc;
+struct termios new_tc;
 
 #ifndef	TCSANOW
 
@@ -443,10 +443,12 @@ void TerminalNewMode(int f)
 	if (f & MODE_INBIN) {
 		tmp_tc.c_iflag &= ~ISTRIP;
 	}
-	// Commented this out so it works with 8-bit characters
-	// else {
-	// 	tmp_tc.c_iflag |= ISTRIP;
-	// }
+	else {
+		// Commented this out 5/97 so it works with 8-bit characters
+		// ...and put it back 12/99 because it violates the RFC and
+		// breaks SunOS.
+	 	tmp_tc.c_iflag |= ISTRIP;
+	}
 	if (f & MODE_OUTBIN) {
 		tmp_tc.c_cflag &= ~(CSIZE|PARENB);
 		tmp_tc.c_cflag |= CS8;
@@ -514,10 +516,8 @@ void TerminalNewMode(int f)
     if (tcsetattr(tin, TCSADRAIN, &tmp_tc) < 0)
 	tcsetattr(tin, TCSANOW, &tmp_tc);
 
-#if (!defined(TN3270)) || ((!defined(NOT43)) || defined(PUTCHAR))
     ioctl(tin, FIONBIO, (char *)&onoff);
     ioctl(tout, FIONBIO, (char *)&onoff);
-#endif	/* (!defined(TN3270)) || ((!defined(NOT43)) || defined(PUTCHAR)) */
 
 #if defined(TN3270)
     if (noasynchtty == 0) {

@@ -35,7 +35,7 @@
  * From: @(#)io.c	5.6 (Berkeley) 3/1/91
  */
 char io_rcsid[] = 
-  "$Id: io.c,v 1.10 1997/06/08 20:13:51 dholland Exp $";
+  "$Id: io.c,v 1.11 1999/11/25 04:23:38 dholland Exp $";
 
 /*
  * This file contains the I/O handling and the exchange of 
@@ -58,12 +58,12 @@ void
 talk(void)
 {
 	fd_set read_set;
-	int nb;
+	int nb, k;
 	unsigned char buf[BUFSIZ];
 
 	message("Connection established");
-	beep();
-	wrefresh(curscr);
+	dobeep();
+	dorefresh();
 
 	current_line = 0;
 
@@ -90,55 +90,19 @@ talk(void)
 				message("Connection closed. Exiting");
 				quit(0);
 			}
-			display(&his_win, buf, nb);
+			display(1, buf, nb);
 		}
 		if (FD_ISSET(0, &read_set)) {
-			buf[0] = getch();
-			nb = 1;
-			display(&my_win, buf, nb);
-			/* might lose data here because sockt is nonblocking */
-			write(sockt, buf, nb);
+			k = dogetch();
+			if (k>=0) {
+				nb = 1;
+				buf[0] = k;
+				display(0, buf, nb);
+				while (write(sockt, buf, nb)==-1 && 
+				       errno==EAGAIN)
+					;
+			}
 		}
 	}
 }
 
-/*
- * p_error prints the system error message on the standard location
- * on the screen and then exits. (i.e. a curses version of perror)
- */
-void
-p_error(const char *string) 
-{
-	const char *rmcup, *smcup, *amsg="";
-
-	rmcup = tigetstr("rmcup");
-	smcup = tigetstr("smcup");
-
-	if (rmcup || smcup) {
-		amsg = ". Press any key...";
-	}
-
-	wmove(my_win.x_win, current_line%my_win.x_nlines, 0);
-	wprintw(my_win.x_win, "[%s : %s (%d)%s]\n",
-	    string, strerror(errno), errno, amsg);
-	wrefresh(my_win.x_win);
-	move(LINES-1, 0);
-	refresh();
-	if (rmcup || smcup) {
-		/* alternative screen, prompt before exit */
-		getch();
-	}
-	quit(0);
-}
-
-/*
- * Display string in the standard location
- */
-void
-message(const char *string)
-{
-
-	wmove(my_win.x_win, current_line%my_win.x_nlines, 0);
-	wprintw(my_win.x_win, "[%s]\n", string);
-	wrefresh(my_win.x_win);
-}

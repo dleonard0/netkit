@@ -39,27 +39,32 @@ char copyright[] =
  * From: @(#)timed.c	5.1 (Berkeley) 5/11/93
  */
 char timed_rcsid[] = 
-  "$Id: timed.c,v 1.7 1996/08/29 19:53:10 dholland Exp $";
+  "$Id: timed.c,v 1.11 1999/12/12 18:05:07 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.7 $"
+#ident "$Revision: 1.11 $"
 #endif /* sgi */
 
 #define TSPTYPES
 #include "globals.h"
 #include <net/if.h>
-#include <sys/file.h>
+
+#if 0
+	#include <sys/file.h>
+	#include <sys/types.h>
+#endif
+
 #include <sys/ioctl.h>
 #include <setjmp.h>
-#include "pathnames.h"
 #include <math.h>
-#include <sys/types.h>
 #include <sys/times.h>
 #ifdef sgi
 #include <unistd.h>
 #include <sys/syssgi.h>
 #include <sys/schedctl.h>
 #endif /* sgi */
+
+#include "../../version.h"
 
 #ifdef __linux__
 /* from libbsd.a */
@@ -405,8 +410,11 @@ main(int argc, char **argv)
 #define size(p)	max((p).sa_len, sizeof(p))
 #endif
 	cplim = buf + ifc.ifc_len; /*skip over if's with big ifr_addr's */
-	for (cp = buf; cp < cplim;
-			cp += sizeof (ifr->ifr_name) + sizeof(ifr->ifr_addr)) {
+
+/*	for (cp = buf; cp < cplim;
+		cp += sizeof (ifr->ifr_name) + sizeof(ifr->ifr_addr)) { */
+
+	for (cp = buf; cp < cplim; cp += sizeof(struct ifreq)) {
 		ifr = (struct ifreq *)cp;
 		if (ifr->ifr_addr.sa_family != AF_INET)
 			continue;
@@ -708,8 +716,7 @@ lookformaster(struct netinfo *ntp)
  * based on the current network configuration, set the status, and count
  * networks;
  */
-void
-setstatus()
+void setstatus(void)
 {
 	struct netinfo *ntp;
 
@@ -827,8 +834,7 @@ casual(long inf, long sup)
 	return(inf + (sup - inf)*value);
 }
 
-char *
-date()
+char *date(void)
 {
 #ifdef sgi
 	struct	timeval tv;
@@ -952,12 +958,11 @@ get_goodgroup(int force)
 #endif /* HAVENIS */
 }
 
-
 /* see if a machine is trustworthy
+ * 1=trust hp to change our date 
  */
-int					/* 1=trust hp to change our date */
-good_host_name(name)
-	char *name;
+ 
+int good_host_name(char *name)
 {
 	register struct goodhost *ghp = goodhosts;
 	register char c;

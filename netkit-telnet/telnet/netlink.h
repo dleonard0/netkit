@@ -8,7 +8,7 @@ class netlink {
 
     int connect(int debug, struct hostent *host, 
 		struct sockaddr_in *sin, 
-		const char *srcroute, int srlen,
+		char *srcroute, int srlen,
 		int tos);
     void close(int doshutdown);
 

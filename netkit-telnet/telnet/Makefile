@@ -3,14 +3,10 @@ all: telnet
 include ../MCONFIG
 include ../MRULES
 
-ifeq ($(USE_GLIBC),1)
-CFLAGS += -D_GNU_SOURCE
-endif
-
-#CFLAGS:=$(patsubst -O2, -g, $(CFLAGS))
+#CXXFLAGS:=$(patsubst -O2, -g, $(CXXFLAGS))
 
 # -DAUTHENTICATE
-CFLAGS += -DUSE_TERMIO -DKLUDGELINEMODE
+CXXFLAGS += -DUSE_TERMIO -DKLUDGELINEMODE
 LIBS += $(LIBTERMCAP)
 
 SRCS = commands.cc main.cc network.cc ring.cc sys_bsd.cc telnet.cc \
@@ -19,14 +15,11 @@ SRCS = commands.cc main.cc network.cc ring.cc sys_bsd.cc telnet.cc \
 OBJS = $(patsubst %.cc, %.o, $(SRCS))
 
 telnet: $(OBJS)
-	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
+	$(CXX) $(LDFLAGS) $^ $(LIBS) -o $@
 
-include .depend
-.depend: 
-	touch .depend
-	$(MAKE) depend
+include depend.mk
 depend:
-	$(CC) $(CFLAGS) -MM $(SRCS) >.depend
+	$(CXX) $(CXXFLAGS) -MM $(SRCS) >depend.mk
 
 install: telnet
 	install -s -m$(BINMODE) telnet $(INSTALLROOT)$(BINDIR)

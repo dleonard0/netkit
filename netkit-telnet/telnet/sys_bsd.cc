@@ -35,7 +35,7 @@
  * From: @(#)sys_bsd.c	5.2 (Berkeley) 3/1/91
  */
 char bsd_rcsid[] = 
-  "$Id: sys_bsd.cc,v 1.22 1997/06/09 01:27:53 dholland Exp $";
+  "$Id: sys_bsd.cc,v 1.24 1999/09/28 16:29:24 dholland Exp $";
 
 /*
  * The following routines try to encapsulate what is system dependent
@@ -281,7 +281,7 @@ int process_rings(int netin, int netout, int netex, int ttyin, int ttyout,
 		 * time (TN3270 mode only).
 		 */
     int returnValue = 0;
-    static struct timeval TimeValue = { 0 };
+    static struct timeval TimeValue = { 0, 0 };
     
     int net = nlink.getfd();
     int tin = tlink_getifd();
@@ -352,18 +352,37 @@ int process_rings(int netin, int netout, int netex, int ttyin, int ttyout,
     }
 
     /*
+     * Should flush output buffers first to make room for new input. --okir
+     */
+    if (FD_ISSET(net, &obits)) {
+	FD_CLR(net, &obits);
+	returnValue |= netflush();
+    }
+    if (FD_ISSET(tout, &obits)) {
+	FD_CLR(tout, &obits);
+	returnValue |= (ttyflush(SYNCHing|flushout) > 0);
+    }
+
+    /*
      * Something to read from the network...
      */
     if (FD_ISSET(net, &ibits)) {
 	/* hacks for systems without SO_OOBINLINE removed */
 
 	FD_CLR(net, &ibits);
-	c = netiring.read_source();
-	if (c < 0) {
-	    return -1;
+	/* Only call network input routine if there is room. Otherwise
+	 * we will try a 0 byte read, which we happily interpret as the
+	 * server having dropped the connection...
+	 * NB the input routine reserves 1 byte for ungetc.
+	 *                              12.3.97 --okir */
+	returnValue = 1;
+	if (netiring.empty_count() > 1) {
+		c = netiring.read_source();
+		if (c <= 0)
+		    return -1;
+		else if (c == 0)
+		    returnValue = 0;
 	}
-	else if (c==0) returnValue = 0;
-	else returnValue = 1;
     }
 
     /*
@@ -377,15 +396,6 @@ int process_rings(int netin, int netout, int netex, int ttyin, int ttyout,
 	}
 	else if (c==0) returnValue = 0;
 	else returnValue = 1;		/* did something useful */
-    }
-
-    if (FD_ISSET(net, &obits)) {
-	FD_CLR(net, &obits);
-	returnValue |= netflush();
-    }
-    if (FD_ISSET(tout, &obits)) {
-	FD_CLR(tout, &obits);
-	returnValue |= (ttyflush(SYNCHing|flushout) > 0);
     }
 
     return returnValue;

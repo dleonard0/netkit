@@ -36,7 +36,7 @@
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)sprint.c	5.8 (Berkeley) 12/4/90";*/
-char sprint_rcsid[] = "$Id: sprint.c,v 1.8 1997/06/09 01:18:17 dholland Exp $";
+char sprint_rcsid[] = "$Id: sprint.c,v 1.10 1999/12/12 18:59:33 dholland Exp $";
 #endif /* not lint */
 
 #include <sys/types.h>
@@ -62,7 +62,7 @@ void sflag_print(void) {
 	 * short format --
 	 *	login name
 	 *	real name
-	 *	terminal name (the XX of ttyXX)
+	 *	terminal name
 	 *	if terminal writeable (add an '*' to the terminal name
 	 *		if not)
 	 *	if logged in show idle time and day logged in, else
@@ -82,57 +82,54 @@ void sflag_print(void) {
 		if (l > maxrname) maxrname = l;
 	}
 	/* prevent screen overflow */
-	/* XXX should get real screen width */
-	space = 80 /* screenwidth */ - 50;
+	space = getscreenwidth() - 50;
 	if (maxlname + maxrname > space) maxrname = space - maxlname;
 
 	/* add a space if there's room */
 	if (maxlname + maxrname < space-2) { maxlname++; maxrname++; }
 
-	(void)printf("%-*s %-*s %s\n", maxlname, "Login", maxrname,
-	    "Name", "Tty  Idle  Login Time   Office     Office Phone");
+	(void)xprintf("%-*s %-*s %s\n", maxlname, "Login", maxrname,
+	    "Name", " Tty      Idle  Login Time   Office     Office Phone");
 	for (cnt = 0; cnt < entries; ++cnt) {
 		pn = list[cnt];
 		for (w = pn->whead; w != NULL; w = w->next) {
-			(void)printf("%-*.*s %-*.*s ", maxlname, maxlname,
+			(void)xprintf("%-*.*s %-*.*s ", maxlname, maxlname,
 			    pn->name, maxrname, maxrname,
 			    pn->realname ? pn->realname : "");
 			if (!w->loginat) {
-				(void)printf("  *     *  No logins   ");
+				(void)xprintf("  *     *  No logins   ");
 				goto office;
 			}
-			(void)putchar(w->info == LOGGEDIN && !w->writable ?
-			    '*' : ' ');
+			(void)xputc(w->info == LOGGEDIN && !w->writable ?
+				    '*' : ' ');
 			if (*w->tty)
-				(void)printf("%-2.2s ",
-				    w->tty[0] != 't' || w->tty[1] != 't' ||
-				    w->tty[2] != 'y' ? w->tty : w->tty + 3);
+				(void)xprintf("%-7.7s ", w->tty);
 			else
-				(void)printf("   ");
+				(void)xprintf("        ");
 			if (w->info == LOGGEDIN) {
 				stimeprint(w);
-				(void)printf("  ");
+				(void)xprintf("  ");
 			} else
-				(void)printf("    *  ");
+				(void)xprintf("    *  ");
 			p = ctime(&w->loginat);
-			(void)printf("%.6s", p + 4);
+			(void)xprintf("%.6s", p + 4);
 			if (now - w->loginat >= SECSPERDAY * DAYSPERNYEAR / 2)
-				(void)printf("  %.4s", p + 20);
+				(void)xprintf("  %.4s", p + 20);
 			else
-				(void)printf(" %.5s", p + 11);
+				(void)xprintf(" %.5s", p + 11);
 office:
 			if (w->host[0] != '\0') {
-				printf(" (%s)", w->host);
+				xprintf(" (%s)", w->host);
 			} else {
 			if (pn->office)
-				(void)printf(" %-10.10s", pn->office);
+				(void)xprintf(" %-10.10s", pn->office);
 			else if (pn->officephone)
-				(void)printf(" %-10.10s", " ");
+				(void)xprintf(" %-10.10s", " ");
 			if (pn->officephone)
-				(void)printf(" %-.15s",
+				(void)xprintf(" %-.14s",
 				    prphone(pn->officephone));
 			}
-			putchar('\n');
+			xputc('\n');
 		}
 	}
 }
@@ -142,7 +139,7 @@ static PERSON **sort(void) {
 	PERSON **list;
 
 	if (!(list = (PERSON **)malloc((u_int)(entries * sizeof(PERSON *))))) {
-		(void)fprintf(stderr, "finger: out of space.\n");
+		eprintf("finger: Out of space.\n");
 		exit(1);
 	}
 	for (lp = list, pn = phead; pn != NULL; pn = pn->next)
@@ -164,12 +161,12 @@ static void stimeprint(WHERE *w) {
 	if (!delta->tm_yday)
 		if (!delta->tm_hour)
 			if (!delta->tm_min)
-				(void)printf("     ");
+				(void)xprintf("     ");
 			else
-				(void)printf("%5d", delta->tm_min);
+				(void)xprintf("%5d", delta->tm_min);
 		else
-			(void)printf("%2d:%02d",
+			(void)xprintf("%2d:%02d",
 			    delta->tm_hour, delta->tm_min);
 	else
-		(void)printf("%4dd", delta->tm_yday);
+		(void)xprintf("%4dd", delta->tm_yday);
 }

@@ -30,28 +30,27 @@
 .\" SUCH DAMAGE.
 .\"
 .\"	from: @(#)ftp.1	6.18 (Berkeley) 7/30/91
-.\"	$Id: ftp.1,v 1.2 1997/06/08 20:01:35 dholland Exp $
+.\"	$Id: ftp.1,v 1.9 1999/12/14 12:52:50 dholland Exp $
 .\"
-.Dd July 30, 1991
+.Dd August 15, 1999
 .Dt FTP 1
-.Os BSD 4.2
+.Os "Linux NetKit (0.16)"
 .Sh NAME
 .Nm ftp
 .Nd
-.Tn ARPANET
+.Tn Internet
 file transfer program
 .Sh SYNOPSIS
 .Nm ftp
-.Op Fl v
-.Op Fl d
-.Op Fl i
-.Op Fl n
-.Op Fl g
+.Op Fl pinegvd
+.Op Ar host
+.Nm pftp
+.Op Fl inegvd
 .Op Ar host
 .Sh DESCRIPTION
 .Nm Ftp
 is the user interface to the
-.Tn ARPANET
+.Tn Internet
 standard File Transfer Protocol.
 The program allows a user to transfer files to and from a
 remote network site.
@@ -59,11 +58,14 @@ remote network site.
 Options may be specified at the command line, or to the
 command interpreter.
 .Bl -tag -width flag
-.It Fl v
-Verbose option forces
-.Nm ftp
-to show all responses from the remote server, as well
-as report on data transfer statistics.
+.It Fl p
+Use passive mode for data transfers. Allows use of ftp in environments
+where a firewall prevents connections from the outside world back to
+the client machine. Requires that the ftp server support the PASV
+command. This is the default if invoked as
+.Nm pftp.
+.It Fl i
+Turns off interactive prompting during multiple file transfers.
 .It Fl n
 Restrains
 .Nm ftp
@@ -72,20 +74,29 @@ If auto-login is enabled,
 .Nm ftp
 will check the
 .Pa .netrc
-(see below) file in the user's home directory for an entry describing
+(see 
+.Xr netrc 5) 
+file in the user's home directory for an entry describing
 an account on the remote machine.
 If no entry exists,
 .Nm ftp
 will prompt for the remote machine login name (default is the user
 identity on the local machine), and, if necessary, prompt for a password
 and an account with which to login.
-.It Fl i
-Turns off interactive prompting during
-multiple file transfers.
-.It Fl d
-Enables debugging.
+.It Fl e
+Disables command editing and history support, if it was compiled into
+the
+.Nm ftp
+executable. Otherwise, does nothing.
 .It Fl g
 Disables file name globbing.
+.It Fl v
+Verbose option forces
+.Nm ftp
+to show all responses from the remote server, as well
+as report on data transfer statistics.
+.It Fl d
+Enables debugging.
 .El
 .Pp
 The client host with which
@@ -1006,103 +1017,6 @@ file transfer parameters:
 .Ic form ,
 and
 .Ic struct  .
-.Sh THE .netrc FILE
-The
-.Pa .netrc
-file contains login and initialization information
-used by the auto-login process.
-It resides in the user's home directory.
-The following tokens are recognized; they may be separated by spaces,
-tabs, or new-lines:
-.Bl -tag -width password
-.It Ic machine Ar name
-Identify a remote machine
-.Ar name .
-The auto-login process searches the
-.Pa .netrc
-file for a
-.Ic machine
-token that matches the remote machine specified on the
-.Nm ftp
-command line or as an
-.Ic open
-command argument.
-Once a match is made, the subsequent
-.Pa .netrc
-tokens are processed,
-stopping when the end of file is reached or another
-.Ic machine
-or a
-.Ic default
-token is encountered.
-.It Ic default
-This is the same as
-.Ic machine
-.Ar name
-except that
-.Ic default
-matches any name.
-There can be only one
-.Ic default
-token, and it must be after all
-.Ic machine
-tokens.
-This is normally used as:
-.Pp
-.Dl default login anonymous password user@site
-.Pp
-thereby giving the user
-.Ar automatic
-anonymous ftp login to
-machines not specified in
-.Pa .netrc .
-This can be overridden
-by using the
-.Fl n
-flag to disable auto-login.
-.It Ic login Ar name
-Identify a user on the remote machine.
-If this token is present, the auto-login process will initiate
-a login using the specified
-.Ar name .
-.It Ic password Ar string
-Supply a password.
-If this token is present, the auto-login process will supply the
-specified string if the remote server requires a password as part
-of the login process.
-Note that if this token is present in the
-.Pa .netrc
-file for any user other
-than
-.Ar anonymous  ,
-.Nm ftp
-will abort the auto-login process if the
-.Pa .netrc
-is readable by
-anyone besides the user.
-.It Ic account Ar string
-Supply an additional account password.
-If this token is present, the auto-login process will supply the
-specified string if the remote server requires an additional
-account password, or the auto-login process will initiate an
-.Dv ACCT
-command if it does not.
-.It Ic macdef Ar name
-Define a macro.
-This token functions like the
-.Nm ftp
-.Ic macdef
-command functions.
-A macro is defined with the specified name; its contents begin with the
-next
-.Pa .netrc
-line and continue until a null line (consecutive new-line
-characters) is encountered.
-If a macro named
-.Ic init
-is defined, it is automatically executed as the last step in the
-auto-login process.
-.El
 .Sh ENVIRONMENT
 .Nm Ftp
 utilizes the following environment variables.
@@ -1115,7 +1029,8 @@ file, if one exists.
 For default shell.
 .El
 .Sh SEE ALSO
-.Xr ftpd 8
+.Xr ftpd 8 ,
+RFC 959
 .Sh HISTORY
 The
 .Nm ftp

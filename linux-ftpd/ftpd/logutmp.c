@@ -34,9 +34,10 @@
 
 /*
  * From: OpenBSD: logutmp.c,v 1.1 1996/06/18 10:09:23 downsj Exp
+ * From: OpenBSD: logutmp.c,v 1.2 1998/07/13 02:11:17 millert Exp
  */
 char logutmp_rcsid[] =
-  "$Id: logutmp.c,v 1.2 1996/12/30 11:09:27 dholland Exp $";
+  "$Id: logutmp.c,v 1.4 1999/07/16 01:12:54 dholland Exp $";
 
 #include <sys/types.h>
 
@@ -64,7 +65,7 @@ static int topslot = -1;
  */
 
 void
-login(UTMP *ut)
+login(const UTMP *ut)
 {
 #ifndef __linux__
 	UTMP ubuf;
@@ -85,17 +86,17 @@ login(UTMP *ut)
 	/*
 	 * Now find a slot that's not in use...
 	 */
-	(void)lseek(fd, (off_t)(topslot * sizeof(UTMP)), L_SET);
+	(void)lseek(fd, (off_t)(topslot * sizeof(UTMP)), SEEK_SET);
 
 	while (1) {
 		if (read(fd, &ubuf, sizeof(UTMP)) == sizeof(UTMP)) {
 			if (!ubuf.ut_name[0]) {
-				(void)lseek(fd, -(off_t)sizeof(UTMP), L_INCR);
+				(void)lseek(fd, -(off_t)sizeof(UTMP), SEEK_CUR);
 				break;
 			}
 			topslot++;
 		} else {
-			(void)lseek(fd, (off_t)(topslot * sizeof(UTMP)), L_SET);
+			(void)lseek(fd, (off_t)(topslot * sizeof(UTMP)), SEEK_SET);
 			break;
 		}
 	}
@@ -107,7 +108,7 @@ login(UTMP *ut)
 }
 
 int
-logout(register char *line)
+logout(register const char *line)
 {
 #ifndef __linux__
 	UTMP ut;
@@ -117,7 +118,7 @@ logout(register char *line)
 	if (fd < 0)
 		return(rval);
 
-	(void)lseek(fd, 0, L_SET);
+	(void)lseek(fd, 0, SEEK_SET);
 
 	while (read(fd, &ut, sizeof(UTMP)) == sizeof(UTMP)) {
 		if (!ut.ut_name[0]
@@ -126,7 +127,7 @@ logout(register char *line)
 		bzero(ut.ut_name, UT_NAMESIZE);
 		bzero(ut.ut_host, UT_HOSTSIZE);
 		(void)time(&ut.ut_time);
-		(void)lseek(fd, -(off_t)sizeof(UTMP), L_INCR);
+		(void)lseek(fd, -(off_t)sizeof(UTMP), SEEK_CUR);
 		(void)write(fd, &ut, sizeof(UTMP));
 		rval = 1;
 	}

@@ -35,16 +35,18 @@
  * From: @(#)correct.c	5.1 (Berkeley) 5/11/93
  */
 char correct_rcsid[] =
-  "$Id: correct.c,v 1.2 1996/07/20 19:45:38 dholland Exp $";
+  "$Id: correct.c,v 1.3 1999/11/25 04:48:41 netbug Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.2 $"
+#ident "$Revision: 1.3 $"
 #endif
 
 #include "globals.h"
 #include <math.h>
-#include <sys/types.h>
-#include <sys/times.h>
+#ifndef __alpha__
+	#include <sys/types.h>
+	#include <sys/times.h>
+#endif
 #ifdef sgi
 #include <sys/syssgi.h>
 #endif /* sgi */

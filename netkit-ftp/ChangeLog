@@ -1,3 +1,44 @@
+13-Dec-1999:
+	Add fix from Olaf Kirch for some rather severe lossage with
+	aliased file descriptors.
+
+12-Dec-1999:
+	Add Olaf Kirch's ftp mget fix on top of the existing one.
+	Portions of the old fix probably ought to be backed out.
+	However, what's really needed is a massive cleanup of the
+	code...
+
+14-Sep-1999:
+	Extensive small fixes and cleanups. (Alan Curry, pacman@londo.cqc.com)
+	Security fix relating to passive mode. (Alan Cox, alan@redhat.com)
+
+1-Aug-1999:
+	Complete y2k and y2038 audit.
+
+31-Jul-1999:
+	Redid makefiles/config stuff for new confgen version.
+
+23-Sep-1997:
+	Fix some suspicious strncpys.
+	Don't print an uninitialized buffer if someone EOFs at the
+	  username prompt. (Olaf Kirch, okir@ns.lst.de)
+	Added a netrc(5) man page.
+	Added -h option to ftp for help, and -e option to inhibit 
+	  editing support. Cleaned up readline handling.
+	Various fixes to the ftp(1) man page. (Larry Doolittle, 
+	  ldoolitt@jlab.org)
+
+17-Aug-1997:
+	Fixed security holes: automatically generated local file paths
+	(those that are supplied by the server or copies of server
+	filenames) are filtered so that they cannot:
+	   1. be pipes or "-" for standard output.
+	   2. be absolute paths.
+	   3. contain ".." path elements.
+
+12-Jun-1997:
+	netkit-ftp-0.10 released.
+
 08-Jun-1997:
 	Fixed doc for "newer" command. (Roderick Schertler,
 	  roderick@argon.org) 

@@ -3,21 +3,20 @@
 
 include MCONFIG
 
-SUB = inetd ping rpcinfo
-
-ifneq ($(USE_GLIBC),1)
-SUB += rpcgen
-endif
+SUB = inetd ping
 
 %.build:
-	$(MAKE) -C $(patsubst %.build, %, $@)
+	(cd $(patsubst %.build, %, $@) && $(MAKE))
 
 %.install:
-	$(MAKE) -C $(patsubst %.install, %, $@) install
+	(cd $(patsubst %.install, %, $@) && $(MAKE) install)
 
 %.clean:
-	$(MAKE) -C $(patsubst %.clean, %, $@) clean
+	(cd $(patsubst %.clean, %, $@) && $(MAKE) clean)
 
 all:     $(patsubst %, %.build, $(SUB))
 install: $(patsubst %, %.install, $(SUB))
 clean:   $(patsubst %, %.clean, $(SUB))
+
+distclean: clean
+	rm -f MCONFIG

@@ -35,10 +35,10 @@
  * From: @(#)readmsg.c	5.1 (Berkeley) 5/11/93
  */
 char readmsg_rcsid[] =
-  "$Id: readmsg.c,v 1.4 1997/05/19 09:42:27 dholland Exp $";
+  "$Id: readmsg.c,v 1.7 1999/11/25 04:48:41 netbug Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.4 $"
+#ident "$Revision: 1.7 $"
 #endif
 
 #include "globals.h"
@@ -80,7 +80,7 @@ readmsg(int type, char *machfrom, struct timeval *intvl,
 	struct netinfo *netfrom)
 {
 	int length;
-	size_t fromlen;
+	socklen_t fromlen;
 	fd_set ready;
 	static struct tsplist *head = &msgslist;
 	static struct tsplist *tail = &msgslist;
@@ -186,7 +186,7 @@ again:
 
 		if (trace) {
 			fprintf(fd, "readmsg: wait %d.%6d at %s\n",
-				rwait.tv_sec, rwait.tv_usec, date());
+				(int)rwait.tv_sec, (int)rwait.tv_usec, date());
 			/* Notice a full disk, as we flush trace info.
 			 * It is better to flush periodically than at
 			 * every line because the tracing consists of bursts
@@ -326,8 +326,7 @@ again:
  * Send the necessary acknowledgements:
  * only the type ACK is to be sent by a slave
  */
-void
-slaveack()
+void slaveack(void)
 {
 	switch(msgin.tsp_type) {
 
@@ -358,8 +357,7 @@ slaveack()
  * Certain packets may arrive from this machine on ignored networks.
  * These packets should be acknowledged.
  */
-void
-ignoreack()
+void ignoreack(void)
 {
 	switch(msgin.tsp_type) {
 
@@ -386,8 +384,7 @@ ignoreack()
  * `masterack' sends the necessary acknowledgments
  * to the messages received by a master
  */
-void
-masterack()
+void masterack(void)
 {
 	struct tsp resp;
 
@@ -429,10 +426,7 @@ masterack()
 /*
  * Print a TSP message
  */
-void
-print(msg, addr)
-struct tsp *msg;
-struct sockaddr_in *addr;
+void print(struct tsp *msg, struct sockaddr_in *addr)
 {
 	char tm[26];
 	time_t msgtime;
@@ -468,12 +462,12 @@ struct sockaddr_in *addr;
 		break;
 
 	case TSP_ADJTIME:
-		fprintf(fd, "%s %d %-6u (%d,%d) %-15s %s\n",
+		fprintf(fd, "%s %d %-6u (%lld,%lld) %-15s %s   \n",
 			tsptype[msg->tsp_type],
 			msg->tsp_vers,
 			msg->tsp_seq,
-			msg->tsp_time.tv_sec,
-			msg->tsp_time.tv_usec,
+			(long long)msg->tsp_time.tv_sec,
+			(long long)msg->tsp_time.tv_usec,
 			inet_ntoa(addr->sin_addr),
 			msg->tsp_name);
 		break;

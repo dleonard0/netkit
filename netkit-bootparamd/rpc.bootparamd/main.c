@@ -15,6 +15,12 @@
 #include <unistd.h>
 #include "bootparam_prot.h"
 
+
+#ifdef __GLIBC__
+	/* quick fix */
+	void get_myaddress(struct sockaddr_in *);
+#endif
+
 int debug = 0;
 int dolog = 0;
 struct in_addr route_addr;

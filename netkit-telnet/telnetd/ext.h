@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)ext.h	5.7 (Berkeley) 3/1/91
- *	$Id: ext.h,v 1.7 1996/08/30 01:26:14 dholland Exp $
+ *	$Id: ext.h,v 1.9 1999/12/12 14:59:44 dholland Exp $
  */
 
 /*
@@ -85,10 +85,8 @@ extern char netobuf[BUFSIZ+NETSLOP], *nfrontp, *nbackp;
 extern char *neturg;		/* one past last byte of urgent data */
 extern int pcc, ncc;
 
-#if defined(CRAY2) && defined(UNICOS5)
-extern int unpcc;  /* characters left unprocessed by CRAY-2 terminal routine */
-extern char *unptyip;  /* pointer to remaining characters in buffer */
-#endif
+/* printf into netobuf */
+void netoprintf(const char *fmt, ...) __attribute((format (printf, 1, 2))); 
 
 extern int pty, net;
 extern char *line;
@@ -211,18 +209,4 @@ extern struct _clocks {
     int gotDM;			/* when did we last see a data mark */
 } clocks;
 
-
-#if defined(CRAY2) && defined(UNICOS5)
-extern int needtermstat;
-#endif
-
-#ifndef	CRAY
-#ifdef __linux__
 #define DEFAULT_IM	"%i\r\n%s %r (%h) (%t)\r\n\r\n"
-#else
-#define DEFAULT_IM	"\r\n\r\n4.3 BSD UNIX (%h) (%t)\r\n\r\r\n\r"
-#endif
-#else
-#define DEFAULT_IM	"\r\n\r\nCray UNICOS (%h) (%t)\r\n\r\r\n\r"
-#endif
-

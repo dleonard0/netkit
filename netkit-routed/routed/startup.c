@@ -36,7 +36,7 @@
  * From: @(#)startup.c	8.1 (Berkeley) 6/5/93
  */
 char startup_rcsid[] = 
-  "$Id: startup.c,v 1.7 1996/11/25 17:28:24 dholland Exp $";
+  "$Id: startup.c,v 1.10 1999/12/12 19:06:02 dholland Exp $";
 
 
 /*
@@ -45,9 +45,8 @@ char startup_rcsid[] =
 
 #include "defs.h"
 #include <sys/ioctl.h>
-#include <net/if.h>
+/* #include <net/if.h> (redundant with defs.h) */
 #include <syslog.h>
-#include <stdlib.h>
 #include <errno.h>
 #include "pathnames.h"
 
@@ -109,10 +108,9 @@ void ifinit(void)
         }
         ifr = ifc.ifc_req;
 	lookforinterfaces = 0;
-#define size(p) (sizeof (p))
 	cplim = buf + ifc.ifc_len; /*skip over if's with big ifr_addr's */
 	for (cp = buf; cp < cplim;
-			cp += sizeof (ifr->ifr_name) + size(ifr->ifr_addr)) {
+			cp += sizeof (ifr->ifr_name) + sizeof(ifr->ifr_ifru)) {
 		ifr = (struct ifreq *)cp;
 		bzero((char *)&ifs, sizeof(ifs));
 		ifs.int_addr = ifr->ifr_addr;

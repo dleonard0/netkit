@@ -3,22 +3,34 @@
 // 	Date:        16-Jul-95
 //	Description: array template
 //
-//   Copyright 1995 David A. Holland
-//   All rights reserved except as stated in the documentation
-//
-//   Change log:
-//
-// $Log: array.h,v $
-// Revision 1.2  1996/08/29  22:36:06  dholland
-// glibc fixes
-//
-// Revision 1.1  1996/07/31  05:54:45  dholland
-// Initial revision
-//
-// Revision 1.1  1995/07/30  19:43:39  dholland
-// Initial revision
-//
-//
+/*
+ * Copyright (c) 1995 David A. Holland.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the Author nor the names of any contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
 
 #ifndef ARRAY_H
 #define ARRAY_H
@@ -48,7 +60,7 @@ class array {
     }
   public:
     array() { v=NULL; n=max=0; }
-    ~array() { delete v; }
+    ~array() { setsize(0); delete []((char *)v); }
 
     int num() const { return n; }
 

@@ -30,11 +30,11 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)rshd.8	6.11 (Berkeley) 4/20/91
-.\"	$Id: rshd.8,v 1.2 1996/11/23 19:36:21 dholland Exp $
+.\"	$Id: rshd.8,v 1.10 1999/12/14 12:52:58 dholland Exp $
 .\"
 .Dd April 20, 1991
 .Dt RSHD 8
-.Os BSD 4.2
+.Os "Linux NetKit (0.16)"
 .Sh NAME
 .Nm rshd
 .Nd remote shell server
@@ -133,6 +133,22 @@ option is used.) If the
 .Fl h
 option is not used, superuser accounts may not be accessed via this
 service at all.
+.Pp
+The
+.Fl l
+option should not be trusted without verifying that it works as
+expected with the particular version of libc installed on your system
+(and should be tested again after any libc update) because some
+versions of libc may not honor the flags used by
+.Nm rshd .
+.Pp
+Also note that the design of the
+.Pa .rhosts
+system is COMPLETELY INSECURE except on a carefully firewalled private
+network. Under all other circumstances,
+.Nm rshd
+should be disabled entirely.
+.Pp
 .It
 A null byte is returned on the initial socket
 and the command line is passed to the normal login
@@ -174,14 +190,13 @@ longer than 16 characters.
 .It Sy Command too long  .
 The command line passed exceeds the size of the argument
 list (as configured into the system).
-.It Sy Login incorrect.
-No password file entry for the user name existed.
 .It Sy Remote directory.
 The 
 .Xr chdir
 command to the home directory failed.
 .It Sy Permission denied.
-The authentication procedure described above failed.
+The authentication procedure described above failed, or the user
+requested did not exist. (These conditions are intentionally conflated.)
 .It Sy Can't make pipe.
 The pipe needed for the 
 .Em stderr ,

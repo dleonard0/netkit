@@ -1,3 +1,8 @@
+/* quirks for repairs.c */
+
+#define QUIRK_NONE   0
+#define QUIRK_OTALK  1
+
 struct sockaddr_in;
 
 extern char ourhostname[];
@@ -16,7 +21,8 @@ CTL_MSG *find_match(CTL_MSG *request);
 
 /* repairs.c */
 u_int32_t byte_swap32(u_int32_t);
-int rationalize_packet(char *buf, size_t len, struct sockaddr_in *);
+int rationalize_packet(char *buf, size_t len, size_t maxlen, 
+		       struct sockaddr_in *);
 size_t irrationalize_reply(char *buf, size_t maxbuf, int quirk);
 
 /* other */

@@ -67,42 +67,15 @@ datasink *netsink = &chan2;
 ringbuf::source *netsrc = &chan;
 
 
-/*
- * SetSockOpt()
- *
- * Compensate for differences in 4.2 and 4.3 systems.
- */
-static int SetSockOpt(int fd, int level, int option, int yesno) {
-#ifndef	NOT43
-    return setsockopt(fd, level, option, (char *)&yesno, sizeof(yesno));
-#else	/* NOT43 */
-    if (yesno == 0) {		/* Can't do that in 4.2! */
-	fprintf(stderr, "Error: attempt to turn off an option 0x%x.\n",
-				option);
-	return -1;
-    }
-    return setsockopt(fd, level, option, 0, 0);
-#endif	/* NOT43 */
-}
-
-
 netlink::netlink() { net = -1; }
 netlink::~netlink() { ::close(net); }
 
 
 int netlink::setdebug(int debug) {
-#ifndef	NOT43
     if (net > 0 &&
-	(SetSockOpt(net, SOL_SOCKET, SO_DEBUG, debug)) < 0) {
+	(setsockopt(net, SOL_SOCKET, SO_DEBUG, &debug, sizeof(debug))) < 0) {
 	perror("setsockopt (SO_DEBUG)");
     }
-#else	/* NOT43 */
-    if (debug) {
-	if (net > 0 && SetSockOpt(net, SOL_SOCKET, SO_DEBUG, 0, 0) < 0)
-	    perror("setsockopt (SO_DEBUG)");
-    } else
-	printf("Cannot turn off socket debugging\n");
-#endif	/* NOT43 */
     return 1;
 }
 
@@ -115,8 +88,10 @@ void netlink::close(int doshutdown) {
 
 int netlink::connect(int debug, struct hostent *host, 
 		     struct sockaddr_in *sn, 
-		     const char *srcroute, int srlen, int tos) 
+		     char *srcroute, int srlen, int tos) 
 {
+    int on=1;
+
     net = socket(AF_INET, SOCK_STREAM, 0);
     setuid(getuid());
     if (net < 0) {
@@ -143,7 +118,7 @@ int netlink::connect(int debug, struct hostent *host,
 	perror("telnet: setsockopt (IP_TOS) (ignored)");
 #endif	/* defined(IPPROTO_IP) && defined(IP_TOS) */
 
-    if (debug && SetSockOpt(net, SOL_SOCKET, SO_DEBUG, 1) < 0) {
+    if (debug && setsockopt(net, SOL_SOCKET, SO_DEBUG, &on, sizeof(on)) < 0) {
 	perror("setsockopt (SO_DEBUG)");
     }
     
@@ -174,9 +149,11 @@ int netlink::connect(int debug, struct hostent *host,
 
 
 void netlink::oobinline() {
+    int on=1;
+
     /* Systems without SO_OOBINLINE probably won't work */
-    if (SetSockOpt(net, SOL_SOCKET, SO_OOBINLINE, 1) == -1) {
-	perror("SetSockOpt");
+    if (setsockopt(net, SOL_SOCKET, SO_OOBINLINE, &on, sizeof(on)) == -1) {
+	perror("setsockopt");
     }
 }
 
@@ -187,7 +164,7 @@ void netlink::oobinline() {
  */
 
 int netlink::stilloob(void) {
-    static struct timeval timeout = { 0 };
+    static struct timeval timeout = { 0, 0 };
     fd_set excepts;
     int value;
 

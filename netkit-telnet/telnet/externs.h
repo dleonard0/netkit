@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)externs.h	5.3 (Berkeley) 3/22/91
- *	$Id: externs.h,v 1.19 1997/09/23 11:32:04 dholland Exp $
+ *	$Id: externs.h,v 1.20 1999/08/19 09:34:15 dholland Exp $
  */
 
 #ifndef	BSD
@@ -218,7 +218,7 @@ void env_opt_start_info(void);
 void env_opt_add(const char *);
 void env_opt_end(int);
 
-int get_status(char *, char *);
+int get_status(const char *, const char *);
 int dosynch(void);
 
 cc_t *tcval(int);

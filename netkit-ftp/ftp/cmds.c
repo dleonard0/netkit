@@ -35,17 +35,16 @@
  * from: @(#)cmds.c	5.26 (Berkeley) 3/5/91
  */
 char cmds_rcsid[] = 
-   "$Id: cmds.c,v 1.19 1997/06/08 20:07:19 dholland Exp $";
+   "$Id: cmds.c,v 1.32 1999/12/12 20:19:34 dholland Exp $";
 
 /*
  * FTP User Program -- Command Routines.
  */
-#include <sys/param.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netinet/ip.h>
 
 #include <arpa/ftp.h>
 
@@ -55,7 +54,7 @@ char cmds_rcsid[] =
 #include <errno.h>
 #include <netdb.h>
 #include <ctype.h>
-#include <limits.h>
+#include <limits.h>	/* for PATH_MAX */
 #include <time.h>
 #include <string.h>
 #include <unistd.h>
@@ -82,12 +81,72 @@ static sigjmp_buf jabort;
 static sigjmp_buf abortprox;
 
 static char *remglob(char *argv[], int doswitch);
+static int checkglob(int fd, const char *pattern);
 static char *dotrans(char *name);
 static char *domap(char *name);
 static char *globulize(char *str);
 static int confirm(const char *cmd, const char *file);
 static int getit(int argc, char *argv[], int restartit, const char *modestr);
 static void quote1(const char *initial, int argc, char **argv);
+
+
+/*
+ * pipeprotect: protect against "special" local filenames by prepending
+ * "./". Special local filenames are "-" and "|..." AND "/...".
+ */
+static char *pipeprotect(char *name) 
+{
+	char *nu;
+	if (strcmp(name, "-") && *name!='|' && *name!='/') {
+		return name;
+	}
+
+	/* We're going to leak this memory. XXX. */
+	nu = malloc(strlen(name)+3);
+	if (nu==NULL) {
+		perror("malloc");
+		code = -1;
+		return NULL;
+	}
+	strcpy(nu, ".");
+	if (*name != '/') strcat(nu, "/");
+	strcat(nu, name);
+	return nu;
+}
+
+/*
+ * Look for embedded ".." in a pathname and change it to "!!", printing
+ * a warning.
+ */
+static char *pathprotect(char *name)
+{
+	int gotdots=0, i, len;
+	
+	/* Convert null terminator to trailing / to catch a trailing ".." */
+	len = strlen(name)+1;
+	name[len-1] = '/';
+
+	/*
+	 * State machine loop. gotdots is < 0 if not looking at dots,
+	 * 0 if we just saw a / and thus might start getting dots,
+	 * and the count of dots seen so far if we have seen some.
+	 */
+	for (i=0; i<len; i++) {
+		if (name[i]=='.' && gotdots>=0) gotdots++;
+		else if (name[i]=='/' && gotdots<0) gotdots=0;
+		else if (name[i]=='/' && gotdots==2) {
+		    printf("Warning: embedded .. in %.*s (changing to !!)\n",
+			   len-1, name);
+		    name[i-1] = '!';
+		    name[i-2] = '!';
+		    gotdots = 0;
+		}
+		else if (name[i]=='/') gotdots = 0;
+		else gotdots = -1;
+	}
+	name[len-1] = 0;
+	return name;
+}
 
 
 /*
@@ -131,7 +190,7 @@ void
 setpeer(int argc, char *argv[])
 {
 	char *host;
-	short port;
+	unsigned short port;
 
 	if (connected) {
 		printf("Already connected to %s, use close first.\n",
@@ -149,7 +208,7 @@ setpeer(int argc, char *argv[])
 	port = ftp_port;
 	if (argc > 2) {
 		port = atoi(argv[2]);
-		if (port <= 0) {
+		if (port < 1) {
 			printf("%s: bad port number-- %s\n", argv[1], argv[2]);
 			printf ("usage: %s host-name [port]\n", argv[0]);
 			code = -1;
@@ -174,7 +233,7 @@ setpeer(int argc, char *argv[])
 		if (autologin)
 			(void) dologin(argv[1]);
 
-#if defined(unix) && CHAR_BIT == 8
+#if defined(__unix__) && CHAR_BIT == 8
 /*
  * this ifdef is to keep someone form "porting" this to an incompatible
  * system and not checking this out. This way they have to think about it.
@@ -227,7 +286,7 @@ setpeer(int argc, char *argv[])
 		}
 		verbose = overbose;
 #else
-#warn "Unix auto-mode code skipped"
+#warning "Unix auto-mode code skipped"
 #endif /* unix */
 	}
 }
@@ -468,7 +527,7 @@ mput(int argc, char *argv[])
 	oldintr = signal(SIGINT, mabort);
 	(void) sigsetjmp(jabort, 1);
 	if (proxy) {
-		char *cp, *tp2, tmpbuf[MAXPATHLEN];
+		char *cp, *tp2, tmpbuf[PATH_MAX];
 
 		while ((cp = remglob(argv,0)) != NULL) {
 			if (*cp == 0) {
@@ -577,9 +636,7 @@ reget(int argc, char *argv[])
 }
 
 void
-get(argc, argv)
-	int argc;
-	char *argv[];
+get(int argc, char *argv[])
 {
 	(void) getit(argc, argv, 0, restart_point ? "r+w" : "w" );
 }
@@ -595,7 +652,15 @@ getit(int argc, char *argv[], int restartit, const char *modestr)
 
 	if (argc == 2) {
 		argc++;
-		argv[2] = argv[1];
+		/* 
+		 * Protect the user from accidentally retrieving special
+		 * local names.
+		 */
+		argv[2] = pipeprotect(argv[1]);
+		if (!argv[2]) {
+			code = -1;
+			return 0;
+		}
 		loc++;
 	}
 	if (argc < 2 && !another(&argc, &argv, "remote-file"))
@@ -614,7 +679,7 @@ usage:
 		return (0);
 	}
 	if (loc && mcase) {
-		char *tp = argv[1], *tp2, tmpbuf[MAXPATHLEN];
+		char *tp = argv[1], *tp2, tmpbuf[PATH_MAX];
 
 		while (*tp && !islower(*tp)) {
 			tp++;
@@ -665,23 +730,32 @@ usage:
 					tm = gmtime(&stbuf.st_mtime);
 					tm->tm_mon++;
 /* Indentation is misleading, but changes keep small. */
-					if (tm->tm_year > yy%100)
-						return (1);
-					else if (tm->tm_year == yy%100)
-						if (tm->tm_mon > mo)
+/* 
+ * I think the indentation and braces are now correct. Whoever put this
+ * in the way it was originally should be prohibited by law.
+ */
+					if (tm->tm_year+1900 > yy)
+					    	return (1);
+					if (tm->tm_year+1900 == yy) {
+					   if (tm->tm_mon > mo)
+					      return (1);
+					   if (tm->tm_mon == mo) {
+					      if (tm->tm_mday > day)
+						 return (1);
+					      if (tm->tm_mday == day) {
+						 if (tm->tm_hour > hour)
 							return (1);
-					else if (tm->tm_mon == mo)
-						if (tm->tm_mday > day)
-							return (1);
-					else if (tm->tm_mday == day)
-						if (tm->tm_hour > hour)
-							return (1);
-					else if (tm->tm_hour == hour)
-						if (tm->tm_min > min)
-							return (1);
-					else if (tm->tm_min == min)
-						if (tm->tm_sec > sec)
-							return (1);
+						 if (tm->tm_hour == hour) {
+						    if (tm->tm_min > min)
+						       return (1);
+						    if (tm->tm_min == min) {
+						       if (tm->tm_sec > sec)
+							  return (1);
+						    }
+						 }
+					      }
+					   }
+					}
 				} else {
 					printf("%s\n", reply_string);
 					verbose = overbose;
@@ -723,13 +797,11 @@ mabort(int ignore)
  * Get multiple files.
  */
 void
-mget(argc, argv)
-	int argc;
-	char **argv;
+mget(int argc, char **argv)
 {
 	void (*oldintr)(int);
 	int ointer;
-	char *cp, *tp, *tp2, tmpbuf[MAXPATHLEN];
+	char *cp, *tp, *tp2, tmpbuf[PATH_MAX];
 
 	if (argc < 2 && !another(&argc, &argv, "remote-files")) {
 		printf("usage: %s remote-files\n", argv[0]);
@@ -770,8 +842,19 @@ mget(argc, argv)
 			if (mapflag) {
 				tp = domap(tp);
 			}
-			recvrequest("RETR", tp, cp, "w",
-			    tp != cp || !interactive);
+			/* Reject embedded ".." */
+			tp = pathprotect(tp);
+
+			/* Prepend ./ to "-" or "!*" or leading "/" */
+			tp = pipeprotect(tp);
+			if (tp == NULL) {
+				/* hmm... how best to handle this? */
+				mflag = 0;
+			}
+			else {
+				recvrequest("RETR", tp, cp, "w",
+					    tp != cp || !interactive);
+			}
 			if (!mflag && fromatty) {
 				ointer = interactive;
 				interactive = 1;
@@ -790,10 +873,10 @@ char *
 remglob(char *argv[], int doswitch)
 {
 	char temp[16];
-	static char buf[MAXPATHLEN];
+	static char buf[PATH_MAX];
 	static FILE *ftemp = NULL;
 	static char **args;
-	int oldverbose, oldhash;
+	int oldverbose, oldhash, badglob = 0;
 	char *cp;
 
 	if (!mflag) {
@@ -835,7 +918,13 @@ remglob(char *argv[], int doswitch)
 			pswitch(!proxy);
 		}
 		while (*++argv != NULL) {
+			int	dupfd = dup(fd);
+
 			recvrequest ("NLST", temp, *argv, "a", 0);
+			if (!checkglob(dupfd, *argv)) {
+				badglob = 1;
+				break;
+			}
 		}
 		unlink(temp);
 
@@ -843,11 +932,17 @@ remglob(char *argv[], int doswitch)
 			pswitch(!proxy);
 		}
 		verbose = oldverbose; hash = oldhash;
+		if (badglob) {
+			printf("Refusing to handle insecure file list\n");
+			close(fd);
+			return NULL;
+		}
 		ftemp = fdopen(fd, "r");
 		if (ftemp == NULL) {
 			printf("fdopen failed, oops\n");
 			return NULL;
 		}
+		rewind(ftemp);
 	}
 	if (fgets(buf, sizeof (buf), ftemp) == NULL) {
 		(void) fclose(ftemp), ftemp = NULL;
@@ -856,6 +951,100 @@ remglob(char *argv[], int doswitch)
 	if ((cp = index(buf, '\n')) != NULL)
 		*cp = '\0';
 	return (buf);
+}
+
+/*
+ * Check whether given pattern matches `..'
+ * We assume only a glob pattern starting with a dot will match
+ * dot entries on the server.
+ */
+static int
+isdotdotglob(const char *pattern)
+{
+	int	havedot = 0;
+	char	c;
+
+	if (*pattern++ != '.')
+		return 0;
+	while ((c = *pattern++) != '\0' && c != '/') {
+		if (c == '*' || c == '?')
+			continue;
+		if (c == '.' && havedot++)
+			return 0;
+	}
+	return 1;
+}
+
+/*
+ * This function makes sure the list of globbed files returned from
+ * the server doesn't contain anything dangerous such as
+ * /home/<yourname>/.forward, or ../.forward,
+ * or |mail foe@doe </etc/passwd, etc.
+ * Covered areas:
+ *  -	returned name starts with / but glob pattern doesn't
+ *  -	glob pattern starts with / but returned name doesn't
+ *  -	returned name starts with |
+ *  -	returned name contains .. in a position where glob
+ *	pattern doesn't match ..
+ *	I.e. foo/.* allows foo/../bar but not foo/.bar/../fly
+ *
+ * Note that globbed names starting with / should really be stored
+ * under the current working directory; this is handled in mget above.
+ *						--okir
+ */
+static int
+checkglob(int fd, const char *pattern)
+{
+	const char	*sp;
+	char		buffer[MAXPATHLEN], dotdot[MAXPATHLEN];
+	int		okay = 1, nrslash, initial, nr;
+	FILE		*fp;
+
+	/* Find slashes in glob pattern, and verify whether component
+	 * matches `..'
+	 */
+	initial = (pattern[0] == '/');
+	for (sp = pattern, nrslash = 0; sp != 0; sp = strchr(sp, '/')) {
+		while (*sp == '/')
+			sp++;
+		if (nrslash >= MAXPATHLEN) {
+			printf("Incredible pattern: %s\n", pattern);
+			return 0;
+		}
+		dotdot[nrslash++] = isdotdotglob(sp);
+	}
+
+	fp = fdopen(fd, "r");
+	while (okay && fgets(buffer, sizeof(buffer), fp) != NULL) {
+		char	*sp;
+
+		if ((sp = strchr(buffer, '\n')) != 0) {
+			*sp = '\0';
+		} else {
+			printf("Extremely long filename from server: %s",
+				buffer);
+			okay = 0;
+			break;
+		}
+		if (buffer[0] == '|'
+		 || (buffer[0] != '/' && initial)
+		 || (buffer[0] == '/' && !initial))
+			okay = 0;
+		for (sp = buffer, nr = 0; sp; sp = strchr(sp, '/'), nr++) {
+			while (*sp == '/')
+				sp++;
+			if (sp[0] == '.' && !strncmp(sp, "../", 3)
+			 && (nr >= nrslash || !dotdot[nr]))
+				okay = 0;
+		}
+	}
+
+	if (!okay)
+		printf("Filename provided by server "
+		       "doesn't match pattern `%s': %s\n", pattern, buffer);
+
+	fclose(fp);
+	return okay;
 }
 
 static const char *
@@ -867,7 +1056,6 @@ onoff(int bool)
 /*
  * Show status.
  */
-/*ARGSUSED*/
 void
 status(void)
 {
@@ -922,7 +1110,6 @@ status(void)
 /*
  * Set beep on cmd completed mode.
  */
-/*VARARGS*/
 void
 setbell(void)
 {
@@ -935,11 +1122,9 @@ setbell(void)
 /*
  * Turn on packet tracing.
  */
-/*VARARGS*/
 void
 settrace(void)
 {
-
 	traceflag = !traceflag;
 	printf("Packet tracing %s.\n", onoff(traceflag));
 	code = traceflag;
@@ -948,11 +1133,9 @@ settrace(void)
 /*
  * Toggle hash mark printing during transfers.
  */
-/*VARARGS*/
 void
 sethash(void)
 {
-
 	hash = !hash;
 	if (hash && tick)
 		settick();
@@ -967,7 +1150,6 @@ sethash(void)
 /*
  * Toggle tick counter printing during transfers.
  */
-/*VARARGS*/
 void
 settick(void)
 {
@@ -982,13 +1164,11 @@ settick(void)
 }
 
 /*
- * Turn on printing of server echo's.
+ * Turn on printing of server echos.
  */
-/*VARARGS*/
 void
 setverbose(void)
 {
-
 	verbose = !verbose;
 	printf("Verbose mode %s.\n", onoff(verbose));
 	code = verbose;
@@ -1000,7 +1180,6 @@ setverbose(void)
 void
 setport(void)
 {
-
 	sendport = !sendport;
 	printf("Use of PORT cmds %s.\n", onoff(sendport));
 	code = sendport;
@@ -1013,7 +1192,6 @@ setport(void)
 void
 setprompt(void)
 {
-
 	interactive = !interactive;
 	printf("Interactive mode %s.\n", onoff(interactive));
 	code = interactive;
@@ -1026,7 +1204,6 @@ setprompt(void)
 void
 setglob(void)
 {
-	
 	doglob = !doglob;
 	printf("Globbing %s.\n", onoff(doglob));
 	code = doglob;
@@ -1036,11 +1213,8 @@ setglob(void)
  * Set debugging mode on/off and/or
  * set level of debugging.
  */
-/*VARARGS*/
 void
-setdebug(argc, argv)
-	int argc;
-	char *argv[];
+setdebug(int argc, char *argv[])
 {
 	int val;
 
@@ -1067,9 +1241,7 @@ setdebug(argc, argv)
  * on remote machine.
  */
 void
-cd(argc, argv)
-	int argc;
-	char *argv[];
+cd(int argc, char *argv[])
 {
 
 	if (argc < 2 && !another(&argc, &argv, "remote-directory")) {
@@ -1091,7 +1263,7 @@ cd(argc, argv)
 void
 lcd(int argc, char *argv[])
 {
-	char buf[MAXPATHLEN];
+	char buf[PATH_MAX];
 	const char *dir = NULL;
 
 	if (argc == 1) {
@@ -1127,9 +1299,7 @@ lcd(int argc, char *argv[])
  * Delete a single file.
  */
 void
-delete_cmd(argc, argv)
-	int argc;
-	char *argv[];
+delete_cmd(int argc, char *argv[])
 {
 
 	if (argc < 2 && !another(&argc, &argv, "remote-file")) {
@@ -1184,9 +1354,7 @@ mdelete(int argc, char *argv[])
  * Rename a remote file.
  */
 void
-renamefile(argc, argv)
-	int argc;
-	char *argv[];
+renamefile(int argc, char *argv[])
 {
 
 	if (argc < 2 && !another(&argc, &argv, "from-name"))
@@ -1316,8 +1484,10 @@ shell(const char *arg)
 		namep = strrchr(theshell, '/');
 		if (namep == NULL)
 			namep = theshell;
+		else 
+			namep++;
 		(void) strcpy(shellnam,"-");
-		(void) strcat(shellnam, ++namep);
+		(void) strcat(shellnam, namep);
 		if (strcmp(namep, "sh") != 0)
 			shellnam[0] = '+';
 		if (debug) {
@@ -1333,7 +1503,7 @@ shell(const char *arg)
 		perror(theshell);
 		code = -1;
 		exit(1);
-		}
+	}
 	if (pid > 0) while (wait(NULL) != pid);
 
 	(void) signal(SIGINT, old1);
@@ -1410,9 +1580,7 @@ pwd(void)
  * Make a directory.
  */
 void
-makedir(argc, argv)
-	int argc;
-	char *argv[];
+makedir(int argc, char *argv[])
 {
 
 	if (argc < 2 && !another(&argc, &argv, "directory-name")) {
@@ -1431,9 +1599,7 @@ makedir(argc, argv)
  * Remove a directory.
  */
 void
-removedir(argc, argv)
-	int argc;
-	char *argv[];
+removedir(int argc, char *argv[])
 {
 
 	if (argc < 2 && !another(&argc, &argv, "directory-name")) {
@@ -1452,11 +1618,8 @@ removedir(argc, argv)
  * Send a line, verbatim, to the remote machine.
  */
 void
-quote(argc, argv)
-	int argc;
-	char *argv[];
+quote(int argc, char *argv[])
 {
-
 	if (argc < 2 && !another(&argc, &argv, "command line to send")) {
 		printf("usage: %s line-to-send\n", argv[0]);
 		code = -1;
@@ -1471,11 +1634,8 @@ quote(argc, argv)
  * word "SITE" is added at the front.
  */
 void
-site(argc, argv)
-	int argc;
-	char *argv[];
+site(int argc, char *argv[])
 {
-
 	if (argc < 2 && !another(&argc, &argv, "arguments to SITE command")) {
 		printf("usage: %s line-to-send\n", argv[0]);
 		code = -1;
@@ -1524,9 +1684,7 @@ usage:
 }
 
 void
-do_umask(argc, argv)
-	int argc;
-	char *argv[];
+do_umask(int argc, char *argv[])
 {
 	int oldverbose = verbose;
 
@@ -1536,9 +1694,7 @@ do_umask(argc, argv)
 }
 
 void
-idle_cmd(argc, argv)
-	int argc;
-	char *argv[];
+idle_cmd(int argc, char *argv[])
 {
 	int oldverbose = verbose;
 
@@ -1551,9 +1707,7 @@ idle_cmd(argc, argv)
  * Ask the other side for help.
  */
 void
-rmthelp(argc, argv)
-	int argc;
-	char *argv[];
+rmthelp(int argc, char *argv[])
 {
 	int oldverbose = verbose;
 
@@ -1607,7 +1761,7 @@ confirm(const char *cmd, const char *file)
 		return (1);
 
 #ifdef __USE_READLINE__
-	if (fromatty) {
+	if (fromatty && !rl_inhibit) {
 		char *lineread;
 		snprintf(lyne, BUFSIZ, "%s %s? ", cmd, file);
 		lineread = readline(lyne);
@@ -1787,9 +1941,7 @@ setcr(void)
 }
 
 void
-setntrans(argc,argv)
-	int argc;
-	char *argv[];
+setntrans(int argc, char *argv[])
 {
 	if (argc == 1) {
 		ntflag = 0;
@@ -1812,7 +1964,7 @@ setntrans(argc,argv)
 static char *
 dotrans(char *name)
 {
-	static char new[MAXPATHLEN];
+	static char new[PATH_MAX];
 	char *cp1, *cp2 = new;
 	register int i, ostop, found;
 
@@ -1837,9 +1989,7 @@ dotrans(char *name)
 }
 
 void
-setnmap(argc, argv)
-	int argc;
-	char *argv[];
+setnmap(int argc, char *argv[])
 {
 	char *cp;
 
@@ -1863,16 +2013,18 @@ setnmap(argc, argv)
 		cp = index(altarg, ' ');
 	}
 	*cp = '\0';
-	(void) strncpy(mapin, altarg, MAXPATHLEN - 1);
+	(void) strncpy(mapin, altarg, PATH_MAX - 1);
+	mapin[PATH_MAX-1] = 0;
 	while (*++cp == ' ');
-	(void) strncpy(mapout, cp, MAXPATHLEN - 1);
+	(void) strncpy(mapout, cp, PATH_MAX - 1);
+	mapout[PATH_MAX-1] = 0;
 }
 
 static
 char *
 domap(char *name)
 {
-	static char new[MAXPATHLEN];
+	static char new[PATH_MAX];
 	register char *cp1 = name, *cp2 = mapin;
 	char *tp[9], *te[9];
 	int i, toks[9], toknum = 0, match = 1;
@@ -1888,9 +2040,10 @@ domap(char *name)
 				}
 				break;
 			case '$':
-				if (*(cp2+1) >= '1' && (*cp2+1) <= '9') {
+				if (*(cp2+1) >= '1' && *(cp2+1) <= '9') {
 					if (*cp1 != *(++cp2+1)) {
-						toks[toknum = *cp2 - '1']++;
+						toknum = *cp2 - '1';
+						toks[toknum]++;
 						tp[toknum] = cp1;
 						while (*++cp1 && *(cp2+1)
 							!= *cp1);
@@ -2086,9 +2239,7 @@ syst(void)
 }
 
 void
-macdef(argc, argv)
-	int argc;
-	char *argv[];
+macdef(int argc, char *argv[])
 {
 	char *tmp;
 	int c;
@@ -2107,6 +2258,7 @@ macdef(argc, argv)
 		printf("Enter macro line by line, terminating it with a null line\n");
 	}
 	(void) strncpy(macros[macnum].mac_name, argv[1], 8);
+	macros[macnum].mac_name[8] = 0;
 	if (macnum == 0) {
 		macros[macnum].mac_start = macbuf;
 	}
@@ -2114,7 +2266,8 @@ macdef(argc, argv)
 		macros[macnum].mac_start = macros[macnum - 1].mac_end + 1;
 	}
 	tmp = macros[macnum].mac_start;
-	while (tmp != macbuf+4096) {
+	/* stepping over the end of the array, remember to take away 1! */
+	while (tmp != macbuf+MACBUF_SIZE) {
 		if ((c = getchar()) == EOF) {
 			printf("macdef:end of file encountered\n");
 			code = -1;
@@ -2161,9 +2314,7 @@ setpassive(void)
  * get size of file on remote machine
  */
 void
-sizecmd(argc, argv)
-	int argc;
-	char *argv[];
+sizecmd(int argc, char *argv[])
 {
 
 	if (argc < 2 && !another(&argc, &argv, "filename")) {
@@ -2178,9 +2329,7 @@ sizecmd(argc, argv)
  * get last modification time of file on remote machine
  */
 void
-modtime(argc, argv)
-	int argc;
-	char *argv[];
+modtime(int argc, char *argv[])
 {
 	int overbose;
 
@@ -2208,9 +2357,7 @@ modtime(argc, argv)
  * show status on remote machine
  */
 void
-rmtstatus(argc, argv)
-	int argc;
-	char *argv[];
+rmtstatus(int argc, char *argv[])
 {
 	(void) command(argc > 1 ? "STAT %s" : "STAT" , argv[1]);
 }

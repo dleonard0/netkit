@@ -9,6 +9,7 @@ all: libsupport.a
 
 libsupport.a: $(OBJS)
 	ar -cruv $@ $^
+	ranlib $@
 
 install: ;
 clean:

@@ -35,7 +35,7 @@
  * From: @(#)utilities.c	5.3 (Berkeley) 3/22/91
  */
 char util_rcsid[] = 
-  "$Id: utilities.cc,v 1.18 1997/09/23 11:33:16 dholland Exp $";
+  "$Id: utilities.cc,v 1.19 1999/12/12 15:33:40 dholland Exp $";
 
 #define	TELOPTS
 #define	TELCMDS
@@ -446,7 +446,7 @@ void printsub(int direction, unsigned char *pointer, int length) {
 		}
 		{
 		    char tbuf[64];
-		    sprintf(tbuf, "%s%s%s%s%s",
+		    snprintf(tbuf, sizeof(tbuf), "%s%s%s%s%s",
 			pointer[2]&MODE_EDIT ? "|EDIT" : "",
 			pointer[2]&MODE_TRAPSIG ? "|TRAPSIG" : "",
 			pointer[2]&MODE_SOFT_TAB ? "|SOFT_TAB" : "",

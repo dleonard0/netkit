@@ -36,7 +36,7 @@
  * From: @(#)if.c	8.1 (Berkeley) 6/5/93
  */
 char if_rcsid[] = 
-  "$Id: if.c,v 1.4 1996/11/25 16:37:43 dholland Exp $";
+  "$Id: if.c,v 1.5 1999/08/01 19:19:16 dholland Exp $";
 
 /*
  * Routing Table Management Daemon
@@ -46,6 +46,13 @@ char if_rcsid[] =
 
 extern	struct interface *ifnet;
 
+static
+int
+same(struct sockaddr *a1, struct sockaddr *a2)
+{
+	return !memcmp(a1->sa_data, a2->sa_data, 14);
+}
+
 /*
  * Find the interface with address addr.
  */
@@ -54,8 +61,6 @@ struct interface *if_ifwithaddr(struct sockaddr *addr)
 {
 	struct interface *ifp;
 
-#define	same(a1, a2) \
-	(memcmp((a1)->sa_data, (a2)->sa_data, 14) == 0)
 	for (ifp = ifnet; ifp; ifp = ifp->int_next) {
 		if (ifp->int_flags & IFF_REMOTE)
 			continue;

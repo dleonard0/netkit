@@ -35,7 +35,7 @@
  * From: @(#)process.c	5.10 (Berkeley) 2/26/91
  */
 char rcsid[] = 
-"$Id: process.c,v 1.13 1998/11/27 12:31:33 dholland Exp $";
+"$Id: process.c,v 1.14 1999/09/28 22:04:15 netbug Exp $";
 
 /*
  * process.c handles the requests, which can be of three types:
@@ -50,12 +50,12 @@ char rcsid[] =
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netinet/ip.h>
+/* #include <netinet/ip.h> <--- unused? */
 #include <netdb.h>
 #include <syslog.h>
 #include <stdio.h>
 #include <string.h>
-#include <paths.h>
+/* #include <paths.h> <---- unused? */
 #include <utmp.h>
 #include "prot_talkd.h"
 #include "proto.h"

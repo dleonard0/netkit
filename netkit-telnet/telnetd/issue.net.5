@@ -1,44 +1,43 @@
 .\" Copyright (c) 1994 Peter Tobias <tobias@server.et-inf.fho-emden.de>
 .\" This file may be distributed under the GNU General Public License.
-.TH ISSUE.NET 5 "22 May 1994" "Linux" "Linux Programmer's Manual"
-.SH NAME
-issue.net \- identification file for telnet sessions
-.SH DESCRIPTION
-The file \fB/etc/issue.net\fP is a text file which contains a message or
-system identification to be printed before the login prompt of a
-telnet session. It may contain various
-.BI "%" char
-sequences. The following sequences are supported by the
-.BR telnetd :
-.TP
-.B %t
+.\" 
+.\" Changed to -mdoc by David A. Holland <dholland@ftp.uk.linux.org>
+.\" in order to work better with some NetKit maintenance scripts.
+.\"
+.Dd May 22, 1994
+.Dt ISSUE.NET 5 
+.Os "Linux NetKit (0.16)"
+.Sh NAME
+.Nm issue.net 
+.Nd identification file for telnet sessions
+.Sh DESCRIPTION
+The file 
+.Pa /etc/issue.net
+is a text file which contains a message or system identification to be
+printed before the login prompt of a telnet session. It may contain
+various `%-char' sequences. The following sequences are supported by
+.Ic telnetd :
+.Bl -tag -offset indent -compact -width "abcde"
+.It %t
 - show the current tty
-.TP
-.B %h
+.It %h
 - show the system node name (FQDN)
-.TP
-.B %D
+.It %D
 - show the name of the NIS domain
-.TP
-.B %d
+.It %d
 - show the current time and date
-.TP
-.B %s
+.It %s
 - show the name of the operating system
-.TP
-.B %m
+.It %m
 - show the machine (hardware) type
-.TP
-.B %r
+.It %r
 - show the operating system release
-.TP
-.B %v
+.It %v
 - show the operating system version
-.TP
-.B %%
+.It %%
 - display a single '%' character
-.PP
-.SH FILES
-/etc/issue.net
-.SH "SEE ALSO"
-.BR telnetd (8)
+.El
+.Sh FILES
+.Pa /etc/issue.net
+.Sh "SEE ALSO"
+.Xr telnetd 8

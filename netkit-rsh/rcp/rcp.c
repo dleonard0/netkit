@@ -38,8 +38,8 @@ char copyright[] =
 /*
  * From: @(#)rcp.c	5.32 (Berkeley) 2/25/91
  */
-char rcsid[] = "$Id: rcp.c,v 1.10 1997/06/08 19:42:34 dholland Exp $";
-char pkg[] = "netkit-rsh-0.10";
+char rcsid[] = "$Id: rcp.c,v 1.14 1999/10/02 21:03:02 dholland Exp $";
+#include "../version.h"
 
 /*
  * rcp
@@ -391,12 +391,17 @@ susystem(const char *s)
 
 	if ((pid = vfork()) == 0) {
 		const char *args[4];
+		const char **argsfoo;
+		char **argsbar;
 		(void)setuid(userid);
 		args[0] = "sh";
 		args[1] = "-c";
 		args[2] = s;
 		args[3] = NULL;
-		execve(_PATH_BSHELL, (char **)args, saved_environ);
+		/* Defeat C type system to permit passing char ** to execve */
+		argsfoo = args;
+		memcpy(&argsbar, &argsfoo, sizeof(argsfoo));
+		execve(_PATH_BSHELL, argsbar, saved_environ);
 		_exit(127);
 	}
 	istat = signal(SIGINT, SIG_IGN);

@@ -30,11 +30,11 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)rlogind.8	6.12 (Berkeley) 3/16/91
-.\"	$Id: rlogind.8,v 1.2 1996/11/23 19:21:24 dholland Exp $
+.\"	$Id: rlogind.8,v 1.9 1999/12/14 12:52:58 dholland Exp $
 .\"
 .Dd March 16, 1991
 .Dt RLOGIND 8
-.Os BSD 4.2
+.Os "Linux NetKit (0.16)"
 .Sh NAME
 .Nm rlogind
 .Nd remote login server
@@ -78,6 +78,31 @@ The \-h, \-l, and \-L flags are not used if PAM (Pluggable
 Authentication Module) support is in use. In this case the same
 effects can be achieved by editing
 .Pa /etc/pam.conf .
+.Pp
+The
+.Fl h
+and
+.Fl l
+options should also not be trusted without verifying that they work as
+expected with the particular version of libc installed on your system
+(and should be tested again after any libc update) because some
+versions of libc may not honor the internal flags used by
+.Nm rlogind .
+As the
+.Fl L
+option bypasses the libc functions entirely, it is not subject to this
+problem.
+.Pp
+Also note that the design of the
+.Pa .rhosts
+system is COMPLETELY INSECURE except on a carefully firewalled private
+network. Always use the 
+.Fl L
+option under all other circumstances. Also, since
+.Nm rlogind
+does not encrypt communications, it should not, in general, be used at
+all. Consider
+.Xr ssh 8 .
 .Pp
 .Nm Rlogind
 listens for service requests at the port indicated in

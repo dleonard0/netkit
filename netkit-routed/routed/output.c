@@ -36,7 +36,7 @@
  * From: @(#)output.c	8.1 (Berkeley) 6/5/93
  */
 char output_rcsid[] = 
-  "$Id: output.c,v 1.6 1996/11/25 16:54:04 dholland Exp $";
+  "$Id: output.c,v 1.7 1999/08/01 19:19:16 dholland Exp $";
 
 
 /*
@@ -78,8 +78,8 @@ void sndmsg(struct sockaddr *dst, int flags, struct interface *ifp, int rtstate)
 {
 	(void)rtstate;
 
-	(*afswitch[dst->sa_family].af_output)(s, flags,
-		dst, sizeof (struct rip));
+	(*afswitch[dst->sa_family].af_output)(sock, flags,
+					      dst, sizeof (struct rip));
 	TRACE_OUTPUT(ifp, dst, sizeof (struct rip));
 }
 
@@ -136,7 +136,7 @@ again:
 		size = (char *)n - packet;
 		if (size > MAXPACKETSIZE - (int)sizeof (struct netinfo)) {
 			TRACE_OUTPUT(ifp, dst, size);
-			(*output)(s, flags, dst, size);
+			(*output)(sock, flags, dst, size);
 			/*
 			 * If only sending to ourselves,
 			 * one packet is enough to monitor interface.
@@ -166,6 +166,6 @@ again:
 	if (n != msg->rip_nets || (npackets == 0 && rtstate == 0)) {
 		size = (char *)n - packet;
 		TRACE_OUTPUT(ifp, dst, size);
-		(*output)(s, flags, dst, size);
+		(*output)(sock, flags, dst, size);
 	}
 }

@@ -33,9 +33,15 @@
  *	From: @(#)pathnames.h	5.3 (Berkeley) 6/1/90
  *	From: @(#)pathnames.h	8.1 (Berkeley) 6/5/93
  *	From: NetBSD: pathnames.h,v 1.6 1995/03/18 15:00:37 cgd Exp
- *	$Id: pathnames.h,v 1.2 1996/11/25 16:36:17 dholland Exp $
+ *	$Id: pathnames.h,v 1.3 1999/08/01 19:19:16 dholland Exp $
  */
 
 #include <paths.h>
 
 #define	_PATH_GATEWAYS	"/etc/gateways"
+
+/*
+ * Note: it is *vital* that _PATH_LOGDIR be absolute and have a trailing slash!
+ */
+
+#define _PATH_LOGDIR    "/var/log/routed/"

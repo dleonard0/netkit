@@ -1,28 +1,93 @@
-This is a port of the OpenBSD ftp daemon.
-The source was retrieved from ftp.openbsd.org on Mon May 19 06:20:58 EDT 1997,
-including the files
-	extern.h	ftpcmd.y	ftpd.8		ftpd.c
-	logutmp.c	logwtmp.c	pathnames.h	popen.c
+This is linux-ftpd 0.16 for Linux, a port of the OpenBSD ftp daemon.
 
-These came from src/libexec/ftpd.
-The support files came from various sources, including OpenBSD's libc,
-NetKit 0.09, and sendmail 8.7.4. (8.7.4 because it was handy, not for
-any particular reason.) Others were written for this port.
+This package updates linux-ftpd-0.10.
 
-This version does not put ftp users in utmp; the utmp code is #if'd out.
-This means the -U option does not work.
+If you're reading this off a CD, go right away and check the net
+archives for later versions and security fixes.
 
-Send bug reports and whatnot to me, not to OpenBSD, as the OpenBSD
-organization doesn't have anything official to do with this port.
-I'll forward them if necessary.
+Contents:
+	ftpd		Daemon for the ftp protocol.
 
-Please don't use linux-ftpd-0.09 any longer as it's rather broken and
-this version is in all respects superior.
+Requires:
+	Working compiler, libc, and kernel.
+	Supports shadow passwords. Does not (yet) support PAM.
 
-To install, edit MCONFIG, make, and make install. For configuration
-instructions, read the man page, keeping in mind that it's for OpenBSD
-and hasn't been edited for Linux. (This will be fixed eventually.)
+Installation:
+	Do "./configure --help" and decide what options you want. The
+	defaults should be suitable for most Linux systems. Then run
+	the configure script.
+
+	Do "make" to compile.
+	Then (as root) do "make install".
+
+	Save a backup copy of any mission-critical program in case the
+	new one doesn't work, and so forth. We warned you.
+
+DEC Alpha:
+        Compaq were kind enought to make available their C compiler for
+        the Alpha, you can down load this for free from
+        http://www.unix.digital.com/linux (At time of document 25/11/1999)
+        this package has been compiled and tested with this compiler as
+        with the GNU compiler. To compile this from source simply issue
+                CC=ccc ./configure
+	Compaq C will moan in the following areas.
+	support/isexpired.c - if no shadow support
+	ftpd/ftpd.c - odd error message about "the unsigned expression "len"
+	              is being tested to see if it is greater than zero"
+	                 while(cnt > 0 && len > 0)
+	              a minor moan that long long is a language extension
+                         vremotehost, (long long) size, vpath
+                      64-bit pointer "dhostname" is being cast to an integer
+	              type that is only 8 bits in size (behavior is undefined)
+	                 (char) dhostname);
+	              another moan about limits.h and stdarg.h being unused
+	The yacc generated file y.tab.c also generates a few moans
+	
+Restrictions:
+	This version does not put ftp users in utmp; the utmp code is
+	#if'd out. This means the -U option does not work.
+
+	Keep in mind that the man page has not been completely edited
+	for Linux and may refer to a few BSDisms.
+
+Bugs:
+	Send bug reports and whatnot to the netkit bug address, not to
+	OpenBSD, as the OpenBSD organization doesn't have anything
+	official to do with this port. Things will be forwarded if
+	necessary.
+
+	Be sure to send all correspondence in e-mail. Postings to netnews 
+	will not be seen due to the enormous volume.
+
+	Please don't report known bugs (see the BUGS file(s)) unless you
+	are including fixes. :-)
+
+Port information:	
+	The source was retrieved from ftp.openbsd.org on 
+		Thu Jul 15 19:38:16 EDT 1999
+
+	including the files
+		extern.h	ftpcmd.y	ftpd.8		ftpd.c
+		logutmp.c	logwtmp.c	pathnames.h	popen.c
+
+	These came from src/libexec/ftpd.
+
+	The support files came from various sources, including
+	OpenBSD's libc, NetKit 0.09, and sendmail 8.7.4. (8.7.4
+	because it was handy, not for any particular reason.) Others
+	were written for this port.
+
+	Mail should be sent to: netbug@ftp.uk.linux.org
 
 
-David A. Holland	dholland@hcs.harvard.edu
-								19-May-1997
+Note: please see http://www.hcs.harvard.edu/~dholland/computers/netkit.html
+if you are curious why it's been so long since the last NetKit release.
+(The short version is that I gave things to some other people, who let
+them kind of slide.)
+
+I do not currently plan to continue maintaining NetKit; I am doing this
+release and perhaps one or two more, and then I intend to give the source
+tree to Red Hat or some similar organization for long-term maintenance.
+
+David A. Holland
+12 December 1999

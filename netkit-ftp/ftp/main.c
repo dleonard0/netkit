@@ -39,7 +39,7 @@ char copyright[] =
  * from: @(#)main.c	5.18 (Berkeley) 3/1/91
  */
 char main_rcsid[] = 
-  "$Id: main.c,v 1.13 1997/03/21 02:06:35 dholland Exp $";
+  "$Id: main.c,v 1.15 1999/10/02 13:25:23 netbug Exp $";
 
 
 /*
@@ -49,7 +49,7 @@ char main_rcsid[] =
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 
-#include <arpa/ftp.h>
+/* #include <arpa/ftp.h>	<--- unused? */
 
 #include <signal.h>
 #include <unistd.h>
@@ -81,6 +81,22 @@ void help(int argc, char *argv[]);
 
 static void cmdscanner(int top);
 static char *slurpstring(void);
+
+static
+void
+usage(void)
+{
+	printf("\n\tUsage: { ftp | pftp } [-pinegvtd] [hostname]\n");
+	printf("\t   -p: enable passive mode (default for pftp)\n");
+	printf("\t   -i: turn off prompting during mget\n");
+	printf("\t   -n: inhibit auto-login\n");
+	printf("\t   -e: disable readline support, if present\n");
+	printf("\t   -g: disable filename globbing\n");
+	printf("\t   -v: verbose mode\n");
+	printf("\t   -t: enable packet tracing [nonfunctional]\n");
+	printf("\t   -d: enable debugging\n");
+	printf("\n");
+}
 
 int
 main(volatile int argc, char **volatile argv)
@@ -149,6 +165,14 @@ main(volatile int argc, char **volatile argv)
 			case 'g':
 				doglob = 0;
 				break;
+				
+			case 'e':
+				rl_inhibit = 1;
+				break;
+				
+			case 'h':
+				usage();
+				exit(0);
 
 			default:
 				fprintf(stdout,
@@ -251,6 +275,28 @@ tail(filename)
 	return (filename);
 }
 */
+
+static char *get_input_line(char *buf, int buflen)
+{
+#ifdef __USE_READLINE__
+	if (fromatty && !rl_inhibit) {
+		char *lineread = readline("ftp> ");
+		if (!lineread) return NULL;
+		strncpy(buf, lineread, buflen);
+		buf[buflen-1] = 0;
+		if (lineread[0]) add_history(lineread);
+		free(lineread);
+		return buf;
+	}
+#endif
+	if (fromatty) {
+		printf("ftp> ");
+		fflush(stdout);
+	}
+	return fgets(buf, buflen, stdin);
+}
+
+
 /*
  * Command parser.
  */
@@ -262,38 +308,13 @@ cmdscanner(int top)
 	char **margv;
 	register struct cmd *c;
 	register int l;
-#ifdef __USE_READLINE__
-	char *lineread;
-#endif
 
 	if (!top)
 		(void) putchar('\n');
 	for (;;) {
-		if (fromatty) {
-#ifdef __USE_READLINE__
-			lineread = readline("ftp> ");
-#else
-			printf("ftp> ");
-			(void) fflush(stdout);
-#endif
-		}
-#ifdef __USE_READLINE__
-		if (!fromatty) {
-			if (fgets(line, sizeof line, stdin) == NULL)
-				quit();
-		} else {
-			if (!lineread) {
-				quit();
-				break;
-			}
-			strcpy(line, lineread);
-			if (lineread[0]) add_history(lineread);
-			free(lineread);
-                }
-#else
-		if (fgets(line, sizeof line, stdin) == NULL)
+		if (!get_input_line(line, sizeof(line))) {
 			quit();
-#endif
+		}
 		l = strlen(line);
 		if (l == 0)
 			break;

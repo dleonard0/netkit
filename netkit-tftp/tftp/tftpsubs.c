@@ -35,7 +35,7 @@
  * From: @(#)tftpsubs.c	5.6 (Berkeley) 2/28/91
  */
 char subs_rcsid[] = 
-  "$Id: tftpsubs.c,v 1.5 1996/08/29 22:25:27 dholland Exp $";
+  "$Id: tftpsubs.c,v 1.6 1999/09/29 02:01:31 netbug Exp $";
 
 /* Simple minded read-ahead/write-behind subroutines for tftp user and
    server.  Written originally with multiple buffers in mind, but current
@@ -249,7 +249,7 @@ synchnet(int f /* socket to flush */)
 	int i, j = 0;
 	char rbuf[PKTSIZE];
 	struct sockaddr_in from;
-	size_t fromlen;
+	socklen_t fromlen;
 
 	while (1) {
 		(void) ioctl(f, FIONREAD, &i);

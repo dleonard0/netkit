@@ -2,4 +2,4 @@
  * String to embed in binaries to identify package
  */
 
-char pkg[] = "Package: bsd-finger-0.10";
+char pkg[]="$NetKit: bsd-finger-0.16 $";

@@ -30,11 +30,11 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)biff.1	6.5 (Berkeley) 3/14/91
-.\"	$Id: biff.1,v 1.3 1997/02/01 22:34:54 dholland Exp $
+.\"	$Id: biff.1,v 1.11 1999/12/14 12:52:46 dholland Exp $
 .\"
-.Dd February 1, 1997
+.Dd July 31, 1999
 .Dt BIFF 1
-.Os "Linux NetKit 0.10"
+.Os "Linux NetKit (0.16)"
 .Sh NAME
 .Nm biff
 .Nd "be notified if mail arrives and who it is from"
@@ -89,3 +89,12 @@ The
 .Nm
 command appeared in 
 .Bx 4.0 .
+.Sh BUGS
+.Xr su 1 ,
+and biff don't seem to get on too well. This is probably due to the tty 
+still being owned by the person using su. This can result in 
+.Dq Li Permission denied 
+messages when attempting to change the biff status of your session.
+.Pp 
+Please report bugs to netbug@ftp.uk.linux.org including diffs/patches,
+compiler error logs or as complete a bug report as is possible.

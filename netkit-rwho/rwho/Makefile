@@ -3,10 +3,12 @@ all: rwho
 include ../MCONFIG
 include ../MRULES
 
-CFLAGS += -I ../include
+CFLAGS += -I../include
 
 rwho: rwho.o
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
+
+rwho.o: ../version.h
 
 install: rwho
 	install -s -m$(BINMODE) rwho $(INSTALLROOT)$(BINDIR)

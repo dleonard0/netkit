@@ -1,2 +1,3 @@
-Doesn't compile cleanly.
+Doesn't compile cleanly. (This is more than half libc's fault.)
 
+Not y2038-compliant.

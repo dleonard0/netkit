@@ -28,7 +28,7 @@
 
 #ifndef lint
 char rusers_rcsid[] = 
-  "$Id: rusers.c,v 1.10 1997/08/02 16:00:45 dholland Exp $";
+  "$Id: rusers.c,v 1.17 1999/12/12 19:32:05 dholland Exp $";
 #endif /* not lint */
 
 #include <sys/types.h>
@@ -43,6 +43,9 @@ char rusers_rcsid[] =
 #include <arpa/inet.h>
 #include <utmp.h>
 #include <stdlib.h>
+#include <unistd.h>
+
+#include "../version.h"
 
 /*
  * For now we only try version 2 of the protocol. The current
@@ -52,6 +55,15 @@ char rusers_rcsid[] =
 /*#include <rpcsvc/rnusers.h>*/	/* Old version */
 
 #include "rusers.h"  /* get the one we just built with rpcgen */
+
+/*
+ * Sigh.
+ */
+#ifdef GNU_LIBC
+	#define RUT_TIME ut_time
+#else
+	#define RUT_TIME ut_time
+#endif
 
 #define MAX_INT 0x7fffffff
 #define HOST_WIDTH 20
@@ -126,12 +138,12 @@ rusers_reply(char *replyp, struct sockaddr_in *raddrp)
 		printf("%-*.*s ", HOST_WIDTH, HOST_WIDTH, host);
 	
 	for (x = 0; x < up->uia_cnt; x++) {
-		strncpy(date,
-			&(ctime((time_t *)&(up->uia_arr[x]->ui_utmp.ut_time))[4]),
-			sizeof(date)-1);
+		time_t tmptime = up->uia_arr[x]->ui_utmp.RUT_TIME;
+		strncpy(date, ctime(&tmptime) + 4, sizeof(date)-1);
+		date[sizeof(date)-1] = 0;
 
 		idlee = up->uia_arr[x]->ui_idle;
-		sprintf(idle_time, "   :%02d", idlee);
+		snprintf(idle_time, sizeof(idle_time), "   :%02d", idlee);
 		if (idlee == MAX_INT)
 			strcpy(idle_time, "??");
 		else if (idlee == 0)
@@ -145,14 +157,16 @@ rusers_reply(char *replyp, struct sockaddr_in *raddrp)
 			minutes = seconds/60;
 			seconds %= 60;
 			if (idlee > 60)
-				sprintf(idle_time, "%2d:%02d",
-					minutes, seconds);
+				snprintf(idle_time, sizeof(idle_time),
+					 "%2d:%02d", minutes, seconds);
 			if (idlee >= (60*60))
-				sprintf(idle_time, "%2d:%02d:%02d",
-					hours, minutes, seconds);
+				snprintf(idle_time, sizeof(idle_time),
+					 "%2d:%02d:%02d",
+					 hours, minutes, seconds);
 			if (idlee >= (24*60*60))
-				sprintf(idle_time, "%d days, %d:%02d:%02d",
-					days, hours, minutes, seconds);
+				snprintf(idle_time, sizeof(idle_time),
+					 "%d days, %d:%02d:%02d",
+					 days, hours, minutes, seconds);
 		}
 
 		strncpy(remote, up->uia_arr[x]->ui_utmp.ut_host,
@@ -160,7 +174,7 @@ rusers_reply(char *replyp, struct sockaddr_in *raddrp)
 		remote[sizeof(remote)-1] = 0;
 
 		if (strlen(remote) != 0)
-			sprintf(remote, "(%.16s)",
+			snprintf(remote, sizeof(remote), "(%.16s)",
 			    up->uia_arr[x]->ui_utmp.ut_host);
 
 		if (longopt) {
@@ -178,7 +192,7 @@ rusers_reply(char *replyp, struct sockaddr_in *raddrp)
 			    }
 			}
 			snprintf(local, sizeof(local),
-				 "%-.*s:%-.*%s", len1, host, len2,
+				 "%-.*s:%-.*s", len1, host, len2,
 				 up->uia_arr[x]->ui_utmp.ut_line);
 
 			printf("%-8.8s %-*.*s %-12.12s %8s %.18s\n",
@@ -261,7 +275,7 @@ void usage(void)
 	exit(1);
 }
 
-void main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
 	int ch;
 	

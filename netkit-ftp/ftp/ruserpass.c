@@ -35,7 +35,7 @@
  * from: @(#)ruserpass.c	5.3 (Berkeley) 3/1/91
  */
 char ruserpass_rcsid[] = 
-  "$Id: ruserpass.c,v 1.5 1997/04/06 00:00:24 dholland Exp $";
+  "$Id: ruserpass.c,v 1.9 1999/10/02 19:12:33 dholland Exp $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -134,7 +134,7 @@ next:
 		while ((t = token()) && t != MACH && t != DEFAULT) switch(t) {
 
 		case LOGIN:
-			if (token())
+			if (token()) {
 				if (*aname == 0) { 
 					*aname = malloc((unsigned) strlen(tokval) + 1);
 					(void) strcpy(*aname, tokval);
@@ -142,6 +142,7 @@ next:
 					if (strcmp(*aname, tokval))
 						goto next;
 				}
+			}
 			break;
 		case PASSWD:
 			if (*aname==NULL) {
@@ -211,7 +212,7 @@ next:
 				macros[macnum].mac_start = macros[macnum-1].mac_end + 1;
 			}
 			tmp = macros[macnum].mac_start;
-			while (tmp != macbuf + 4096) {
+			while (tmp != macbuf + MACBUF_SIZE) {
 				if ((c=getc(cfile)) == EOF) {
 				printf("Macro definition missing null line terminator.\n");
 					goto bad;
@@ -226,7 +227,7 @@ next:
 				}
 				tmp++;
 			}
-			if (tmp == macbuf + 4096) {
+			if (tmp == macbuf + MACBUF_SIZE) {
 				printf("4K macro buffer exceeded\n");
 				goto bad;
 			}

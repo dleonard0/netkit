@@ -8,7 +8,7 @@ RPCGEN=rpcgen
 rwall: rwall.o
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
-rwall.o: rwall.h
+rwall.o: rwall.h ../version.h
 
 install: rwall
 	install -s -m$(BINMODE) rwall $(INSTALLROOT)$(BINDIR)

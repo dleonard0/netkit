@@ -35,7 +35,7 @@
  * From: @(#)get_addrs.c	5.7 (Berkeley) 3/1/91
  */
 char ga_rcsid[] = 
-  "$Id: get_addrs.c,v 1.10 1998/11/27 10:55:58 dholland Exp $";
+  "$Id: get_addrs.c,v 1.11 1999/09/28 22:04:14 netbug Exp $";
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -43,6 +43,7 @@ char ga_rcsid[] =
 #include <netinet/in.h>
 #include <netdb.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 #include "talk.h"

@@ -35,13 +35,14 @@
  * From: @(#)cmds.c	5.1 (Berkeley) 5/11/93
  */
 char cmds_rcsid[] =
-  "$Id: cmds.c,v 1.8 1997/05/19 09:37:42 dholland Exp $";
+  "$Id: cmds.c,v 1.11 1999/11/25 04:48:42 netbug Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.8 $"
+#ident "$Revision: 1.11 $"
 #endif
 
 #include "timedc.h"
+#include <string.h>
 #include <sys/file.h>
 
 #include <netinet/ip.h>
@@ -93,7 +94,7 @@ daydiff(char *hostname)
 	struct timeval tout, now;
 	fd_set ready;
 	struct sockaddr from;
-	size_t fromlen;
+	socklen_t fromlen;
 	unsigned long sec;
 
 
@@ -124,8 +125,8 @@ daydiff(char *hostname)
 				break;
 
 			fromlen = sizeof(from);
-			if (recvfrom(sock,&sec,sizeof(sec),0,
-				     &from,&fromlen) < 0) {
+			if (recvfrom(sock, &sec,sizeof(sec),0,
+				     &from, &fromlen) < 0) {
 				perror("recvfrom(date read)");
 				return 0;
 			}
@@ -171,12 +172,9 @@ daydiff(char *hostname)
  * however, be reduced by increasing the number of messages sent in each
  * measurement.
  */
-void
-clockdiff(argc, argv)
-	int argc;
-	char *argv[];
+void clockdiff(int argc, char *argv[])
 {
-	int measure_status;
+	int measure_status = UNREACHABLE;
 	register int avg_cnt;
 	register long avg;
 	struct servent *sp;
@@ -280,7 +278,7 @@ msite(int argc, char *argv[])
 	fd_set ready;
 	struct sockaddr_in dest;
 	int i;
-	size_t length;
+	socklen_t length;
 	struct sockaddr from;
 	struct timeval tout;
 	struct tsp msg;
@@ -425,7 +423,7 @@ void
 tracing(int argc, char *argv[])
 {
 	int onflag;
-	size_t length;
+	socklen_t length;
 	int cc;
 	fd_set ready;
 	struct sockaddr_in dest;
@@ -501,8 +499,7 @@ tracing(int argc, char *argv[])
 		printf("communication error\n");
 }
 
-int
-priv_resources()
+int priv_resources(void)
 {
 	int port;
 	struct sockaddr_in sn;

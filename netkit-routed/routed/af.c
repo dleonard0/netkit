@@ -36,7 +36,7 @@
  * From: @(#)af.c	8.1 (Berkeley) 6/5/93
  */
 char af_rcsid[] = 
-  "$Id: af.c,v 1.5 1996/11/25 16:54:04 dholland Exp $";
+  "$Id: af.c,v 1.8 1999/09/28 15:48:20 dholland Exp $";
 
 #include "defs.h"
 
@@ -53,7 +53,7 @@ int inet_portcheck(struct sockaddr *);
 int inet_portmatch(struct sockaddr *);
 void inet_output(int, int, struct sockaddr *, int);
 
-#define NIL	{ 0 }
+#define NIL	{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
 #define	INET \
 	{ inet_hash,		inet_netmatch,		inet_output, \
 	  inet_portmatch,	inet_portcheck,		inet_checkhost, \
@@ -66,13 +66,22 @@ struct afswitch afswitch[AF_MAX] =
 	NIL,		/* 0- unused */
 	NIL,		/* 1- Unix domain, unused */
 	INET,		/* Internet */
+	/* 
+	 * Expect a warning here from gcc 2.95 about missing initializer.
+	 * They appear to have decided that the standard behavior of C 
+	 * where unspecified initializers are 0 - something tons of old
+	 * unix code relies on - is evil. Trouble is, here, AF_MAX is
+	 * defined by the kernel, so even if we were to put in a whole
+	 * pile of NILs here, it would become kernel-version dependent
+	 * for no good reason. Idiots. Someone fix gcc.
+	 */
 };
 
 int af_max = sizeof(afswitch) / sizeof(afswitch[0]);
 
 struct sockaddr_in inet_default = 
 {
-	AF_INET, INADDR_ANY 
+	AF_INET, 0, { INADDR_ANY }, { 0 }
 };
 
 void inet_hash(struct sockaddr *sa, struct afhash *hp)
@@ -103,7 +112,7 @@ int inet_netmatch(struct sockaddr *sa1, struct sockaddr *sa2)
 int inet_portmatch(struct sockaddr *sa)
 {
 	struct sockaddr_in *sin=(struct sockaddr_in *)sa;
-	return (sin->sin_port == sp->s_port);
+	return (sin->sin_port == rip_port);
 }
 
 /*
@@ -120,16 +129,15 @@ int inet_portcheck(struct sockaddr *sa)
  */
 void inet_output(int s, int flags, struct sockaddr *sa, int size)
 {
-	struct sockaddr_in *sin=(struct sockaddr_in *)sa;
-	struct sockaddr_in dst;
+	struct sockaddr_in dst = *(struct sockaddr_in *)sa;
 
-	dst = *sin;
-	sin = &dst;
-	if (sin->sin_port == 0)
-		sin->sin_port = sp->s_port;
-	if (sendto(s, packet, size, flags,
-	    (struct sockaddr *)sin, sizeof (*sin)) < 0)
+	if (dst.sin_port == 0) {
+		dst.sin_port = rip_port;
+	}
+	if (sendto(s, packet, size, flags, (struct sockaddr *)&dst, 
+		   sizeof(dst)) < 0) {
 		perror("sendto");
+	}
 }
 
 /*

@@ -36,11 +36,11 @@
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)util.c	5.14 (Berkeley) 1/17/91";*/
-char util_rcsid[] = "$Id: util.c,v 1.14 1997/04/05 22:26:22 dholland Exp $";
+char util_rcsid[] = "$Id: util.c,v 1.18 1999/09/28 22:53:58 netbug Exp $";
 #endif /* not lint */
 
 #include <sys/types.h>
-#include <sys/param.h>
+/* #include <sys/param.h> <--- unused? */
 #include <sys/stat.h>
 #include <sys/file.h>
 #include <stdio.h>
@@ -64,12 +64,14 @@ static void find_idle_and_ttywrite(register WHERE *w) {
 	struct stat sb;
 
 	/* No device for X console. Utmp entry by XDM login (":0"). */
-	if (w->tty[0] == ':')
+	if (w->tty[0] == ':') {
+		w->idletime = 0;  /* would be nice to have it emit ??? */
+		w->writable = 0;
 		return;
+	}
 	snprintf(tbuf, TBUFLEN, "%s/%s", _PATH_DEV, w->tty);
 	if (stat(tbuf, &sb) < 0) {
-		(void)fprintf(stderr,
-		    "finger: %s: %s\n", tbuf, strerror(errno));
+		eprintf("finger: %s: %s\n", tbuf, strerror(errno));
 		return;
 	}
 	w->idletime = now < sb.st_atime ? 0 : now - sb.st_atime;
@@ -84,8 +86,8 @@ static void userinfo(PERSON *pn, struct passwd *pw) {
 	char *bp;
 	char *rname;
 	int i, j, ct;
-
-	pn->realname = pn->office = pn->officephone = pn->homephone = NULL;
+	char *fields[4];
+	int nfields;
 
 	pn->uid = pw->pw_uid;
 	pn->name = strdup(pw->pw_name);
@@ -100,49 +102,66 @@ static void userinfo(PERSON *pn, struct passwd *pw) {
 	/* why do we skip asterisks!?!? */
 	if (*bp == '*') ++bp;
 
-	/* 
-	 * Ampersands in gecos get replaced by the capitalized login name.
-	 * This is a major nuisance and whoever thought it up should be shot.
+	/*
+	 * fields[0] -> real name
+	 * fields[1] -> office
+	 * fields[2] -> officephone
+	 * fields[3] -> homephone
 	 */
-	p = strsep(&bp, ",");
-	if (!p)	return;
+	nfields = 0;
+	for (p = strtok(bp, ","); p; p = strtok(NULL, ",")) {
+		if (*p==0) p = NULL;  // skip empties
+		if (nfields < 4) fields[nfields++] = p;
+	}
+	while (nfields<4) fields[nfields++] = NULL;
 
-	/* First, count the number of ampersands. */
-	for (ct=i=0; p[i]; i++) if (p[i]=='&') ct++;
-	
-	/* This tells us how much space we need to copy the name. */
-	rname = malloc(strlen(p) + ct*strlen(pw->pw_name) + 1);
-	if (!rname) {
-		fprintf(stderr, "finger: out of space.\n");
-		exit(1);
+	if (fields[0]) {
+		/* 
+		 * Ampersands in gecos get replaced by the capitalized login 
+		 * name. This is a major nuisance and whoever thought it up 
+		 * should be shot.
+		 */
+		p = fields[0];
+
+		/* First, count the number of ampersands. */
+		for (ct=i=0; p[i]; i++) if (p[i]=='&') ct++;
+	    
+		/* This tells us how much space we need to copy the name. */
+		rname = malloc(strlen(p) + ct*strlen(pw->pw_name) + 1);
+		if (!rname) {
+			eprintf("finger: Out of space.\n");
+			exit(1);
+		}
+
+		/* Now, do it */
+		for (i=j=0; p[i]; i++) {
+			if (p[i]=='&') {
+				strcpy(rname + j, pw->pw_name);
+				if (islower(rname[j])) {
+					rname[j] = toupper(rname[j]);
+				}
+				j += strlen(pw->pw_name);
+			}
+			else {
+				rname[j++] = p[i];
+			}
+		}
+		rname[j] = 0;
+
+		pn->realname = rname;
 	}
 
-	/* Now, do it */
-	for (i=j=0; p[i]; i++) {
-	    if (p[i]=='&') {
-		strcpy(rname + j, pw->pw_name);
-		if (islower(rname[j])) rname[j] = toupper(rname[j]);
-		j += strlen(pw->pw_name);
-	    }
-	    else {
-		rname[j++] = p[i];
-	    }
-	}
-	rname[j] = 0;
+	pn->office =      fields[1] ? strdup(fields[1]) : NULL;
+	pn->officephone = fields[2] ? strdup(fields[2]) : NULL;
+	pn->homephone =   fields[3] ? strdup(fields[3]) : NULL;
 
-	pn->realname = rname;
-	pn->office = ((p = strsep(&bp, ",")) && *p) ?
-	    strdup(p) : NULL;
-	pn->officephone = ((p = strsep(&bp, ",")) && *p) ?
-	    strdup(p) : NULL;
-	pn->homephone = ((p = strsep(&bp, ",")) && *p) ?
-	    strdup(p) : NULL;
-	snprintf(tbuf, TBUFLEN, "%s/%s", _PATH_MAILDIR, pw->pw_name);
 	pn->mailrecv = -1;		/* -1 == not_valid */
+	pn->mailread = -1;		/* -1 == not_valid */
+
+	snprintf(tbuf, TBUFLEN, "%s/%s", _PATH_MAILDIR, pw->pw_name);
 	if (stat(tbuf, &sb) < 0) {
 		if (errno != ENOENT) {
-			(void)fprintf(stderr,
-			    "finger: %s: %s\n", tbuf, strerror(errno));
+			eprintf("finger: %s: %s\n", tbuf, strerror(errno));
 			return;
 		}
 	} 
@@ -180,7 +199,7 @@ match(struct passwd *pw, const char *user)
 	/* This tells us how much space we need to copy the name. */
 	rname = malloc(strlen(p) + ct*strlen(pw->pw_name) + 1);
 	if (!rname) {
-		fprintf(stderr, "finger: out of space.\n");
+		eprintf("finger: Out of space.\n");
 		exit(1);
 	}
 
@@ -269,7 +288,7 @@ void enter_where(struct utmp *ut, PERSON *pn) {
 	w->tty[UT_LINESIZE] = 0;
 	bcopy(ut->ut_host, w->host, UT_HOSTSIZE);
 	w->host[UT_HOSTSIZE] = 0;
-	w->loginat = (time_t)ut->ut_time;
+	w->loginat = ut->ut_time;
 	find_idle_and_ttywrite(w);
 }
 
@@ -323,7 +342,7 @@ PERSON *palloc(void) {
 	PERSON *p;
 
 	if ((p = (PERSON *)malloc((u_int) sizeof(PERSON))) == NULL) {
-		(void)fprintf(stderr, "finger: out of space.\n");
+		eprintf("finger: Out of space.\n");
 		exit(1);
 	}
 	return(p);
@@ -335,7 +354,7 @@ walloc(PERSON *pn)
 	register WHERE *w;
 
 	if ((w = (WHERE *)malloc((u_int) sizeof(WHERE))) == NULL) {
-		(void)fprintf(stderr, "finger: out of space.\n");
+		eprintf("finger: Out of space.\n");
 		exit(1);
 	}
 	if (pn->whead == NULL)

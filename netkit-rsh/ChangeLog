@@ -1,3 +1,31 @@
+14-Sep-1999:
+	Close all files >= 3 before execing, in case libc has left
+	  something open. Also merge a Caldera doc fix.
+	  (Olaf Kirch, okir@caldera.de)
+
+1-Aug-1999:
+	Complete y2k and y2038 audit.
+
+31-Jul-1999:
+	Redid makefiles/config stuff for new confgen version.
+
+3-Mar-1999:
+	Add rexec client written by Michael Sadd (sadd@msc.cornell.edu).
+	(I trust distributing this in netkit is ok; if not, it'll go away.)
+
+22-Sep-1997:
+	Clear crypt()'s internal state as well as the cleartext password.
+	At least, hopefully.
+
+27-Jul-1997:
+	Erase cleartext passwords in rexecd after use.
+
+13-Jun-1997:
+	Massive cleanup of rlogind and rshd.
+
+12-Jun-1997:
+	netkit-rsh-0.10 released.
+
 08-Jun-1997:
 	Don't allow ordinary users to set SO_DEBUG in rsh. (Daniel Barlow,
 	  dan@telent.net)

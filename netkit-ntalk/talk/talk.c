@@ -39,7 +39,9 @@ char copyright[] =
  * From: @(#)talk.c	5.5 (Berkeley) 6/1/90
  */
 char talk_rcsid[] = 
-  "$Id: talk.c,v 1.2 1996/07/16 03:30:46 dholland Exp $";
+  "$Id: talk.c,v 1.3 1999/08/01 03:20:44 dholland Exp $";
+
+#include "../version.h"
 
 #include "talk.h"
 

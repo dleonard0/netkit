@@ -3,10 +3,6 @@ all: rcp
 include ../MCONFIG
 include ../MRULES
 
-ifeq ($(USE_GLIBC),1)
-CFLAGS += -DGNU_LIBC -D_GNU_SOURCE
-endif
-
 rcp: rcp.o
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
@@ -17,3 +13,4 @@ install: rcp
 clean:
 	rm -f *.o rcp
 
+rcp.o: ../version.h

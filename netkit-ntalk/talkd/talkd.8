@@ -30,11 +30,11 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)talkd.8	6.5 (Berkeley) 3/16/91
-.\"	$Id: talkd.8,v 1.2 1998/11/27 07:59:52 dholland Exp $
+.\"	$Id: talkd.8,v 1.9 1999/12/14 12:52:53 dholland Exp $
 .\"
 .Dd March 16, 1991
 .Dt TALKD 8
-.Os BSD 4.3
+.Os "Linux NetKit (0.16)"
 .Sh NAME
 .Nm talkd
 .Nd remote user communication server
@@ -70,11 +70,11 @@ stream connection through which the conversation takes place.
 .Sh OPTIONS
 .Op Fl d
 Debug mode; writes copious logging and debugging information to 
-.Pa /var/adm/talkd.log .
+.Pa /var/log/talkd.log .
 .Pp
 .Op Fl p
 Packet logging mode; writes copies of malformed packets to
-.Pa /var/adm/talkd.packets .
+.Pa /var/log/talkd.packets .
 This is useful for debugging interoperability problems.
 .Sh SEE ALSO
 .Xr talk 1 ,

@@ -35,12 +35,14 @@
  * From: @(#)get_names.c	5.9 (Berkeley) 3/1/91
  */
 char gn_rcsid[] = 
-  "$Id: get_names.c,v 1.9 1998/11/27 11:12:02 dholland Exp $";
+  "$Id: get_names.c,v 1.11 1999/11/25 05:05:05 netbug Exp $";
 
+#include <stdio.h>
 #include <sys/param.h>
 #include <sys/socket.h>
 #include <pwd.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <string.h>
 #include "talk.h"
 

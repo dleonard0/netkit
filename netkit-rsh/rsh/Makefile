@@ -3,10 +3,6 @@ all: rsh
 include ../MCONFIG
 include ../MRULES
 
-ifeq ($(USE_GLIBC),1)
-CFLAGS += -DGNU_LIBC -D_GNU_SOURCE
-endif
-
 OBJS = rsh.o
 
 rsh: $(OBJS)
@@ -19,3 +15,4 @@ install: rsh
 clean:
 	rm -f *.o rsh
 
+$(OBJS): ../version.h

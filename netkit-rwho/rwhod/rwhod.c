@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)rwhod.c	5.20 (Berkeley) 3/2/91
  */
 char rcsid[] = 
-  "$Id: rwhod.c,v 1.13 1997/06/09 01:24:17 dholland Exp $";
+  "$Id: rwhod.c,v 1.17 1999/12/12 15:33:40 dholland Exp $";
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -83,6 +83,7 @@ char rcsid[] =
 static struct sockaddr_in sine;
 
 char	myname[MAXHOSTNAMELEN];
+static size_t mynamelen;
 
 #ifndef __linux__
 struct	nlist nl[] = {
@@ -190,7 +191,11 @@ main(int argc, char *argv[])
 	}
 	if ((cp = index(myname, '.')) != NULL)
 		*cp = '\0';
-	strncpy(mywd.wd_hostname, myname, sizeof (myname) - 1);
+	mynamelen = strlen(myname);
+	if (mynamelen > sizeof(mywd.wd_hostname)) 
+		mynamelen = sizeof(mywd.wd_hostname);
+	strncpy(mywd.wd_hostname, myname, mynamelen);
+	mywd.wd_hostname[sizeof(mywd.wd_hostname)-1] = 0;
 	getkmem(0);
 	if ((sk = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		syslog(LOG_ERR, "socket: %m");
@@ -216,6 +221,7 @@ main(int argc, char *argv[])
 		int cc, whod;
 		size_t len = sizeof(from);
 
+		memset(&wd, 0, sizeof(wd));
 		cc = recvfrom(sk, (char *)&wd, sizeof(struct whod), 0,
 			      (struct sockaddr *)&from, &len);
 		if (cc <= 0) {
@@ -432,7 +438,7 @@ int getloadavg(double ptr[3], int n)
 void getkmem(int dummy)
 {
 #ifdef __linux__
-	time_t uptime;
+	long uptime;
 	time_t curtime;
 	FILE *fp = fopen("/proc/uptime", "r");
 	if (!fp) return /* -1 */;
@@ -641,17 +647,17 @@ interval(time, updown)
 	int days, hours, minutes;
 
 	if (time < 0 || time > 3*30*24*60*60) {
-		(void) sprintf(resbuf, "   %s ??:??", updown);
+		(void) snprintf(resbuf, sizeof(resbuf), "   %s ??:??", updown);
 		return (resbuf);
 	}
 	minutes = (time + 59) / 60;		/* round to minutes */
 	hours = minutes / 60; minutes %= 60;
 	days = hours / 24; hours %= 24;
 	if (days)
-		(void) sprintf(resbuf, "%s %2d+%02d:%02d",
+		(void) snprintf(resbuf, sizeof(resbuf), "%s %2d+%02d:%02d",
 		    updown, days, hours, minutes);
 	else
-		(void) sprintf(resbuf, "%s    %2d:%02d",
+		(void) snprintf(resbuf, sizeof(resbuf), "%s    %2d:%02d",
 		    updown, hours, minutes);
 	return (resbuf);
 }

@@ -31,12 +31,13 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)telnetd.h	5.3 (Berkeley) 3/1/91
- *	$Id: telnetd.h,v 1.1 1996/07/16 08:00:44 dholland Exp $
+ *	$Id: telnetd.h,v 1.2 1999/03/27 07:46:21 dholland Exp $
  */
 
 
 #include "defs.h"
 #include "ext.h"
+#include <errno.h>
 
 #ifdef	DIAGNOSTICS
 #define	DIAG(a,b)	if (diagnostic & (a)) b
@@ -46,5 +47,4 @@
 
 /* other external variables */
 extern	char **environ;
-extern	int errno;
 

@@ -1,3 +1,23 @@
+17-Oct-1999:
+	Comsat now allows ttys in /dev/pts.
+	Also, it now skips utmp entries that aren't marked USER_PROCESS.
+
+14-Sep-1999:
+	Fixed signal blocking in comsat to be POSIX.
+	Fixed (or at least patched) comsat DoS attack by sleeping 0.1
+	  seconds in the parent process after every fork. (Otherwise you
+	  can flood the system with comsat processes, bypassing any
+	  process quotas.)
+	  
+1-Aug-1999:
+	Complete y2k and y2038 audit.
+
+31-Jul-1999:
+	Redid makefiles/config stuff for new confgen version.
+
+12-Jun-1997:
+	biff+comsat-0.10 released.
+
 08-Jun-1997:
 	More adjustments for glibc.
 

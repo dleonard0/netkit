@@ -38,7 +38,7 @@
  * from: @(#)lprint.c	5.13 (Berkeley) 10/31/90
  */
 char lprint_rcsid[] = 
-  "$Id: lprint.c,v 1.10 1997/04/06 00:03:27 dholland Exp $";
+  "$Id: lprint.c,v 1.11 1999/09/14 10:51:11 dholland Exp $";
 
 #include <stdio.h>
 #include <ctype.h>
@@ -55,7 +55,6 @@ static void lprint(PERSON *pn);
 static int demi_print(char *str, int oddfield);
 static int show_text(const char *directory, const char *file_name, 
 		     const char *header);
-static void vputc(int ch);
 
 #define	LINE_LEN	80
 #define	TAB_LEN		8		/* 8 spaces between tabs */
@@ -74,12 +73,12 @@ lflag_print(void)
 			show_text(pn->dir, _PATH_PGPKEY, "PGP key:\n");
 			show_text(pn->dir, _PATH_PROJECT, "Project:\n");
 			if (!show_text(pn->dir, _PATH_PLAN, "Plan:\n")) {
-				printf("No Plan.\n");
+				xprintf("No Plan.\n");
 			}
 		}
 		if (!(pn = pn->next))
 			break;
-		putchar('\n');
+		xputc('\n');
 	}
 }
 
@@ -100,9 +99,9 @@ lprint(PERSON *pn)
 	 *	shell
 	 *	office, office phone, home phone if available
 	 */
-	printf("Login: %-15s\t\t\tName: %s\nDirectory: %-25s",
-	       pn->name, pn->realname, pn->dir);
-	printf("\tShell: %-s\n", *pn->shell ? pn->shell : _PATH_BSHELL);
+	xprintf("Login: %-15s\t\t\tName: %s\nDirectory: %-25s",
+		pn->name, pn->realname, pn->dir);
+	xprintf("\tShell: %-s\n", *pn->shell ? pn->shell : _PATH_BSHELL);
 
 	/*
 	 * try and print office, office phone, and home phone on one line;
@@ -136,7 +135,7 @@ lprint(PERSON *pn)
 			 prphone(pn->homephone));
 		oddfield = demi_print(tbuf, oddfield);
 	}
-	if (oddfield) putchar('\n');
+	if (oddfield) xputc('\n');
 
 	/*
 	 * long format con't: * if logged in
@@ -165,9 +164,9 @@ lprint(PERSON *pn)
 			 */
 			strftime(timebuf, sizeof(timebuf), 
 				 "%a %b %e %R (%Z)", tp);
-			cpr = printf("On since %s on %s", timebuf, w->tty);
+			cpr = xprintf("On since %s on %s", timebuf, w->tty);
 			if (*w->host) {
-				cpr += printf(" from %s", w->host);
+				cpr += xprintf(" from %s", w->host);
 			}
 			/*
 			 * idle time is tough; if have one, print a comma,
@@ -178,42 +177,42 @@ lprint(PERSON *pn)
 			if (delta->tm_yday || delta->tm_hour
 			    || delta->tm_min || delta->tm_sec) {
 				if (*w->host)
-				    putchar('\n');
-				cpr += printf("%-*s",
+				    xputc('\n');
+				cpr += xprintf("%-*s",
 				    (int) (maxlen - strlen(w->tty) + 3), "");
 				if (delta->tm_yday > 0) {
-					cpr += printf("%d day%s ",
+					cpr += xprintf("%d day%s ",
 					   delta->tm_yday,
 					   delta->tm_yday == 1 ? "" : "s");
 				}
 				if (delta->tm_hour > 0) {
-					cpr += printf("%d hour%s ",
+					cpr += xprintf("%d hour%s ",
 					   delta->tm_hour,
 					   delta->tm_hour == 1 ? "" : "s");
 				}
 				if ((delta->tm_min > 0) && !delta->tm_yday) {
-					cpr += printf("%d minute%s ",
+					cpr += xprintf("%d minute%s ",
 					   delta->tm_min,
 					   delta->tm_min == 1 ? "" : "s");
 				}
 				if ((delta->tm_sec > 0) && !delta->tm_yday
 				     && !delta->tm_hour) {
-					cpr += printf("%d second%s ",
+					cpr += xprintf("%d second%s ",
 					   delta->tm_sec,
 					   delta->tm_sec == 1 ? "" : "s");
 				}
-				cpr += printf("idle");
+				cpr += xprintf("idle");
 			}
 			if (!w->writable) {
 				if (delta->tm_yday || delta->tm_hour
 				    || delta->tm_min || delta->tm_sec)
-					cpr += printf("\n    ");
-				cpr += printf(" (messages off)");
+					cpr += xprintf("\n    ");
+				cpr += xprintf(" (messages off)");
 			}
 			break;
 		case LASTLOG:
 			if (w->loginat == 0) {
-				(void)printf("Never logged in.");
+				(void)xprintf("Never logged in.");
 				break;
 			}
 			tp = localtime(&w->loginat);
@@ -230,20 +229,20 @@ lprint(PERSON *pn)
 			 *	    t, tzn, w->tty);
 			 */
 			if (now - w->loginat < SECSPERDAY * DAYSPERNYEAR / 2) {
-			    strftime(timebuf, sizeof(timebuf), 
-				     "%a %b %e %R (%Z)", tp);
+				strftime(timebuf, sizeof(timebuf), 
+					 "%a %b %e %R (%Z)", tp);
 			}
 			else {
-			    strftime(timebuf, sizeof(timebuf), 
-				     "%a %b %e %R %Y (%Z)", tp);
+				strftime(timebuf, sizeof(timebuf), 
+					 "%a %b %e %R %Y (%Z)", tp);
 			}
-			cpr = printf("Last login %s on %s", timebuf, w->tty);
+			cpr = xprintf("Last login %s on %s", timebuf, w->tty);
 			if (*w->host) {
-				cpr += printf(" from %s", w->host);
+				cpr += xprintf(" from %s", w->host);
 			}
 			break;
 		}
-		putchar('\n');
+		xputc('\n');
 	}
 
 	/* If the user forwards mail elsewhere, tell us about it */
@@ -251,7 +250,7 @@ lprint(PERSON *pn)
 
 	/* Print the standard mailbox information. */
 		if (pn->mailrecv == -1)
-			printf("No mail.\n");
+			xprintf("No mail.\n");
 		else if (pn->mailrecv > pn->mailread) {
 			tp = localtime(&pn->mailrecv);
 			/*
@@ -263,7 +262,7 @@ lprint(PERSON *pn)
 			 */
 			strftime(timebuf, sizeof(timebuf), 
 				 "%a %b %e %R %Y (%Z)", tp);
-			printf("New mail received %s\n", timebuf);
+			xprintf("New mail received %s\n", timebuf);
 			tp = localtime(&pn->mailread);
 			/*
 			 * t = asctime(tp);
@@ -274,7 +273,7 @@ lprint(PERSON *pn)
 			 */
 			strftime(timebuf, sizeof(timebuf), 
 				 "%a %b %e %R %Y (%Z)", tp);
-			printf("     Unread since %s\n", timebuf);
+			xprintf("     Unread since %s\n", timebuf);
 		} else {
 			tp = localtime(&pn->mailread);
 			/*
@@ -286,7 +285,7 @@ lprint(PERSON *pn)
 			 */
 			strftime(timebuf, sizeof(timebuf), 
 				 "%a %b %e %R %Y (%Z)", tp);
-			printf("Mail last read %s\n", timebuf);
+			xprintf("Mail last read %s\n", timebuf);
 		}
 }
 
@@ -313,16 +312,16 @@ demi_print(char *str, int oddfield)
 		if (((((maxlen / TAB_LEN) + 1) * TAB_LEN) +
 		    lenthis) <= LINE_LEN) {
 			while(lenlast < (4 * TAB_LEN)) {
-				putchar('\t');
+				xputc('\t');
 				lenlast += TAB_LEN;
 			}
-			(void)printf("\t%s\n", str);	/* force one tab */
+			(void)xprintf("\t%s\n", str);	/* force one tab */
 		} else {
-			(void)printf("\n%s", str);	/* go to next line */
+			(void)xprintf("\n%s", str);	/* go to next line */
 			oddfield = !oddfield;	/* this'll be undone below */
 		}
 	} else
-		(void)printf("%s", str);
+		(void)xprintf("%s", str);
 	oddfield = !oddfield;			/* toggle odd/even marker */
 	lenlast = lenthis;
 	return(oddfield);
@@ -349,33 +348,14 @@ show_text(const char *directory, const char *file_name, const char *header)
 	fp = fdopen(fd, "r");
 	if (fp == NULL) { close(fd); return 0; }
 
-	printf("%s", header);
+	xprintf("%s", header);
 	while ((ch = getc(fp)) != EOF) {
-		vputc(ch);
+		xputc(ch);
 		lastc = ch;
 	}
-	if (lastc != '\n') putchar('\n');
+	if (lastc != '\n') xputc('\n');
 
 	fclose(fp);
 	return 1;
 }
 
-static void
-vputc(int ch)
-{
-	int meta = 0;
-	if (!isascii(ch)) {
-		putchar('M');
-		putchar('-');
-		ch = toascii(ch);
-		meta = 1;
-	} 
-
-	if (isprint(ch) || (!meta && (ch==' ' || ch=='\t' || ch=='\n'))) {
-		putchar(ch);
-	}
-	else {
-		putchar('^');
-		putchar(ch==0x7f ? '?' : ch|0x80);
-	}
-}

@@ -35,7 +35,7 @@
  * From: @(#)init_disp.c	5.4 (Berkeley) 6/1/90
  */
 char id_rcsid[] = 
-  "$Id: init_disp.c,v 1.9 1997/06/08 20:13:51 dholland Exp $";
+  "$Id: init_disp.c,v 1.12 1999/11/25 04:23:38 dholland Exp $";
 
 /*
  * Initialization code for the display package,
@@ -43,6 +43,7 @@ char id_rcsid[] =
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
 #include <termios.h>
@@ -58,40 +59,11 @@ static void sig_sent(int);
 void
 init_display(void)
 {
-	struct sigaction sigac;
+	real_init_display();
 
-	LINES = COLS = 0;
-	if (initscr() == NULL) {
-		printf("initscr failed: TERM is unset or unknown terminal type.\n");
-		exit(-1);
-	}
-	(void) sigaction(SIGTSTP, NULL, &sigac);
-	sigaddset(&sigac.sa_mask, SIGALRM);
-	(void) sigaction(SIGTSTP, &sigac, NULL);
-	curses_initialized = 1;
-	clear();
-	refresh();
-	noecho();
-	cbreak();
 	signal(SIGINT, sig_sent);
 	signal(SIGPIPE, sig_sent);
-	/* curses takes care of SIGTSTP (^Z) */
-	my_win.x_nlines = LINES / 2;
-	my_win.x_ncols = COLS;
-	my_win.x_win = newwin(my_win.x_nlines, my_win.x_ncols, 0, 0);
-	scrollok(my_win.x_win, FALSE);
-	wclear(my_win.x_win);
 
-	his_win.x_nlines = LINES / 2 - 1;
-	his_win.x_ncols = COLS;
-	his_win.x_win = newwin(his_win.x_nlines, his_win.x_ncols,
-	    my_win.x_nlines+1, 0);
-	scrollok(his_win.x_win, FALSE);
-	wclear(his_win.x_win);
-
-	line_win = newwin(1, COLS, my_win.x_nlines, 0);
-	box(line_win, '-', '-');
-	wrefresh(line_win);
 	/* let them know we are working on it */
 	current_state = "No connection yet";
 }
@@ -107,28 +79,35 @@ set_edit_chars(void)
 	char buf[3];
 	int cc;
 	struct termios tios;
+	int cerase, lerase, werase;
 
 	tcgetattr(0, &tios);
-	my_win.cerase = tios.c_cc[VERASE];
-	my_win.kill = tios.c_cc[VKILL];
-	my_win.werase = tios.c_cc[VWERASE];
 
-	if ((unsigned char)my_win.werase == 0xff) {
-		my_win.werase = '\027';	 /* control W */
+	cerase = tios.c_cc[VERASE];
+	lerase = tios.c_cc[VKILL];
+	werase = tios.c_cc[VWERASE];
+
+	if ((unsigned char)werase == 0xff) {
+		werase = '\027';	 /* control W */
 	}
 
-	buf[0] = my_win.cerase;
-	buf[1] = my_win.kill;
-	buf[2] = my_win.werase;
+	set_my_edit_chars(cerase, lerase, werase);
+
+	buf[0] = cerase;
+	buf[1] = lerase;
+	buf[2] = werase;
 	cc = write(sockt, buf, sizeof(buf));
 	if (cc != sizeof(buf) )
 		p_error("Lost the connection");
 	cc = read(sockt, buf, sizeof(buf));
 	if (cc != sizeof(buf) )
 		p_error("Lost the connection");
-	his_win.cerase = buf[0];
-	his_win.kill = buf[1];
-	his_win.werase = buf[2];
+
+	cerase = buf[0];
+	lerase = buf[1];
+	werase = buf[2];
+
+	set_his_edit_chars(cerase, lerase, werase);
 }
 
 void
@@ -139,36 +118,3 @@ sig_sent(int signum)
 	quit(1);
 }
 
-/*
- * All done talking...hang up the phone and reset terminal thingy
- */
-void
-quit(int direct)
-{
-	const char *rmcup, *smcup;
-
-	if (curses_initialized) {
-		rmcup = tigetstr("rmcup");
-		smcup = tigetstr("smcup");
-
-		if ((direct != 1) && (rmcup || smcup)) {
-			raw();
-			signal(SIGALRM, SIG_IGN);
-			signal(SIGINT, SIG_DFL);
-			wmove(my_win.x_win, current_line%my_win.x_nlines+1, 0);
-			wprintw(my_win.x_win, "[Press any key to continue]\n");
-			wrefresh(my_win.x_win);
-			/* alternative screen, prompt before exit */
-			wgetch(my_win.x_win);   
-		}
-
-		wmove(his_win.x_win, his_win.x_nlines-1, 0);
-		wclrtoeol(his_win.x_win);
-		wrefresh(his_win.x_win);
-		endwin();
-	}
-	if (invitation_waiting) {
-		send_delete();
-	}
-	exit(0);
-}

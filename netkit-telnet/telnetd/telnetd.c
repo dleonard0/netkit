@@ -39,15 +39,19 @@ char copyright[] =
  * From: @(#)telnetd.c	5.48 (Berkeley) 3/1/91
  */
 char telnetd_rcsid[] = 
-  "$Id: telnetd.c,v 1.9 1996/12/29 18:16:33 dholland Exp $";
+  "$Id: telnetd.c,v 1.23 1999/12/14 00:43:31 dholland Exp $";
+
+#include "../version.h"
 
 #include <netdb.h>
 #include <termcap.h>
 #include <netinet/in.h>
-#include <netinet/ip.h>
+/* #include <netinet/ip.h> */ /* Don't think this is used at all here */
 #include <arpa/inet.h>
+#include <assert.h>
 #include "telnetd.h"
 #include "pathnames.h"
+#include "setproctitle.h"
 
 #if	defined(AUTHENTICATE)
 #include <libtelnet/auth.h>
@@ -60,7 +64,7 @@ int	require_SecurID = 0;
 #endif
 
 static void doit(struct sockaddr_in *who);
-static int terminaltypeok(char *s);
+static int terminaltypeok(const char *s);
 
 /*
  * I/O data buffers,
@@ -71,11 +75,6 @@ char	ptyibuf2[BUFSIZ];
 
 int	hostinfo = 1;			/* do we print login banner? */
 
-#ifdef	CRAY
-extern int      newmap; /* nonzero if \n maps to ^M^J */
-int	lowpty = 0, highpty;	/* low, high pty numbers */
-#endif /* CRAY */
-
 int debug = 0;
 int keepalive = 1;
 char *loginprg = _PATH_LOGIN;
@@ -84,16 +83,18 @@ char *progname;
 extern void usage(void);
 
 int
-main(int argc, char *argv[])
+main(int argc, char *argv[], char *env[])
 {
 	struct sockaddr_in from;
 	int on = 1;
-	size_t fromlen;
+	socklen_t fromlen;
 	register int ch;
 
 #if	defined(IPPROTO_IP) && defined(IP_TOS)
 	int tos = -1;
 #endif
+
+	initsetproctitle(argc, argv, env);
 
 	pfrontp = pbackp = ptyobuf;
 	netip = netibuf;
@@ -103,14 +104,6 @@ main(int argc, char *argv[])
 #endif
 
 	progname = *argv;
-
-#ifdef CRAY
-	/*
-	 * Get number of pty's before trying to process options,
-	 * which may include changing pty range.
-	 */
-	highpty = getnpty();
-#endif /* CRAY */
 
 	while ((ch = getopt(argc, argv, "d:a:e:lhnr:I:D:B:sS:a:X:L:")) != EOF) {
 		switch(ch) {
@@ -196,15 +189,6 @@ main(int argc, char *argv[])
 			hostinfo = 0;
 			break;
 
-#if	defined(CRAY) && defined(NEWINIT)
-		case 'I':
-		    {
-			extern char *gen_id;
-			gen_id = optarg;
-			break;
-		    }
-#endif	/* defined(CRAY) && defined(NEWINIT) */
-
 #ifdef	LINEMODE
 		case 'l':
 			alwayslinemode = 1;
@@ -212,40 +196,13 @@ main(int argc, char *argv[])
 #endif	/* LINEMODE */
 
 		case 'L':
-			loginprg = optarg;
+			loginprg = strdup(optarg);
+			/* XXX what if strdup fails? */
 			break;
 
 		case 'n':
 			keepalive = 0;
 			break;
-
-#ifdef CRAY
-		case 'r':
-		    {
-			char *strchr();
-			char *c;
-
-			/*
-			 * Allow the specification of alterations
-			 * to the pty search range.  It is legal to
-			 * specify only one, and not change the
-			 * other from its default.
-			 */
-			c = strchr(optarg, '-');
-			if (c) {
-				*c++ = '\0';
-				highpty = atoi(c);
-			}
-			if (*optarg != '\0')
-				lowpty = atoi(optarg);
-			if ((lowpty > highpty) || (lowpty < 0) ||
-							(highpty > 32767)) {
-				usage();
-				/* NOT REACHED */
-			}
-			break;
-		    }
-#endif	/* CRAY */
 
 #ifdef	SecurID
 		case 's':
@@ -288,25 +245,29 @@ main(int argc, char *argv[])
 
 	if (debug) {
 	    int s, ns;
-	    size_t foo;
+	    socklen_t foo;
 	    struct servent *sp;
-	    static struct sockaddr_in sn = { AF_INET };
+	    struct sockaddr_in sn;
+
+	    memset(&sn, 0, sizeof(sn));
+	    sn.sin_family = AF_INET;
 
 	    if (argc > 1) {
 		usage();
-		/* NOT REACHED */
+		/* NOTREACHED */
 	    } else if (argc == 1) {
 		    if ((sp = getservbyname(*argv, "tcp"))!=NULL) {
 			sn.sin_port = sp->s_port;
 		    } 
 		    else {
-			sn.sin_port = atoi(*argv);
-			if ((int)sn.sin_port <= 0) {
-			    fprintf(stderr, "telnetd: %s: bad port #\n", *argv);
+			int pt = atoi(*argv);
+			if (pt <= 0) {
+			    fprintf(stderr, "telnetd: %s: bad port number\n",
+				    *argv);
 			    usage();
-			    /* NOT REACHED */
+			    /* NOTREACHED */
 			}
-			sn.sin_port = htons((u_short)sn.sin_port);
+			sn.sin_port = htons(pt);
 		   }
 	    } else {
 		sp = getservbyname("telnet", "tcp");
@@ -340,10 +301,6 @@ main(int argc, char *argv[])
 	    (void) dup2(ns, 0);
 	    (void) close(ns);
 	    (void) close(s);
-#ifdef convex
-	} else if (argc == 1) {
-		; /* VOID*/		/* Just ignore the host/port name */
-#endif
 	} else if (argc > 0) {
 		usage();
 		/* NOT REACHED */
@@ -400,17 +357,11 @@ usage(void)
 	fprintf(stderr, " [-edebug]");
 #endif
 	fprintf(stderr, " [-h]");
-#if	defined(CRAY) && defined(NEWINIT)
-	fprintf(stderr, " [-Iinitid]");
-#endif
 #ifdef LINEMODE
 	fprintf(stderr, " [-l]");
 #endif
 	fprintf(stderr, " [-L login_program]");
 	fprintf(stderr, " [-n]");
-#ifdef	CRAY
-	fprintf(stderr, " [-r[lowpty]-[highpty]]");
-#endif
 #ifdef	SecurID
 	fprintf(stderr, " [-s]");
 #endif
@@ -427,7 +378,6 @@ usage(void)
  *	Ask the other end to send along its terminal type and speed.
  * Output is the variable terminaltype filled in.
  */
-static char ttytype_sbbuf[] = { IAC, SB, TELOPT_TTYPE, TELQUAL_SEND, IAC, SE };
 
 static void _gettermname(void);
 
@@ -478,27 +428,20 @@ getterminaltype(char *name)
     }
 #endif
     if (his_state_is_will(TELOPT_TSPEED)) {
-	static char sbbuf[] = { IAC, SB, TELOPT_TSPEED, TELQUAL_SEND, IAC, SE };
-
-	bcopy(sbbuf, nfrontp, sizeof sbbuf);
-	nfrontp += sizeof sbbuf;
+	netoprintf("%c%c%c%c%c%c", 
+		   IAC, SB, TELOPT_TSPEED, TELQUAL_SEND, IAC, SE);
     }
     if (his_state_is_will(TELOPT_XDISPLOC)) {
-	static char sbbuf[] = { IAC, SB, TELOPT_XDISPLOC, TELQUAL_SEND, IAC, SE };
-
-	bcopy(sbbuf, nfrontp, sizeof sbbuf);
-	nfrontp += sizeof sbbuf;
+	netoprintf("%c%c%c%c%c%c", 
+		   IAC, SB, TELOPT_XDISPLOC, TELQUAL_SEND, IAC, SE);
     }
     if (his_state_is_will(TELOPT_ENVIRON)) {
-	static char sbbuf[] = { IAC, SB, TELOPT_ENVIRON, TELQUAL_SEND, IAC, SE };
-
-	bcopy(sbbuf, nfrontp, sizeof sbbuf);
-	nfrontp += sizeof sbbuf;
+	netoprintf("%c%c%c%c%c%c", 
+		   IAC, SB, TELOPT_ENVIRON, TELQUAL_SEND, IAC, SE);
     }
     if (his_state_is_will(TELOPT_TTYPE)) {
-
-	bcopy(ttytype_sbbuf, nfrontp, sizeof ttytype_sbbuf);
-	nfrontp += sizeof ttytype_sbbuf;
+       netoprintf("%c%c%c%c%c%c", 
+		  IAC, SB, TELOPT_TTYPE, TELQUAL_SEND, IAC, SE);
     }
     if (his_state_is_will(TELOPT_TSPEED)) {
 	while (sequenceIs(tspeedsubopt, baseline))
@@ -523,22 +466,35 @@ getterminaltype(char *name)
 	 * we have to just go with what we (might) have already gotten.
 	 */
 	if (his_state_is_will(TELOPT_TTYPE) && !terminaltypeok(terminaltype)) {
-	    (void) strncpy(first, terminaltype, sizeof(first));
+	    /*
+	     * Due to state.c, terminaltype points to a static char[41].
+	     * Therefore, this assert cannot fail, and therefore, strings
+	     * arising from "terminaltype" can be safely strcpy'd into
+	     * first[] or last[].
+	     */
+	    assert(strlen(terminaltype) < sizeof(first));
+
+	    strcpy(first, terminaltype);
+
 	    for(;;) {
 		/*
 		 * Save the unknown name, and request the next name.
 		 */
-		(void) strncpy(last, terminaltype, sizeof(last));
+		strcpy(last, terminaltype);
+
 		_gettermname();
+		assert(strlen(terminaltype) < sizeof(first));
+
 		if (terminaltypeok(terminaltype))
 		    break;
-		if ((strncmp(last, terminaltype, sizeof(last)) == 0) ||
+
+		if (!strcmp(last, terminaltype) ||
 		    his_state_is_wont(TELOPT_TTYPE)) {
 		    /*
 		     * We've hit the end.  If this is the same as
 		     * the first name, just go with it.
 		     */
-		    if (strncmp(first, terminaltype, sizeof(first)) == 0)
+		    if (!strcmp(first, terminaltype))
 			break;
 		    /*
 		     * Get the terminal name one more time, so that
@@ -546,8 +502,15 @@ getterminaltype(char *name)
 		     * the start of the list.
 		     */
 		     _gettermname();
-		    if (strncmp(first, terminaltype, sizeof(first)) != 0)
-			(void) strncpy(terminaltype, first, sizeof(first));
+		    assert(strlen(terminaltype) < sizeof(first));
+
+		    if (strcmp(first, terminaltype)) {
+			/*
+			 * first[] came from terminaltype, so it must fit
+			 * back in.
+			 */
+			strcpy(terminaltype, first);
+		    }
 		    break;
 		}
 	    }
@@ -567,20 +530,44 @@ _gettermname(void)
      */
     if (his_state_is_wont(TELOPT_TTYPE))
 	return;
+
     settimer(baseline);
-    bcopy(ttytype_sbbuf, nfrontp, sizeof ttytype_sbbuf);
-    nfrontp += sizeof ttytype_sbbuf;
+    netoprintf("%c%c%c%c%c%c", IAC, SB, TELOPT_TTYPE, TELQUAL_SEND, IAC, SE);
     while (sequenceIs(ttypesubopt, baseline))
 	ttloop();
 }
 
 static int
-terminaltypeok(char *s)
+terminaltypeok(const char *s)
 {
-    char buf[2048];
+    /* char buf[2048]; */
 
     if (terminaltype == NULL)
 	return(1);
+
+    /*
+     * Fix from Chris Evans: if it has a / in it, termcap will
+     * treat it as a filename. Oops.
+     */
+    if (strchr(s, '/')) {
+	return 0;
+    }
+
+    /*
+     * If it's absurdly long, accept it without asking termcap.
+     *
+     * This means that it won't get seen again until after login,
+     * at which point exploiting buffer problems in termcap doesn't
+     * gain one anything.
+     *
+     * It's possible this limit ought to be raised to 128, but nothing
+     * in my termcap is more than 64, 64 is _plenty_ for most, and while
+     * buffers aren't likely to be smaller than 64, they might be 80 and
+     * thus less than 128.
+     */
+    if (strlen(s) > 63) {
+       return 0;
+    }
 
     /*
      * tgetent() will return 1 if the type is known, and
@@ -589,8 +576,17 @@ terminaltypeok(char *s)
      * it won't help to say we failed, because we won't be
      * able to verify anything else.  So, we treat -1 like 1.
      */
-    if (tgetent(buf, s) == 0)
-	return(0);
+
+    /*
+     * Don't do this - tgetent is not really trustworthy. Assume
+     * the terminal type is one we know; terminal types are pretty
+     * standard now. And if it isn't, it's unlikely we're going to
+     * know anything else the remote telnet might send as an alias
+     * for it.
+     *
+     * if (tgetent(buf, s) == 0)
+     *    return(0);
+     */
     return(1);
 }
 
@@ -601,11 +597,7 @@ terminaltypeok(char *s)
 char host_name[MAXHOSTNAMELEN];
 char remote_host_name[MAXHOSTNAMELEN];
 
-#ifndef	convex
 extern void telnet(int, int);
-#else
-extern void telnet(int, int, char *);
-#endif
 
 /*
  * Get a pty, scan input lines.
@@ -621,25 +613,9 @@ doit(struct sockaddr_in *who)
 	/*
 	 * Find an available pty to use.
 	 */
-#ifndef	convex
 	pty = getpty();
 	if (pty < 0)
 		fatal(net, "All network ports in use");
-#else
-	for (;;) {
-		char *lp;
-		extern char *line, *getpty();
-
-		if ((lp = getpty()) == NULL)
-			fatal(net, "Out of ptys");
-
-		if ((pty = open(lp, 2)) >= 0) {
-			strcpy(line,lp);
-			line[5] = 't';
-			break;
-		}
-	}
-#endif
 
 	/* get name of connected client */
 	hp = gethostbyaddr((char *)&who->sin_addr, sizeof (struct in_addr),
@@ -648,14 +624,25 @@ doit(struct sockaddr_in *who)
 		host = hp->h_name;
 	else
 		host = inet_ntoa(who->sin_addr);
+
 	/*
 	 * We must make a copy because Kerberos is probably going
 	 * to also do a gethost* and overwrite the static data...
 	 */
-	strncpy(remote_host_name, host, sizeof(remote_host_name)-1);
-	remote_host_name[sizeof(remote_host_name)-1] = 0;
+	{
+		int i;
+		strncpy(remote_host_name, host, sizeof(remote_host_name)-1);
+		remote_host_name[sizeof(remote_host_name)-1] = 0;
+
+		/* Disallow funnies. */
+		for (i=0; remote_host_name[i]; i++) {
+		    if (remote_host_name[i]<=32 || remote_host_name[i]>126) 
+			remote_host_name[i] = '?';
+		}
+	}
 	host = remote_host_name;
 
+	/* Get local host name */
 	{
 		struct hostent *h;
 		gethostname(host_name, sizeof(host_name));
@@ -680,46 +667,27 @@ doit(struct sockaddr_in *who)
 
 	/* TODO list stuff provided by Laszlo Vecsey <master@internexus.net> */
 
-	sprintf(progname, "telnetd: %s [%s]", host, terminaltype);
+	/*
+	 * Set REMOTEHOST environment variable
+	 */
+	setproctitle("%s", host);
 	setenv("REMOTEHOST", host, 0);
 
 	/*
 	 * Start up the login process on the slave side of the terminal
 	 */
-#ifndef	convex
 	startslave(host, level, user_name);
 
 	telnet(net, pty);  /* begin server processing */
-#else
-	telnet(net, pty, host);
-#endif
+
 	/*NOTREACHED*/
 }  /* end of doit */
-
-#if	defined(CRAY2) && defined(UNICOS5) && defined(UNICOS50)
-	int
-Xterm_output(ibufp, obuf, icountp, ocount)
-	char **ibufp, *obuf;
-	int *icountp, ocount;
-{
-	int ret;
-	ret = term_output(*ibufp, obuf, *icountp, ocount);
-	*ibufp += *icountp;
-	*icountp = 0;
-	return(ret);
-}
-#define	term_output	Xterm_output
-#endif	/* defined(CRAY2) && defined(UNICOS5) && defined(UNICOS50) */
 
 /*
  * Main loop.  Select from pty and network, and
  * hand data to telnet receiver finite state machine.
  */
-#ifndef	convex
 void telnet(int f, int p)
-#else
-void telnet(int f, int p, char *host)
-#endif
 {
     int on = 1;
     char *HE;
@@ -809,9 +777,7 @@ void telnet(int f, int p, char *host)
      * mode, which we do not want.
      */
     if (his_want_state_is_will(TELOPT_ECHO)) {
-	DIAG(TD_OPTIONS,
-	     {sprintf(nfrontp, "td: simulating recv\r\n");
-	     nfrontp += strlen(nfrontp);});
+	DIAG(TD_OPTIONS, netoprintf("td: simulating recv\r\n"););
 	willoption(TELOPT_ECHO);
     }
     
@@ -846,9 +812,6 @@ void telnet(int f, int p, char *host)
     
     ioctl(f, FIONBIO, (char *)&on);
     ioctl(p, FIONBIO, (char *)&on);
-#if defined(CRAY2) && defined(UNICOS5)
-    init_termdriver(f, p, interrupt, sendbrk);
-#endif
 
 #if defined(SO_OOBINLINE)
     setsockopt(net, SOL_SOCKET, SO_OOBINLINE, &on, sizeof on);
@@ -867,21 +830,6 @@ void telnet(int f, int p, char *host)
     
     signal(SIGCHLD, cleanup);
     
-#if defined(CRAY2) && defined(UNICOS5)
-    /*
-     * Cray-2 will send a signal when pty modes are changed by slave
-     * side.  Set up signal handler now.
-     */
-    if ((int)signal(SIGUSR1, termstat) < 0)
-	perror("signal");
-    else if (ioctl(p, TCSIGME, (char *)SIGUSR1) < 0)
-	perror("ioctl:TCSIGME");
-    /*
-     * Make processing loop check terminal characteristics early on.
-     */
-    termstat();
-#endif
-
 #ifdef TIOCNOTTY
     {
 	register int t;
@@ -893,11 +841,6 @@ void telnet(int f, int p, char *host)
     }
 #endif
     
-#if defined(CRAY) && defined(NEWINIT) && defined(TIOCSCTTY)
-    setsid();
-    ioctl(p, TIOCSCTTY, 0);
-#endif
-
     /*
      * Show banner that getty never gave.
      *
@@ -906,10 +849,8 @@ void telnet(int f, int p, char *host)
      * other pty --> client data.
      */
     
-#if !defined(CRAY) || !defined(NEWINIT)
     if (getenv("USER"))
 	hostinfo = 0;
-#endif
     
     IM = DEFAULT_IM;
     HE = 0;
@@ -929,14 +870,8 @@ void telnet(int f, int p, char *host)
     localstat();
 #endif	/* LINEMODE */
 
-    DIAG(TD_REPORT,
-	 {sprintf(nfrontp, "td: Entering processing loop\r\n");
-	 nfrontp += strlen(nfrontp);});
+    DIAG(TD_REPORT, netoprintf("td: Entering processing loop\r\n"););
     
-#ifdef	convex
-    startslave(host);
-#endif
-
     for (;;) {
 	fd_set ibits, obits, xbits;
 	int c, hifd;
@@ -944,9 +879,6 @@ void telnet(int f, int p, char *host)
 	if (ncc < 0 && pcc < 0)
 	    break;
 	
-#if	defined(CRAY2) && defined(UNICOS5)
-	if (needtermstat) _termstat();
-#endif	/* defined(CRAY2) && defined(UNICOS5) */
 	FD_ZERO(&ibits);
 	FD_ZERO(&obits);
 	FD_ZERO(&xbits);
@@ -1065,8 +997,7 @@ void telnet(int f, int p, char *host)
 		netip = netibuf;
 	    }
 	    DIAG((TD_REPORT | TD_NETDATA),
-		 {sprintf(nfrontp, "td: netread %d chars\r\n", ncc);
-		 nfrontp += strlen(nfrontp);});
+		 netoprintf("td: netread %d chars\r\n", ncc););
 	    DIAG(TD_NETDATA, printdata("nd", netip, ncc));
 	}
 	
@@ -1086,7 +1017,6 @@ void telnet(int f, int p, char *host)
 	    else {
 		if (pcc <= 0)
 		    break;
-#if	!defined(CRAY2) || !defined(UNICOS5)
 #ifdef	LINEMODE
 				/*
 				 * If ioctl from pty, pass it through net
@@ -1106,32 +1036,20 @@ void telnet(int f, int p, char *host)
 		     * royally if we send them urgent
 		     * mode data.
 		     */
-		    *nfrontp++ = IAC;
-		    *nfrontp++ = DM;
+		    netoprintf("%c%c", IAC, DM);
 		    neturg = nfrontp-1; /* off by one XXX */
 #endif
 		}
 		if (his_state_is_will(TELOPT_LFLOW) &&
 		    (ptyibuf[0] &
 		     (TIOCPKT_NOSTOP|TIOCPKT_DOSTOP))) {
-		    (void) sprintf(nfrontp, "%c%c%c%c%c%c",
+			netoprintf("%c%c%c%c%c%c",
 				   IAC, SB, TELOPT_LFLOW,
 				   ptyibuf[0] & TIOCPKT_DOSTOP ? 1 : 0,
 				   IAC, SE);
-		    nfrontp += 6;
 		}
 		pcc--;
 		ptyip = ptyibuf+1;
-#else	/* defined(CRAY2) && defined(UNICOS5) */
-		if (!uselinemode) {
-		    unpcc = pcc;
-		    unptyip = ptyibuf;
-		    pcc = term_output(&unptyip, ptyibuf2,
-				      &unpcc, BUFSIZ);
-		    ptyip = ptyibuf2;
-		} 
-		else ptyip = ptyibuf;
-#endif	/* defined(CRAY2) && defined(UNICOS5) */
 	    }
 	}
 	
@@ -1141,11 +1059,6 @@ void telnet(int f, int p, char *host)
 	    c = *ptyip++ & 0377, pcc--;
 	    if (c == IAC)
 		*nfrontp++ = c;
-#if defined(CRAY2) && defined(UNICOS5)
-	    else if (c == '\n' &&
-		     my_state_is_wont(TELOPT_BINARY) && newmap)
-		*nfrontp++ = '\r';
-#endif	/* defined(CRAY2) && defined(UNICOS5) */
 	    *nfrontp++ = c;
 	    if ((c == '\r'  ) && (my_state_is_wont(TELOPT_BINARY))) {
 		if (pcc > 0 && ((*ptyip & 0377) == '\n')) {
@@ -1155,17 +1068,6 @@ void telnet(int f, int p, char *host)
 		else *nfrontp++ = '\0';
 	    }
 	}
-#if defined(CRAY2) && defined(UNICOS5)
-	/*
-	 * If chars were left over from the terminal driver,
-	 * note their existence.
-	 */
-	if (!uselinemode && unpcc) {
-	    pcc = unpcc;
-	    unpcc = 0;
-	    ptyip = unptyip;
-	}
-#endif	/* defined(CRAY2) && defined(UNICOS5) */
 
 	if (FD_ISSET(f, &obits) && (nfrontp - nbackp) > 0)
 	    netflush();
@@ -1239,14 +1141,13 @@ void recv_ayt(void) {
 	return;
     }
 #endif
-    sprintf(nfrontp, "\r\n[%s : yes]\r\n",host_name);
-    nfrontp += strlen(nfrontp);
+    netoprintf("\r\n[%s : yes]\r\n", host_name);
 }
 
 void doeof(void) {
     init_termbuf();
 
-#if	defined(LINEMODE) && defined(USE_TERMIO) && (VEOF == VMIN)
+#if	defined(LINEMODE) && (VEOF == VMIN)
     if (!tty_isediting()) {
 	extern char oldeofc;
 	*pfrontp++ = oldeofc;

@@ -39,9 +39,10 @@
  * From: @(#)popen.c	8.3 (Berkeley) 4/6/94
  * From: NetBSD: popen.c,v 1.5 1995/04/11 02:45:00 cgd Exp
  * From: OpenBSD: popen.c,v 1.8 1996/12/07 10:52:06 bitblt Exp
+ * From: OpenBSD: popen.c,v 1.10 1999/02/26 00:15:54 art Exp
  */
 char popen_rcsid[] = 
-  "$Id: popen.c,v 1.4 1997/05/19 13:04:35 dholland Exp $";
+  "$Id: popen.c,v 1.6 1999/07/16 01:12:54 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -130,7 +131,8 @@ ftpd_popen(char *program, const char *type)
 	gargv[gargc] = NULL;
 
 	iop = NULL;
-	switch(pid = vfork()) {
+
+	switch(pid = fork()) {
 	case -1:			/* error */
 		(void)close(pdes[0]);
 		(void)close(pdes[1]);
@@ -169,6 +171,19 @@ ftpd_popen(char *program, const char *type)
 		 */
 		setgid(getegid());
 		setuid(i);
+ 
+#ifndef __linux__
+/* 
+ * Not yet. Porting BSD ls to Linux would be a big and irritating job,
+ * and we can't use GNU ls because of licensing. 
+ */
+		if (strcmp(gargv[0], "/bin/ls") == 0) {
+			extern int optreset;
+			/* reset getopt for ls_main */
+			optreset = optind = 1;
+			exit(ls_main(gargc, gargv));
+		}
+#endif
 
 		execv(gargv[0], gargv);
 		_exit(1);

@@ -1,40 +1,92 @@
+This is netkit-combo-0.16.
 
-NetKit 0.09 was the last NetKit to be released as a complete package.
+This package contains the following packages that are also distributed
+individually:
 
-NetKit, if you wish to call it that, consists of the following
-packages:
+	biff+comsat-0.16
+	bsd-finger-0.16
+	linux-ftpd-0.16
+	netkit-base-0.16
+	netkit-bootparamd-0.16
+	netkit-ftp-0.16
+	netkit-ntalk-0.16
+	netkit-routed-0.16
+	netkit-rpc-0.16
+	netkit-rsh-0.16
+	netkit-rusers-0.16
+	netkit-rwall-0.16
+	netkit-rwho-0.16
+	netkit-telnet-0.16
+	netkit-tftp-0.16
+	netkit-timed-0.16
+	netwrite-0.16
 
-   		biff+comsat-0.10
-   		bsd-finger-0.10
-   		(linux-ftpd-0.10) (*)
-   		netkit-base-0.10
-   		netkit-bootparamd-0.10
-   		netkit-ftp-0.10
-   		netkit-ntalk-0.10
-   		netkit-routed-0.10
-   		netkit-rsh-0.10
-   		netkit-rusers-0.10
-   		netkit-rwall-0.10
-   		netkit-rwho-0.10
-   		netkit-telnet-0.10
-   		netkit-tftp-0.10
-   		netkit-timed-0.10
-   		netwrite-0.10
+If you are a distribution maintainer, you probably wish to fetch and
+package each of those separately, so that your users can selectively
+install and uninstall them.
 
-These may all be downloaded separately. If some or all of these have
-been updated since this document was written, be sure to always get
-the latest versions.
+If you are an end user, you may find it more convenient to use this
+package, however. But, if you're reading this off a CD, go right away
+and check the net archives for later versions and security fixes.
 
-Please don't install packages you don't need; also please be sure to
-remove any binaries of out-of-date versions of anything you choose not
-to install.
 
-(*) linux-ftpd hasn't ever really been part of NetKit and it isn't
-packaged quite the same way as the others. This will probably change
-in the future.
 
-If you have questions please mail me: 
+Requires:
+	Working compiler, libc, and kernel, and a recent ncurses.
+
+Security:
+	Several of the NetKit packages contain security fixes in this
+	release relative to the 0.10 or 0.11 releases. Please consult
+	the individual package READMEs for details.
+
+	Versions prior to NetKit-0.09 should not be used under any
+	circumstances.
+
+Installation:
+	Do "./configure --help" and decide what options you want. The
+	defaults should be suitable for most Linux systems. Then run
+	the configure script.
+
+	Do "make" to compile.
+	Then (as root) do "make install".
+
+	Save a backup copy of any mission-critical program in case the
+	new one doesn't work, and so forth. We warned you.
+
+Bugs:
+	Please make sure the header files in /usr/include match the
+	libc version installed in /lib and /usr/lib. If you have weird
+	problems this is the most likely culprit.
+
+	Also, before reporting a bug, be sure you're working with the
+	latest version.
+
+	If something doesn't compile for you, fix it and send diffs.
+	If you can't, send the compiler's error output.
+
+	If it compiles but doesn't work, send as complete a bug report as 
+	you can. Patches and fixes are welcome, as long as you describe 
+	adequately what they're supposed to fix. Please, one patch per
+	distinct fix. Please do NOT send the whole archive back or
+	reindent the source.
+
+	Be sure to send all correspondence in e-mail. Postings to netnews 
+	will not be seen due to the enormous volume.
+
+	Please don't report known bugs (see the BUGS file(s)) unless you
+	are including fixes. :-)
+
+	Mail should be sent to: netbug@ftp.uk.linux.org
+
+
+Note: please see http://www.hcs.harvard.edu/~dholland/computers/netkit.html
+if you are curious why it's been so long since the last NetKit release.
+(The short version is that I gave things to some other people, who let
+them kind of slide.)
+
+I do not currently plan to continue maintaining NetKit; I am doing this
+release and perhaps one or two more, and then I intend to give the source
+tree to Red Hat or some similar organization for long-term maintenance.
 
 David A. Holland
-dholland@hcs.harvard.edu
-
+12 December 1999

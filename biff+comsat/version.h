@@ -2,4 +2,4 @@
  * String to embed in binaries to identify package
  */
 
-char pkg[] = "Package: biff+comsat-0.10";
+char pkg[]="$NetKit: biff+comsat-0.16 $";

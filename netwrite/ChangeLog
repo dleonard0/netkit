@@ -1,3 +1,18 @@
+12-Dec-1999:
+	Clean up 8-bit character handling.
+
+1-Aug-1999:
+	Did complete y2k and y2038 audit. 
+
+31-Jul-1999:
+	Redid makefiles/config stuff for new confgen version.
+
+22-Sep-1997:
+	Keep getservbyname() from trashing gethostbyname() results.
+
+12-Jun-1997:
+	netwrite-0.10 released.
+
 08-Jun-1997:
 	More adjustments for glibc.
 

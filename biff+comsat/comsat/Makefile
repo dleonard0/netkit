@@ -1,9 +1,6 @@
 all: comsat
 
 include ../MCONFIG
-ifeq ($(USE_GLIBC),1)
-CFLAGS += -D_GNU_SOURCE
-endif
 
 %.o: %.c
 	$(CC) $(CFLAGS) $< -c

@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  */
 
-char rcsid[] = "$Id: rup.c,v 1.4 1997/06/09 01:23:06 dholland Exp $";
+char rcsid[] = "$Id: rup.c,v 1.7 1999/12/12 18:05:04 dholland Exp $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,6 +49,8 @@ char rcsid[] = "$Id: rup.c,v 1.4 1997/06/09 01:23:06 dholland Exp $";
 #undef FSHIFT			/* Use protocol's shift and scale values */
 #undef FSCALE
 #include <rpcsvc/rstat.h>
+
+#include "../version.h"
 
 #define HOST_WIDTH 24
 
@@ -188,29 +190,34 @@ print_rup_data(const char *host, statstime *host_stat)
 	struct tm host_uptime;
 	char days_buf[16];
 	char hours_buf[16];
+	time_t timer;
 
 	printf("%-*.*s", HOST_WIDTH, HOST_WIDTH, host);
 
-	tmp_time = localtime((time_t *)&host_stat->curtime.tv_sec);
+	timer = host_stat->curtime.tv_sec;
+	tmp_time = localtime(&timer);
 	host_time = *tmp_time;
 
 	host_stat->curtime.tv_sec -= host_stat->boottime.tv_sec;
 
-	tmp_time = gmtime((time_t *)&host_stat->curtime.tv_sec);
+	timer = host_stat->curtime.tv_sec;
+	tmp_time = gmtime(&timer);
 	host_uptime = *tmp_time;
 
 	if (host_uptime.tm_yday != 0)
-		sprintf(days_buf, "%3d day%s, ", host_uptime.tm_yday,
-			(host_uptime.tm_yday > 1) ? "s" : "");
+		snprintf(days_buf, sizeof(days_buf), 
+			 "%3d %s, ", host_uptime.tm_yday,
+			 (host_uptime.tm_yday > 1) ? "days" : "day");
 	else
 		days_buf[0] = '\0';
 
 	if (host_uptime.tm_hour != 0)
-		sprintf(hours_buf, "%2d:%02d, ",
+		snprintf(hours_buf, sizeof(hours_buf), "%2d:%02d, ",
 			host_uptime.tm_hour, host_uptime.tm_min);
 	else
 		if (host_uptime.tm_min != 0)
-			sprintf(hours_buf, "%2d mins, ", host_uptime.tm_min);
+			snprintf(hours_buf, sizeof(hours_buf),
+				 "%2d mins, ", host_uptime.tm_min);
 		else
 			hours_buf[0] = '\0';
 

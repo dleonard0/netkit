@@ -36,13 +36,13 @@
  *       NetBSD: daemon.c,v 1.4 1995/02/25 13:41:16 cgd Exp
  */
 char daemon_rcsid[] = 
-  "$Id: daemon.c,v 1.3 1996/08/14 23:54:14 dholland Exp $";
+  "$Id: daemon.c,v 1.4 1999/08/23 02:30:24 dholland Exp $";
 
 #include <fcntl.h>
 #include <paths.h>
 #include <unistd.h>
 
-#include "inetd.h"
+#include "daemon.h"
 
 int daemon(int nochdir, int noclose)
 {

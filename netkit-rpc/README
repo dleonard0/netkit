@@ -1,0 +1,88 @@
+This is netkit-rpc-0.16 for Linux.
+
+This package updates the rpcgen and rpcinfo programs from
+netkit-base-0.11+, netkit-base-0.10, and NetKit-0.09.
+
+If you are using a glibc system (GNU libc 2.0.x, 2.1.x, or higher) you
+do not need this package; glibc includes its own versions of rpcinfo
+and rpcgen. Please use those instead and do not install this package.
+
+THIS PACKAGE IS FOR LIBC4 and LIBC5 SYSTEMS ONLY!
+
+
+If you're reading this off a CD, go right away and check the net
+archives for later versions and security fixes.
+
+Contents:
+	rpcgen		SunRPC code generator
+	rpcinfo		SunRPC diagnostic program
+
+Requires:
+	Working compiler, libc, and kernel.
+
+	Old pre-release versions of glibc (before 2.0) are no longer
+	supported and will not work.
+
+Security:
+	No increments in security relative to netkit-base-0.10.
+
+	However, prior versions of netkit-base included other fixes
+	for assorted security problems in other programs that are now
+	well-known. Please don't use old versions.
+
+Installation:
+	Do "./configure --help" and decide what options you want. The
+	defaults should be suitable for most Linux systems. Then run
+	the configure script.
+
+	Do "make" to compile.
+	Then (as root) do "make install".
+
+	Save a backup copy of any mission-critical program in case the
+	new one doesn't work, and so forth. We warned you.
+
+DEC Alpha:
+        Compaq were kind enought to make available their C compiler for
+        the Alpha, you can down load this for free from
+        http://www.unix.digital.com/linux (At time of document 25/11/1999)
+        this package has been compiled and tested with this compiler as
+        with the GNU compiler. To compile this from source simply issue
+                ./configure --with-c-compiler=ccc
+
+Bugs:
+	Please make sure your header files in /usr/include match your
+	libc version installed in /lib and /usr/lib. If you have weird
+	problems this is the most likely culprit.
+
+	Also, before reporting a bug, be sure you're working with the
+	latest version.
+
+	If something doesn't compile for you, fix it and send diffs.
+	If you can't, send the compiler's error output.
+
+	If it compiles but doesn't work, send as complete a bug report as 
+	you can. Patches and fixes are welcome, as long as you describe 
+	adequately what they're supposed to fix. Please, one patch per
+	distinct fix. Please do NOT send the whole archive back or
+	reindent the source.
+
+	Be sure to send all correspondence in e-mail. Postings to netnews 
+	will not be seen due to the enormous volume.
+
+	Please don't report known bugs (see the BUGS file(s)) unless you
+	are including fixes. :-)
+
+	Mail should be sent to: netbug@ftp.uk.linux.org
+
+
+Note: please see http://www.hcs.harvard.edu/~dholland/computers/netkit.html
+if you are curious why it's been so long since the last NetKit release.
+(The short version is that I gave things to some other people, who let
+them kind of slide.)
+
+I do not currently plan to continue maintaining NetKit; I am doing this
+release and perhaps one or two more, and then I intend to give the source
+tree to Red Hat or some similar organization for long-term maintenance.
+
+David A. Holland
+12 December 1999

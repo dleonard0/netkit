@@ -32,51 +32,82 @@
  */
 
 char copyright[] =
-  "@(#) Copyright (c) 1980 The Regents of the University of California.\n"
-  "All rights reserved.\n";
+"@(#) Copyright (c) 1980 The Regents of the University of California.\n"
+"All rights reserved.\n";
 
 /*
  * From: @(#)biff.c	5.3 (Berkeley) 6/1/90
  */
-char rcsid[] = "$Id: biff.c,v 1.6 1997/03/08 14:07:00 dholland Exp $";
+char rcsid[] = "$Id: biff.c,v 1.11 1999/12/12 13:19:27 dholland Exp $";
 
 /*
  * biff
  */
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include "../version.h"
 
-int main(int argc, char *argv[])
+int 
+main(int argc, char *argv[])
 {
-	char *cp = ttyname(2);
-	struct stat stb;
+	char *tty;       /* name of tty */
+	struct stat stb; /* storage for return of stat on tty */
+  
+	/* 
+	 * ttyname() returns a pointer to the pathname of the
+	 * terminal device that is open on the specified file
+	 * descriptor. If this fails tell the user.
+	 */
+  
+	tty = ttyname(STDERR_FILENO);
 
-	if (cp == NULL) {
-		fprintf(stderr, "Where are you?\n");
+	if (tty == NULL) {
+		fprintf(stderr, "stderr is not a tty - where are you?\n");
 		exit(1);
 	}
-	if (stat(cp, &stb) < 0) {
-		perror(cp);
+  
+	/* stat() the tty */
+  
+	if (stat(tty, &stb)==-1) {
+		perror(tty);
 		exit(1);
 	}
-	if (argc == 1) {
-		printf("is %s\n", stb.st_mode&0100 ? "y" : "n");
-	}
-	else switch (argv[1][0]) {
-	  case 'y':
-		if (chmod(cp, stb.st_mode|0100) < 0)
-			perror(cp);
-		break;
+  
+	/* 
+	 * If no command line arguments are specified then simply return
+	 * the current status to the user.
+	 */
+  
+	if (argc == 1)  {
+		/* if user execute bit is on (ie biff y) */
+		if(stb.st_mode&0100) {
+			printf("is y\n");
+		} else {
+			printf("is n\n");
+		}
+	} else {
+		/* If there's a command line argument... */
+		/* switch based on argument */
+		switch (argv[1][0]) {
+		case 'y': 
+			/* user entered biff y */
+			if (chmod(tty, stb.st_mode|0100) == -1)
+				perror(tty);
+			break;
 
-	  case 'n':
-		if (chmod(cp, stb.st_mode&~0100) < 0)
-			perror(cp);
-		break;
-
-	  default:
-		fprintf(stderr, "usage: biff [y|n]\n");
+		case 'n': 
+			/* user entered biff n */
+			if (chmod(tty, stb.st_mode&~0100) == -1)
+				perror(tty);
+			break;
+      
+		default: 
+			/* They used neither of the correct arguments -Doh! */
+			fprintf(stderr, "usage: biff [y|n]\n");
+		}
 	}
-	return (stb.st_mode&0100) ? 0 : 1;
+	
+	return (stb.st_mode&0100) ? 0 : 1; /* Return 0 if on or 1 if off */
 }

@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)defs.h	5.10 (Berkeley) 3/1/91
- *	$Id: defs.h,v 1.6 1996/08/16 18:49:26 dholland Exp $
+ *	$Id: defs.h,v 1.7 1999/08/02 03:14:03 dholland Exp $
  */
 
 /*
@@ -44,44 +44,14 @@
 #define ENV_VALUE	NEW_ENV_VALUE
 #define TELOPT_ENVIRON	TELOPT_NEW_ENVIRON
 
-#ifndef	BSD
-#define	BSD 43
-#endif
-
-#if defined(CRAY) && !defined(LINEMODE)
-#define SYSV_TERMIO
-#define LINEMODE
-#define KLUDGELINEMODE
-#define DIAGNOSTICS
-
-#if defined(UNICOS50) && !defined(UNICOS5)
-#define UNICOS5
-#endif
-
-#if !defined(UNICOS5)
-#define BFTPDAEMON
-#define HAS_IP_TOS
-#endif
-#endif /* CRAY */
-
-#if defined(UNICOS5) && !defined(NO_SETSID)
-#define NO_SETSID
-#endif
-
 #if defined(PRINTOPTIONS) && defined(DIAGNOSTICS)
 #define TELOPTS
 #define TELCMDS
 #define	SLC_NAMES
 #endif
 
-#if defined(SYSV_TERMIO) && !defined(USE_TERMIO)
-#define USE_TERMIO
-#endif
-
 #include <sys/socket.h>
-#ifndef	CRAY
 #include <sys/wait.h>
-#endif	/* CRAY */
 #include <fcntl.h>
 #include <sys/file.h>
 #include <sys/stat.h>
@@ -106,17 +76,7 @@
 
 #include <ctype.h>
 #include <string.h>
-
-#ifndef	USE_TERMIO
-#error "sgtty is way obsolete"
-#include <sgtty.h>
-#else
-#ifdef	SYSV_TERMIO
-#include <termio.h>
-#else
 #include <termios.h>
-#endif
-#endif
 
 #ifdef	__STDC__
 #include <unistd.h>
@@ -130,41 +90,10 @@
 #endif
 #endif
 
-
-#ifdef	CRAY
-#ifdef	CRAY1
-#include <sys/pty.h>
-#ifndef FD_ZERO
-#include <sys/select.h>
-#endif /* FD_ZERO */
-#endif	/* CRAY1 */
-
-#include <memory.h>
-#endif	/* CRAY */
-
-#if !defined(TIOCSCTTY) && defined(TCSETCTTY)
-#define	TIOCSCTTY TCSETCTTY
-#endif
-
-#ifndef	FD_SET
-#ifndef	HAVE_fd_set
-typedef struct fd_set { int fds_bits[1]; } fd_set;
-#endif
-
-#define	FD_SET(n, p)	((p)->fds_bits[0] |= (1<<(n)))
-#define	FD_CLR(n, p)	((p)->fds_bits[0] &= ~(1<<(n)))
-#define	FD_ISSET(n, p)	((p)->fds_bits[0] & (1<<(n)))
-#define FD_ZERO(p)	((p)->fds_bits[0] = 0)
-#endif	/* FD_SET */
-
 /*
  * I/O data buffers defines
  */
 #define	NETSLOP	64
-#ifdef CRAY
-#undef BUFSIZ
-#define BUFSIZ  2048
-#endif
 
 #define	NIACCUM(c)	{   *netip++ = c; \
 			    ncc++; \

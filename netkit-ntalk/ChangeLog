@@ -1,3 +1,26 @@
+24-Nov-1999:
+	Total rewrite of curses handling in talk to add support for
+	  scrollback. (David A. Holland, dholland@hcs.harvard.edu)
+
+14-Sep-1999:
+	Always ask curses to map input CRs to LFs.
+	  (Olaf Kirch, okir@caldera.de)
+
+1-Aug-1999:
+	Complete y2k and y2038 audit.
+
+31-Jul-1999:
+	Redid makefiles/config stuff for new confgen version.
+
+19-Jun-1999:
+	Fix small glitch in talkd man page.
+	Preliminary version of code in repairs.c to handle otalk 
+	  packets (at least of the kind ytalk emits). It seems 
+	  current ytalk versions will hork without this.
+
+7-Apr-1999:
+	netkit-ntalk-0.11 released.
+	
 9-Dec-1998:
 	We don't need to check for BSD signal semantics now; updated
 	  MCONFIG and regenerated configure script.

@@ -17,11 +17,13 @@
  * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  */
 
+#if 0 /* dead code */
+
 /*
  * From: @(#)authenc.c	5.1 (Berkeley) 3/1/91
  */
 char authenc_rcsid[] =
-  "$Id: authenc.c,v 1.4 1996/08/15 08:35:08 dholland Exp $";
+  "$Id: authenc.c,v 1.5 1999/12/12 14:59:44 dholland Exp $";
 
 #if	defined(ENCRYPT) || defined(AUTHENTICATE)
 #include "telnetd.h"
@@ -77,3 +79,5 @@ telnet_gets(prompt, result, length, echo)
     return((char *)0);
 }
 #endif
+
+#endif /* 0 */

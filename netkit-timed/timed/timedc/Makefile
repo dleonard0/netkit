@@ -9,7 +9,7 @@ LIBS += -L../lib -ltimed
 timedc: $(OBJS)
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
-$(OBJS): timedc.h timedc-extern.h
+$(OBJS): timedc.h timedc-extern.h ../../version.h
 
 install: timedc
 	install -s -m$(ROOTMODE) timedc $(INSTALLROOT)$(SBINDIR)

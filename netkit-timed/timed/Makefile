@@ -1,14 +1,14 @@
 compile:
-	$(MAKE) -C lib
-	$(MAKE) -C timed
-	$(MAKE) -C timedc
+	(cd lib && $(MAKE))
+	(cd timed && $(MAKE))
+	(cd timedc && $(MAKE))
 
 install:
-	$(MAKE) -C lib install
-	$(MAKE) -C timed install
-	$(MAKE) -C timedc install
+	(cd lib && $(MAKE) install)
+	(cd timed && $(MAKE) install)
+	(cd timedc && $(MAKE) install)
 
 clean:
-	$(MAKE) -C lib clean
-	$(MAKE) -C timed clean
-	$(MAKE) -C timedc clean
+	(cd lib && $(MAKE) clean)
+	(cd timed && $(MAKE) clean)
+	(cd timedc && $(MAKE) clean)

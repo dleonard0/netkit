@@ -35,7 +35,7 @@
  * From: @(#)commands.c	5.5 (Berkeley) 3/22/91
  */
 char cmd_rcsid[] = 
-  "$Id: commands.cc,v 1.29 1997/09/23 11:54:27 dholland Exp $";
+  "$Id: commands.cc,v 1.32 1999/09/28 16:29:24 dholland Exp $";
 
 #include <string.h>
 
@@ -331,19 +331,19 @@ struct sendlist {
     int what;			/* Character to be sent (<0 ==> special) */
 };
 
-static int send_esc(char *, char *);
-static int send_help(char *, char *);
-static int send_docmd(char *, char *);
-static int send_dontcmd(char *, char *);
-static int send_willcmd(char *, char *);
-static int send_wontcmd(char *, char *);
+static int send_esc(const char *, const char *);
+static int send_help(const char *, const char *);
+static int send_docmd(const char *, const char *);
+static int send_dontcmd(const char *, const char *);
+static int send_willcmd(const char *, const char *);
+static int send_wontcmd(const char *, const char *);
 
 extern int send_do(int, int);
 extern int send_dont(int, int);
 extern int send_will(int, int);
 extern int send_wont(int, int);
 
-static int dosynch1(char *, char *) { return dosynch(); }
+static int dosynch1(const char *, const char *) { return dosynch(); }
 
 static struct sendlist Sendlist[] = {
     { "ao",	"Send Telnet Abort output",		1, 0, 0, 2, AO },
@@ -371,7 +371,7 @@ static struct sendlist Sendlist[] = {
     { "dont",	0,				0, 1, send_dontcmd, 3, 0 },
     { "will",	0,				0, 1, send_willcmd, 3, 0 },
     { "wont",	0,				0, 1, send_wontcmd, 3, 0 },
-    { 0 }
+    { 0, 0, 0, 0, 0, 0, 0 }
 };
 
 #define	GETSEND(name) ((struct sendlist *) genget(name, (char **) Sendlist, \
@@ -459,24 +459,24 @@ static int sendcmd(int argc, const char *argv[]) {
     return (count == success);
 }
 
-static int send_esc(char *, char *) {
+static int send_esc(const char *, const char *) {
     NETADD(escapechar);
     return 1;
 }
 
-static int send_docmd(char *name, char *) {
+static int send_docmd(const char *name, const char *) {
     return send_tncmd(send_do, "do", name);
 }
 
-static int send_dontcmd(char *name, char *) {
+static int send_dontcmd(const char *name, const char *) {
     return(send_tncmd(send_dont, "dont", name));
 }
 
-static int send_willcmd(char *name, char *) {
+static int send_willcmd(const char *name, const char *) {
     return(send_tncmd(send_will, "will", name));
 }
 
-static int send_wontcmd(char *name, char *) {
+static int send_wontcmd(const char *name, const char *) {
     return(send_tncmd(send_wont, "wont", name));
 }
 
@@ -522,7 +522,7 @@ int send_tncmd(int (*func)(int, int), const char *cmd, const char *name) {
     return 1;
 }
 
-static int send_help(char *, char *) {
+static int send_help(const char *, const char *) {
     struct sendlist *s;	/* pointer to current command */
     for (s = Sendlist; s->name; s++) {
 	if (s->help)
@@ -715,7 +715,7 @@ static struct togglelist Togglelist[] = {
       lclchars, &localchars,
       "recognize certain control characters" },
 
-    { " ", "", 0 },		/* empty line */
+    { " ", "", 0, 0, 0 },		/* empty line */
 
 #if defined(TN3270) && !defined(__linux__)
     { "apitrace", "(debugging) toggle tracing of API transactions",
@@ -743,9 +743,9 @@ static struct togglelist Togglelist[] = {
       NULL, &termdata,
       "print hexadecimal representation of terminal traffic" },
 
-    { "?", NULL, togglehelp },
-    { "help", NULL, togglehelp },
-    { 0 }
+    { "?", NULL, togglehelp, 0, 0 },
+    { "help", NULL, togglehelp, 0, 0 },
+    { 0, 0, 0, 0, 0 }
 };
 
 static int togglehelp(int) {
@@ -840,13 +840,13 @@ static struct setlist Setlist[] = {
     { "escape",	"character to escape back to telnet command mode", 0, &escapechar },
     { "rlogin", "rlogin escape character", 0, &rlogin },
     { "tracefile", "file to write trace information to", SetNetTrace, (cc_t *)NetTraceFile},
-    { " ", "" },
+    { " ", "", 0, 0 },
     { " ", "The following need 'localchars' to be toggled true", 0, 0 },
     { "flushoutput", "character to cause an Abort Output", 0, termFlushCharp },
     { "interrupt", "character to cause an Interrupt Process", 0, termIntCharp },
     { "quit",	"character to cause an Abort process", 0, termQuitCharp },
     { "eof",	"character to cause an EOF ", 0, termEofCharp },
-    { " ", "" },
+    { " ", "", 0, 0 },
     { " ", "The following are for local editing in linemode", 0, 0 },
     { "erase",	"character to use to erase a character", 0, termEraseCharp },
     { "kill",	"character to use to erase a line", 0, termKillCharp },
@@ -859,7 +859,7 @@ static struct setlist Setlist[] = {
     { "forw1",	"alternate end of line character", 0, termForw1Charp },
     { "forw2",	"alternate end of line character", 0, termForw2Charp },
     { "ayt",	"alternate AYT character", 0, termAytCharp },
-    { 0 }
+    { 0, 0, 0, 0 }
 };
 
 #if	defined(CRAY) && !defined(__STDC__)
@@ -1121,16 +1121,16 @@ struct modelist {
 extern int modehelp(int);
 
 static struct modelist ModeList[] = {
-    { "character", "Disable LINEMODE option",	docharmode, 1 },
+    { "character", "Disable LINEMODE option",	              docharmode, 1,0},
 #ifdef	KLUDGELINEMODE
-    { "",          "(or disable obsolete line-by-line mode)", NULL },
+    { "",          "(or disable obsolete line-by-line mode)", NULL, 0,0 },
 #endif
-    { "line",	   "Enable LINEMODE option",	dolinemode, 1 },
+    { "line",	   "Enable LINEMODE option",	              dolinemode, 1,0},
 #ifdef	KLUDGELINEMODE
-    { "",	   "(or enable obsolete line-by-line mode)", NULL },
+    { "",	   "(or enable obsolete line-by-line mode)",  NULL, 0,0 },
 #endif
-    { "",          "",                                       NULL },
-    { "",	"These require the LINEMODE option to be enabled", 0 },
+    { "",          "",                                        NULL, 0, 0 },
+    { "",	"These require the LINEMODE option to be enabled", NULL, 0, 0},
     { "isig",	"Enable signal trapping",	setmode, 1, MODE_TRAPSIG },
     { "+isig",	0,				setmode, 1, MODE_TRAPSIG },
     { "-isig",	"Disable signal trapping",	clearmode, 1, MODE_TRAPSIG },
@@ -1143,13 +1143,13 @@ static struct modelist ModeList[] = {
     { "litecho", "Enable literal character echo", setmode, 1, MODE_LIT_ECHO },
     { "+litecho", 0,				setmode, 1, MODE_LIT_ECHO },
     { "-litecho", "Disable literal character echo", clearmode, 1, MODE_LIT_ECHO },
-    { "help",	0,				modehelp, 0 },
+    { "help",	0,				modehelp, 0, 0 },
 #ifdef	KLUDGELINEMODE
-    { "kludgeline", 0,				dokludgemode, 1 },
+    { "kludgeline", 0,				dokludgemode, 1, 0 },
 #endif
-    { "", "", 0 },
-    { "?",	"Print help information",	modehelp, 0 },
-    { 0 },
+    { "", "", 0, 0, 0 },
+    { "?",	"Print help information",	modehelp, 0, 0 },
+    { 0, 0, 0, 0, 0 },
 };
 
 
@@ -1433,7 +1433,7 @@ struct envcmd EnvList[] = {
 						(envfunc) env_list,	0 },
     { "help",	0,				env_help,		0 },
     { "?",	"Print help information",	env_help,		0 },
-    { 0 },
+    { 0, 0, 0, 0 },
 };
 
 static void env_help(const char *, const char *) {

@@ -9,6 +9,7 @@ endif
 
 CFLAGS += -I.
 
+#RPCGEN=../../netkit-base/rpcgen/rpcgen
 RPCGEN=rpcgen
 
 # Warning, do NOT put this in the current directory without updating
@@ -17,6 +18,8 @@ RSTATX=/usr/include/rpcsvc/rstat.x
 
 rup: rup.o rstat_xdr.o err.o
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
+
+rup.o: ../version.h
 
 install: rup
 	install -s -m$(BINMODE) rup $(INSTALLROOT)$(BINDIR)

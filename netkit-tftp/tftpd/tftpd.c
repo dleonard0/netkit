@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)tftpd.c	5.13 (Berkeley) 2/26/91
  */
 char rcsid[] = 
-  "$Id: tftpd.c,v 1.9 1997/03/08 11:30:30 dholland Exp $";
+  "$Id: tftpd.c,v 1.17 1999/12/12 18:05:06 dholland Exp $";
 
 /*
  * Trivial file transfer protocol server.
@@ -54,7 +54,7 @@ char rcsid[] =
 
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netinet/ip.h>
+/* #include <netinet/ip.h> <--- unused? */
 #include <arpa/tftp.h>
 #include <netdb.h>
 
@@ -67,8 +67,11 @@ char rcsid[] =
 #include <stdlib.h>
 #include <unistd.h>
 #include <pwd.h>
+#include <grp.h>
 
 #include "tftpsubs.h"
+
+#include "../version.h"
 
 #define	TIMEOUT		5
 
@@ -80,19 +83,19 @@ static void recvfile(struct formats *pf);
 
 static int validate_access(const char *, int);
 
-static struct	sockaddr_in s_in = { AF_INET };
-static int	peer;
-static int	rexmtval = TIMEOUT;
-static int	maxtimeout = 5*TIMEOUT;
+/*static struct	sockaddr_in s_in = { AF_INET };*/
+static int		peer;
+static int		rexmtval = TIMEOUT;
+static int		maxtimeout = 5*TIMEOUT;
 
-#define	PKTSIZE	SEGSIZE+4
-static char	buf[PKTSIZE];
-static char	ackbuf[PKTSIZE];
-static struct	sockaddr_in from;
-static size_t	fromlen;
+#define	PKTSIZE		SEGSIZE+4
+static char		buf[PKTSIZE];
+static char		ackbuf[PKTSIZE];
+static struct		sockaddr_in from;
+static socklen_t	fromlen;
 
-#define MAXARG	4
-static char	*dirs[MAXARG+1];
+#define MAXARG		4
+static char		*dirs[MAXARG+1];
 
 int
 main(int ac, char **av)
@@ -132,9 +135,9 @@ main(int ac, char **av)
 	 * spawn endless instances, clogging the system.
 	 */
 	{
-		int pid;
+		int pid = -1;
 		int i;
-		size_t k;
+		socklen_t k;
 
 		for (i = 1; i < 20; i++) {
 		    pid = fork();
@@ -170,8 +173,16 @@ main(int ac, char **av)
 	}
 	if (!getuid() || !geteuid()) {
 		struct passwd *pwd = getpwnam("nobody");
-		if (pwd) setuid(pwd->pw_uid);
-		else setuid(32765); /* hope this doesn't hose anything */
+		if (pwd) {
+			initgroups(pwd->pw_name, pwd->pw_gid);
+			setgid(pwd->pw_gid);
+			setuid(pwd->pw_uid);
+		}
+		seteuid(0);   /* this should fail */
+		if (!getuid() || !geteuid()) {
+			syslog(LOG_CRIT, "can't drop root privileges");
+			exit(1);
+		}
 	}
 	from.sin_family = AF_INET;
 	alarm(0);
@@ -182,10 +193,12 @@ main(int ac, char **av)
 		syslog(LOG_ERR, "socket: %m\n");
 		exit(1);
 	}
+#if 0 /* This shouldn't be needed */
 	if (bind(peer, (struct sockaddr *)&s_in, sizeof (s_in)) < 0) {
 		syslog(LOG_ERR, "bind: %m\n");
 		exit(1);
 	}
+#endif
 	if (connect(peer, (struct sockaddr *)&from, sizeof(from)) < 0) {
 		syslog(LOG_ERR, "connect: %m\n");
 		exit(1);
@@ -207,7 +220,7 @@ struct formats {
 	{ "netascii",	validate_access,	sendfile, recvfile, 1 },
 	{ "octet",	validate_access,	sendfile, recvfile, 0 },
      /* { "mail",	validate_user,		sendmail, recvmail, 1 }, */
-	{ 0 }
+	{ 0,0,0,0,0 }
 };
 
 /*
@@ -282,10 +295,10 @@ validate_access(const char *filename, int mode)
 	const char *cp;
 	char **dirp;
 
-	syslog(LOG_ERR, "tftpd: trying to get file: %s\n", filename);
+	syslog(LOG_NOTICE, "tftpd: trying to get file: %s\n", filename);
 
 	if (*filename != '/') {
-		syslog(LOG_ERR, "tftpd: serving file from %s\n", dirs[0]);
+		syslog(LOG_NOTICE, "tftpd: serving file from %s\n", dirs[0]);
 		chdir(dirs[0]);
 	} else {
 		for (dirp = dirs; *dirp; dirp++)
@@ -297,21 +310,46 @@ validate_access(const char *filename, int mode)
 	/*
 	 * prevent tricksters from getting around the directory restrictions
 	 */
-	if (!strncmp(filename, "../", 3)) 
+	if (!strncmp(filename, "../", 3)) {
+		syslog(LOG_WARNING, "tftpd: Blocked illegal request for %s\n",
+		       filename);
 		return EACCESS;
-	for (cp = filename + 1; *cp; cp++)
-		if(*cp == '.' && strncmp(cp-1, "/../", 4) == 0)
+	}
+	for (cp = filename + 1; *cp; cp++) {
+		if (*cp == '.' && strncmp(cp-1, "/../", 4) == 0) {
+			syslog(LOG_WARNING, 
+			       "tftpd: Blocked illegal request for %s\n",
+			       filename);
 			return(EACCESS);
+		}
+	}
 	if (stat(filename, &stbuf) < 0)
 		return (errno == ENOENT ? ENOTFOUND : EACCESS);
+#if 0
+	/*
+	 * The idea is that symlinks are dangerous. However, a symlink
+	 * in the tftp area has to have been put there by root, and it's
+	 * not part of the philosophy of Unix to keep root from shooting
+	 * itself in the foot if it tries to. So basically we assume if
+	 * there are symlinks they're there on purpose and not pointing
+	 * to /etc/passwd or /tmp or other dangerous places.
+	 *
+	 * Note if this gets turned on the stat above needs to be made
+	 * an lstat, or the check is useless.
+	 */
+	/* symlinks prohibited */
+	if (S_ISLNK(stbuf.st_mode)) {
+		return (EACCESS);
+	}
+#endif
 	if (mode == RRQ) {
-		if ((stbuf.st_mode&(S_IREAD >> 6)) == 0)
+		if ((stbuf.st_mode & S_IROTH) == 0)
 			return (EACCESS);
 	} else {
-		if ((stbuf.st_mode&(S_IWRITE >> 6)) == 0)
+		if ((stbuf.st_mode & S_IWOTH) == 0)
 			return (EACCESS);
 	}
-	fd = open(filename, mode == RRQ ? 0 : 1);
+	fd = open(filename, mode == RRQ ? O_RDONLY : O_WRONLY|O_TRUNC);
 	if (fd < 0)
 		return (errno + 100);
 	file = fdopen(fd, (mode == RRQ)? "r":"w");

@@ -34,18 +34,19 @@
 .\"	NetBSD: ftpd.8,v 1.8 1996/01/14 20:55:23 thorpej Exp
 .\"	OpenBSD: ftpd.8,v 1.9 1996/12/03 03:07:16 deraadt Exp
 .\"	OpenBSD: ftpd.8,v 1.12 1997/05/01 14:45:36 deraadt Exp
-.\"     $Id: ftpd.8,v 1.3 1997/05/19 10:38:59 dholland Exp $
+.\"	OpenBSD: ftpd.8,v 1.22 1999/07/09 13:35:50 aaron Exp
+.\"     $Id: ftpd.8,v 1.12 1999/12/14 12:52:47 dholland Exp $
 .\"
-.Dd June 18, 1996
+.Dd September 14, 1999
 .Dt FTPD 8
-.Os BSD 4.2
+.Os "Linux NetKit (0.16)"
 .Sh NAME
 .Nm ftpd
 .Nd
 Internet File Transfer Protocol server
 .Sh SYNOPSIS
 .Nm ftpd
-.Op Fl dDhlMSU
+.Op Fl AdDhlMPSU
 .Op Fl T Ar maxtimeout
 .Op Fl t Ar timeout
 .Op Fl u Ar mask
@@ -80,10 +81,16 @@ from
 .Xr inetd 8
 and is thus useful on busy servers to reduce load.
 .It Fl h
-The server will use data ports in the high port range (normally 40000..44999)
-for passive connections.
+The server will use data ports in the high port range for passive connections.
+This range is defined by the
+.Ev IPPORT_HIFIRSTAUTO
+and
+.Ev IPPORT_HILASTAUTO
+defines in <netinet/in.h>.  In
+.Ox
+they are set to 49152 and 65535 respectively.
 .It Fl l
-Each successful and failed 
+Each successful and failed
 .Xr ftp 1
 session is logged using syslog with a facility of LOG_FTP.
 If this option is specified twice, the retrieve (get), store (put), append,
@@ -93,9 +100,23 @@ their filename arguments are also logged.
 Enables multihomed mode.  Instead of simply using
 .Pa ~ftp
 for anonymous transfers, a directory matching the fully qualified name of
-IP number the client connected to, and located inside
+the IP number the client connected to, and located inside
 .Pa ~ftp
 is used instead.
+.It Fl p
+Disable passive mode ftp connections.  This is useful if you are behind
+a firewall that refuses connections to arbitrary high numbered ports.
+Many ftp clients try passive mode first and do not always react gracefully
+to a server that refuses connections to the port it asked the client to
+connect to.
+.It Fl P
+Permit illegal port numbers or addresses for PORT command initiated connects.
+By default
+.Xr ftpd 8
+violates the RFC and thus constrains the PORT command to non-reserved ports
+and requires it use the same source address as the connection came from.
+This prevents the "FTP bounce attack" against services on both the local
+machine and other local machines.
 .It Fl S
 With this option set,
 .Nm ftpd
@@ -109,6 +130,7 @@ session is logged to the file
 .Pa /var/run/utmp ,
 making them visible to commands such as
 .Xr who 1 .
+This option at present is unsupporte and will always silently fail.
 .It Fl T
 A client may also request a different timeout period;
 the maximum period allowed may be set to
@@ -136,7 +158,7 @@ If the file
 .Pa /etc/ftpwelcome
 exists,
 .Nm
-prints it before issuing the 
+prints it before issuing the
 .Dq ready
 message.
 If the file
@@ -232,12 +254,13 @@ This allows users to utilize the metacharacters
 .Dq Li \&*?[]{}~ .
 .Pp
 .Nm Ftpd
-authenticates users according to five rules. 
+authenticates users according to five rules.
 .Pp
 .Bl -enum -offset indent
 .It
 The login name must be in the password data base,
-.Pa /etc/pwd.db ,
+.\" .Pa /etc/pwd.db ,
+.Pa /etc/passwd ,
 and not have a null password.
 In this case a password must be provided by the client before any
 file operations may be performed.
@@ -253,7 +276,7 @@ Bellcore.
 The login name must not appear in the file
 .Pa /etc/ftpusers .
 .It
-The user must have a standard shell returned by 
+The user must have a standard shell returned by
 .Xr getusershell 3 .
 .It
 If the user name appears in the file
@@ -265,7 +288,7 @@ as for an
 or
 .Dq ftp
 account (see next item).  However, the user must still supply a password.
-This feature is intended as a compromise between a fully anonymous account 
+This feature is intended as a compromise between a fully anonymous account
 and a fully privileged account.  The account should also be set up as for an
 anonymous account.
 .It
@@ -282,10 +305,10 @@ to log in by specifying any password (by convention an email address for
 the user should be used as the password).
 .El
 .Pp
-In the last case, 
+In the last case,
 .Nm ftpd
 takes special measures to restrict the client's access privileges.
-The server performs a 
+The server performs a
 .Xr chroot 2
 to the home directory of the
 .Dq ftp
@@ -303,23 +326,31 @@ and unwritable by anyone (mode 555).
 Make this directory owned by
 .Dq root
 and unwritable by anyone (mode 511).
-The program
-.Xr ls 1
-must be present to support the list command.
-This program should be mode 111 (executable only).
+.\"This directory is optional unless you have commands you wish
+.\"the anonymous ftp user to be able to run (the
+.\".Xr ls 1
+.\"command exists as a builtin).
+.\"  -- not in the Linux port (yet?)
+This directory is required, and should contain at least a statically
+linked copy of
+.Xr ls 1.
+Any programs in this directory should be mode 111 (executable only).
 .It Pa ~ftp/etc
 Make this directory owned by
 .Dq root
 and unwritable by anyone (mode 511).
-The files pwd.db (see
-.Xr pwd_mkdb 8 )
+The files 
+.\" pwd.db (see
+.\" .Xr pwd_mkdb 8 )
+.Xr passwd 5
 and
 .Xr group 5
-must be present for the 
+must be present for the
 .Xr ls
 command to be able to produce owner names rather than numbers.
 The password field in
-.Xr pwd.db
+.\" .Xr pwd.db
+.Pa passwd
 is not used, and should not contain real passwords.
 The file
 .Pa motd ,
@@ -353,11 +384,12 @@ Log file for anonymous transfers.
 .Xr skey 1 ,
 .Xr who 1 ,
 .Xr getusershell 3 ,
+.Xr ftpusers 5 ,
 .Xr syslogd 8
 .Sh BUGS
 The server must run as the super-user
 to create sockets with privileged port numbers.  It maintains
-an effective user id of the logged in user, reverting to
+an effective user ID of the logged in user, reverting to
 the super-user only when binding addresses to sockets.  The
 possible security holes have been extensively
 scrutinized, but are possibly incomplete.

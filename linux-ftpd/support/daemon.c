@@ -36,7 +36,7 @@
  *       NetBSD: daemon.c,v 1.4 1995/02/25 13:41:16 cgd Exp
  */
 char daemon_rcsid[] = 
-  "$Id: daemon.c,v 1.2 1996/12/30 11:07:53 dholland Exp $";
+  "$Id: daemon.c,v 1.1.1.1 1999/07/15 21:57:44 dholland Exp $";
 
 #include <fcntl.h>
 #include <paths.h>

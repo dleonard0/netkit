@@ -30,18 +30,18 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)inetd.8	6.7 (Berkeley) 3/16/91
-.\"	$Id: inetd.8,v 1.5 1997/08/20 09:08:10 dholland Exp $
+.\"	$Id: inetd.8,v 1.12 1999/12/14 12:52:49 dholland Exp $
 .\"
-.Dd November 23, 1996
+.Dd August 22, 1999
 .Dt INETD 8
-.Os "Linux NetKit 0.09"
+.Os "Linux NetKit (0.16)"
 .Sh NAME
 .Nm inetd
 .Nd internet
 .Dq super-server
 .Sh SYNOPSIS
 .Nm inetd
-.Op Fl d
+.Op Fl di
 .Op Fl q Ar queuelength
 .Op Ar configuration file
 .Sh DESCRIPTION
@@ -50,29 +50,43 @@ should be run at boot time by
 .Pa /etc/rc.local
 (see
 .Xr rc 8 ) .
-It then listens for connections on certain
-internet sockets.  When a connection is found on one
-of its sockets, it decides what service the socket
-corresponds to, and invokes a program to service the request.
-After the program is
-finished, it continues to listen on the socket (except in some cases which
-will be described below).  Essentially,
+If your 
+.Xr init 8
+can respawn arbitrary daemons,
+.Nm inetd
+can be run from init instead; then init will restart it if it crashes.
+You must use the
+.Fl i
+option to prevent
+.Nm inetd
+from backgrounding itself, or init will become confused.
+.Pp
+When running,
+.Nm inetd listens for connections on certain
+internet sockets.  When a connection is found on one of its sockets, 
+it looks up what service the socket corresponds to, and invokes a 
+program to service the request. After the program is finished, it 
+will continue to listen on the socket, except in some special cases 
+which will be described below.  Essentially,
 .Nm inetd
 allows running one daemon to invoke several others,
 reducing load on the system.
-.Pp
+.Ss OPTIONS
 The options available for
 .Nm inetd:
 .Bl -tag -width Ds
 .It Fl d
-Turns on debugging.
-.El
-.Bl -tag -width Ds
+Turns on several kinds of debugging and make inetd behave if run in a 
+debugger. Also implies
+.Fl i .
+.It Fl i
+Do not background; for running from
+.Xr init 8 .
 .It Fl q Ar queuelength
 Sets the size of the socket listen queue to the specified
 value. Default is 128.
 .El
-.Pp
+.Ss CONFIGURATION
 Upon execution,
 .Nm inetd
 reads its configuration information from a configuration
@@ -236,7 +250,7 @@ the program.  If the service is provided internally, the
 word
 .Dq internal
 should take the place of this entry.
-.Pp
+.Ss BUILTINS
 .Nm Inetd
 provides several
 .Dq trivial

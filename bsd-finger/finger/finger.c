@@ -46,7 +46,7 @@ char copyright[] =
  * from: @(#)finger.c	5.22 (Berkeley) 6/29/90 
  */
 char finger_rcsid[] = \
-  "$Id: finger.c,v 1.10 1997/04/06 00:51:44 dholland Exp $";
+  "$Id: finger.c,v 1.14 1999/12/12 18:45:06 dholland Exp $";
 
 /*
  * Finger prints out information about users.  It is not portable since
@@ -62,12 +62,15 @@ char finger_rcsid[] = \
  * mail info, and .plan/.project files.
  */
 
-#include <paths.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <time.h>
 #include <getopt.h>
-#include <sys/types.h>
 #include "finger.h"
 #include "../version.h"
 
@@ -86,6 +89,8 @@ int entries;			/* number of people */
 
 int main(int argc, char *argv[]) {
 	int ch;
+	struct sockaddr_in sin;
+	socklen_t slen = sizeof(sin);
 
 	while ((ch = getopt(argc, argv, "lmps")) != EOF) {
 		switch(ch) {
@@ -104,12 +109,20 @@ int main(int argc, char *argv[]) {
 		  case '?':
 		  case 'h':
 		  default:
-			fprintf(stderr, "usage: finger [-lmps] [login ...]\n");
+			eprintf("usage: finger [-lmps] [login ...]\n");
 			return 1;
 		}
 	}
 	argc -= optind;
 	argv += optind;
+
+	if (getsockname(STDOUT_FILENO, (struct sockaddr *)&sin, &slen)==0) {
+		/*
+		 * stdout is a socket. must be a network finger request,
+		 * so emit CRs with our LFs at the ends of lines.
+		 */
+		set_crmode();
+	}
 
 	time(&now);
 
@@ -126,7 +139,7 @@ int main(int argc, char *argv[]) {
 		}
 		loginlist();
 		if (entries == 0) {
-			printf("No one logged on.\n");
+			xprintf("No one logged on.\n");
 		}
 	} 
 	else {
@@ -209,8 +222,7 @@ static void do_local(int argc, char *argv[], int *used) {
 	/* list errors */
 	for (i = 0; i < argc; i++)
 		if (!used[i])
-			(void)fprintf(stderr,
-			    "finger: %s: no such user.\n", argv[i]);
+			(void)eprintf("finger: %s: no such user.\n", argv[i]);
 
 }
 
@@ -225,7 +237,7 @@ userlist(int argc, char *argv[])
 
 	used = calloc(argc, sizeof(int));
 	if (!used) {
-		fprintf(stderr, "finger: out of space.\n");
+		eprintf("finger: out of space.\n");
 		exit(1);
 	}
 
@@ -249,7 +261,7 @@ userlist(int argc, char *argv[])
 	for (pn = nethead; pn; pn = pn->next) {
 		netfinger(pn->name);
 		if (pn->next || entries)
-			putchar('\n');
+			xputc('\n');
 	}
 
 	if (entries == 0)

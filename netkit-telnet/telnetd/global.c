@@ -35,7 +35,7 @@
  * From: @(#)global.c	5.2 (Berkeley) 6/1/90
  */
 char global_rcsid[] = 
-  "$Id: global.c,v 1.2 1996/07/16 08:58:22 dholland Exp $";
+  "$Id: global.c,v 1.4 1999/12/12 14:59:44 dholland Exp $";
 
 /*
  * Allocate global variables.  
@@ -47,53 +47,52 @@ char global_rcsid[] =
 /*
  * Telnet server variable declarations
  */
-#define extern
-extern char	options[256];
-extern char	do_dont_resp[256];
-extern char	will_wont_resp[256];
-extern int	linemode;	/* linemode on/off */
+char	options[256];
+char	do_dont_resp[256];
+char	will_wont_resp[256];
+int	linemode;	/* linemode on/off */
+
 #ifdef	LINEMODE
-extern int	uselinemode;	/* what linemode to use (on/off) */
-extern int	editmode;	/* edit modes in use */
-extern int	useeditmode;	/* edit modes to use */
-extern int	alwayslinemode;	/* command line option */
+int	uselinemode;	/* what linemode to use (on/off) */
+int	editmode;	/* edit modes in use */
+int	useeditmode;	/* edit modes to use */
+int	alwayslinemode;	/* command line option */
 # ifdef	KLUDGELINEMODE
-extern int	lmodetype;	/* Client support for linemode */
+int	lmodetype;	/* Client support for linemode */
 # endif	/* KLUDGELINEMODE */
 #endif	/* LINEMODE */
-extern int	flowmode;	/* current flow control state */
+
+int	flowmode;	/* current flow control state */
+
 #ifdef DIAGNOSTICS
-extern int	diagnostic;	/* telnet diagnostic capabilities */
+int	diagnostic;	/* telnet diagnostic capabilities */
 #endif /* DIAGNOSTICS */
+
 #ifdef BFTPDAEMON
-extern int	bftpd;		/* behave as bftp daemon */
+int	bftpd;		/* behave as bftp daemon */
 #endif /* BFTPDAEMON */
+
 #if	defined(SecurID)
-extern int	require_SecurID;
+int	require_SecurID;
 #endif
 
-extern slcfun	slctab[NSLC + 1];	/* slc mapping table */
+slcfun	slctab[NSLC + 1];	/* slc mapping table */
 
-extern char	*terminaltype;
+char	*terminaltype;
 
 /*
  * I/O data buffers, pointers, and counters.
  */
-extern char	ptyobuf[BUFSIZ+NETSLOP], *pfrontp, *pbackp;
+char	ptyobuf[BUFSIZ+NETSLOP], *pfrontp, *pbackp;
 
-extern char	netibuf[BUFSIZ], *netip;
+char	netibuf[BUFSIZ], *netip;
 
-extern char	netobuf[BUFSIZ+NETSLOP], *nfrontp, *nbackp;
-extern char	*neturg;		/* one past last bye of urgent data */
+char	netobuf[BUFSIZ+NETSLOP], *nfrontp, *nbackp;
+char	*neturg;		/* one past last bye of urgent data */
 
-extern int	pcc, ncc;
+int	pcc, ncc;
 
-#if defined(CRAY2) && defined(UNICOS5)
-extern int unpcc;  /* characters left unprocessed by CRAY-2 terminal routine */
-extern char *unptyip;  /* pointer to remaining characters in buffer */
-#endif
-
-extern int	pty, net;
-extern int	SYNCHing;		/* we are in TELNET SYNCH mode */
+int	pty, net;
+int	SYNCHing;		/* we are in TELNET SYNCH mode */
 
 struct _clocks clocks;

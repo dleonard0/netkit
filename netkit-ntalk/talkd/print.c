@@ -35,7 +35,7 @@
  * From: @(#)print.c	5.8 (Berkeley) 2/26/91
  */
 char print_rcsid[] = 
-  "$Id: print.c,v 1.7 1998/11/27 07:58:47 dholland Exp $";
+  "$Id: print.c,v 1.11 1999/10/02 19:21:38 dholland Exp $";
 
 /* debug print routines */
 
@@ -51,6 +51,7 @@ char print_rcsid[] =
 #include <unistd.h>
 #include <fcntl.h>
 #include <paths.h>
+#include <errno.h>
 #include "prot_talkd.h"
 #include "proto.h"
 
@@ -145,7 +146,7 @@ print_request(const char *cp, const CTL_MSG *mp)
 	tt[sizeof(tt)-1]=0;
 	
 	snprintf(buf, sizeof(buf), 
-		 "%s: %s: id %lu, l_user %s, r_user %s, r_tty %s\n",
+		 "%s: %s: id %u, l_user %s, r_user %s, r_tty %s\n",
 		 cp, tp, mp->id_num, lu, ru, tt);
 	write(logfd, buf, strlen(buf));
 }
@@ -185,12 +186,12 @@ print_broken_packet(const char *pack, size_t len, struct sockaddr_in *from)
 	size_t i;
 	char tmp[4], buf[128];
 	if (!badpackets) return;
-	snprintf(buf, sizeof(buf), "From: %s [%lu]", 
+	snprintf(buf, sizeof(buf), "From: %s [%u]", 
 		 inet_ntoa(from->sin_addr), from->sin_addr.s_addr);
 	write(packfd, buf, strlen(buf));
 	for (i=0; i<len; i++) {
 	    if (i%24 == 0) write(packfd, "\n    ", 5);
-	    snprintf(tmp, sizeof(tmp), "%02x ", pack[i]);
+	    snprintf(tmp, sizeof(tmp), "%02x ", (unsigned char)pack[i]);
 	    write(packfd, tmp, strlen(tmp));
 	}
 	write(packfd, "\n", 1);

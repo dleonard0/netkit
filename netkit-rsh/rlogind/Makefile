@@ -3,7 +3,8 @@ all: rlogind
 include ../MCONFIG
 include ../MRULES
 
-OBJS = rlogind.o logwtmp.o
+OBJS = rlogind.o network.o auth.o
+# logwtmp.o
 
 ifeq ($(USE_PAM),1)
 OBJS += sockconv.o
@@ -11,17 +12,12 @@ CFLAGS += -DUSE_PAM
 LIBS += -ldl -lpam -lpam_misc
 endif
 
-ifeq ($(USE_GLIBC),1)
-CFLAGS += -DGNU_LIBC -D_GNU_SOURCE
-LIBS += -lutil $(LIBTERMCAP)
-else
-LIBS += -lbsd
-endif
-
 rlogind: $(OBJS)
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
-$(OBJS): pathnames.h logwtmp.h
+rlogind.o: pathnames.h logwtmp.h rlogind.h ../version.h
+logwtmp.o: logwtmp.h
+auth.o network.o: rlogind.h
 
 install: rlogind
 	install -s -m$(DAEMONMODE) rlogind $(INSTALLROOT)$(SBINDIR)/in.rlogind

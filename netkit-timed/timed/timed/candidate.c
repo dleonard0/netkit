@@ -35,10 +35,10 @@
  * From: @(#)candidate.c	5.1 (Berkeley) 5/11/93
  */
 char can_rcsid[] = 
-  "$Id: candidate.c,v 1.2 1996/07/20 19:45:38 dholland Exp $";
+  "$Id: candidate.c,v 1.3 1999/11/25 04:48:41 netbug Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.2 $"
+#ident "$Revision: 1.3 $"
 #endif
 
 #include "globals.h"
@@ -49,9 +49,7 @@ char can_rcsid[] =
  * Note the conservative approach: if a new timed comes up, or another
  * candidate sends an election request, the candidature is withdrawn.
  */
-int
-election(net)
-	struct netinfo *net;
+int election(struct netinfo *net)
 {
 	struct tsp *resp, msg;
 	struct timeval then, wait;

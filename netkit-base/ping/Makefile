@@ -3,12 +3,10 @@ all: ping
 include ../MCONFIG
 include ../MRULES
 
-ifneq ($(USE_GLIBC),1)
-CFLAGS += -D_GNU_SOURCE
-endif
-
 ping:	ping.o
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
+
+ping.o: ../version.h
 
 install: ping
 	install -s -o root -m$(SUIDMODE) ping $(INSTALLROOT)$(ROOTBINDIR)

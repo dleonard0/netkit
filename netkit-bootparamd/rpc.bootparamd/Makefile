@@ -25,7 +25,8 @@ install: bootparamd callbootd
 	install -s -m $(DAEMONMODE) bootparamd \
 		$(INSTALLROOT)$(SBINDIR)/rpc.bootparamd
 	install -s -m $(BINMODE) callbootd $(INSTALLROOT)$(BINDIR)/callbootd
-	install bootparamd.8 $(INSTALLROOT)$(MANDIR)/man8/rpc.bootparamd.8
+	install -m $(MANMODE) bootparamd.8 \
+		$(INSTALLROOT)$(MANDIR)/man8/rpc.bootparamd.8
 	ln -sf rpc.bootparamd.8 $(INSTALLROOT)$(MANDIR)/man8/bootparamd.8
 
 clean:
@@ -36,7 +37,7 @@ clean:
 
 bootparam_prot_clnt.o bootparam_prot_xdr.o: bootparam_prot.h
 bootparam_prot_svc.o: bootparam_prot.h
-callbootd.o rpc.bootparamd.o main.o: bootparam_prot.h
+callbootd.o rpc.bootparamd.o main.o: bootparam_prot.h ../version.h
 
 bootparam_prot.x: $(BOOTPARAMX)
 	ln -s $(BOOTPARAMX) bootparam_prot.x

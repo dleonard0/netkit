@@ -28,17 +28,19 @@
  */
 
 char rcsid[] = 
-  "$Id: rwalld.c,v 1.9 1996/12/29 18:00:21 dholland Exp $";
+  "$Id: rwalld.c,v 1.14 1999/12/12 18:05:05 dholland Exp $";
 
 #include <unistd.h>
 #include <sys/types.h>
 #include <pwd.h>
+#include <grp.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <sys/socket.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <syslog.h>
 
 /* work around bogus warning from linux includes */
 #define __wait __wait_foo
@@ -47,6 +49,8 @@ char rcsid[] =
 #undef __wait
 
 #include "rwall.h"
+
+#include "../version.h"
 
 /* from libbsd.a */
 int daemon(int, int);
@@ -74,7 +78,7 @@ main(int argc, char *argv[])
 {
 	SVCXPRT *transp;
 	int s;
-	size_t salen;
+	socklen_t salen;
 	struct sockaddr_in sa;
         int sock = 0;
         int proto = 0;
@@ -86,12 +90,18 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	if (geteuid() == 0) {
-		struct passwd *pep = getpwnam("nobody");
-		if (pep)
-			setuid(pep->pw_uid);
-		else
-			setuid(getuid());
+	if (getuid() == 0 || geteuid() == 0) {
+		struct passwd *pwd = getpwnam("nobody");
+		if (pwd) {
+			initgroups(pwd->pw_name, pwd->pw_gid);
+			setgid(pwd->pw_gid);
+			setuid(pwd->pw_uid);
+		}
+		seteuid(0);  /* this should fail */
+		if (getuid() == 0 || geteuid() == 0) {
+			syslog(LOG_CRIT, "can't drop root privileges");
+			exit(1);
+		}
 	}
 
         /*
@@ -208,7 +218,7 @@ wallprog_1(struct svc_req *rqstp, SVCXPRT *transp)
 		goto leave;
 	}
 	memset(&argument, 0, sizeof(argument));
-	if (!svc_getargs(transp, xdr_argument, &argument)) {
+	if (!svc_getargs(transp, (xdrproc_t)xdr_argument, (char *)&argument)) {
 		svcerr_decode(transp);
 		goto leave;
 	}
@@ -216,7 +226,7 @@ wallprog_1(struct svc_req *rqstp, SVCXPRT *transp)
 	if (result != NULL && !svc_sendreply(transp, xdr_result, result)) {
 		svcerr_systemerr(transp);
 	}
-	if (!svc_freeargs(transp, xdr_argument, &argument)) {
+	if (!svc_freeargs(transp, (xdrproc_t)xdr_argument, (char *)&argument)) {
 		(void)fprintf(stderr, "unable to free arguments\n");
 		exit(1);
 	}

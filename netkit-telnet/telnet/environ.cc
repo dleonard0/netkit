@@ -31,7 +31,7 @@ class enviro {
 
     void clear() { clean(); var = value = NULL; }
 
-    void export(int ex) { doexport = ex; }
+    void setexport(int ex) { doexport = ex; }
     int getexport() const { return doexport; }
 };
 
@@ -53,7 +53,7 @@ static void env_put(const char *var, const char *val, int exp) {
 	ep = &vars[x];
     }	
     ep->define(var, val);
-    ep->export(exp);
+    ep->setexport(exp);
 }
 
 static void env_copy(void) {
@@ -80,7 +80,7 @@ static void env_copy(void) {
 static void env_fix_display(void) {
     enviro *ep = env_find("DISPLAY");
     if (!ep) return;
-    ep->export(1);
+    ep->setexport(1);
 
     if (strncmp(ep->getval(), ":", 1) && strncmp(ep->getval(), "unix:", 5)) {
 	return;
@@ -124,7 +124,7 @@ void env_init(void) {
     }
 
     enviro *ep = env_find("PRINTER");
-    if (ep) ep->export(1);
+    if (ep) ep->setexport(1);
 }
 
 void env_define(const char *var, const char *value) {
@@ -144,12 +144,12 @@ void env_undefine(const char *var) {
 
 void env_export(const char *var) {
     enviro *ep = env_find(var);
-    if (ep) ep->export(1);
+    if (ep) ep->setexport(1);
 }
 
 void env_unexport(const char *var) {
     enviro *ep = env_find(var);
-    if (ep) ep->export(1);
+    if (ep) ep->setexport(0);
 }
 
 void env_send(const char *var) {

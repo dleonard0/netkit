@@ -39,7 +39,9 @@ char copyright[] =
  * From: @(#)talkd.c	5.8 (Berkeley) 2/26/91
  */
 char talkd_rcsid[] = 
-  "$Id: talkd.c,v 1.8 1998/11/27 11:40:46 dholland Exp $";
+  "$Id: talkd.c,v 1.12 1999/09/28 22:04:15 netbug Exp $";
+
+#include "../version.h"
 
 /*
  * talkd - internet talk daemon
@@ -67,6 +69,9 @@ char talkd_rcsid[] =
 #define TIMEOUT 30
 #define MAXIDLE 120
 
+#if !defined(MAXHOSTNAMELEN)
+#define	MAXHOSTNAMELEN	64
+#endif
 char ourhostname[MAXHOSTNAMELEN];
 
 static time_t lastmsgtime;
@@ -161,7 +166,7 @@ do_one_packet(void)
 	struct hostent *hp;
 	struct sockaddr_in sn;
 	int cc, i, ok;
-	size_t addrlen;
+	socklen_t addrlen;
 
 	addrlen = sizeof(sn);
 	cc = recvfrom(0, inbuf, sizeof(inbuf), 0,
@@ -231,27 +236,24 @@ do_one_packet(void)
 	}
 
 	/*
-	 * Make sure we know what we're getting into.
-	 * Note that since mp.vers is the first byte of the packet,
-	 * it would be *very hard* for anything the quirk table can
-	 * manage to alter it.
-	 */
-	if (mp->vers!=TALK_VERSION) {
-		syslog(LOG_WARNING, "%s (%s): bad protocol version %d", 
-		       theirhost, theirip, mp->vers);
-		send_reject_packet(mp, &sn, BADVERSION, 0);
-		return;
-	}
-
-	/*
 	 * Try to straighten out bad packets.
 	 */
-	quirk = rationalize_packet(inbuf, cc, &sn);
+	quirk = rationalize_packet(inbuf, cc, sizeof(inbuf), &sn);
 	if (quirk<0) {
 		print_broken_packet(inbuf, cc, &sn);
 		syslog(LOG_WARNING, "%s (%s): unintelligible packet", 
 		       theirhost, theirip);
 		send_reject_packet(mp, &sn, UNKNOWN_REQUEST, 0);
+		return;
+	}
+
+	/*
+	 * Make sure we know what we're getting into.
+	 */
+	if (mp->vers!=TALK_VERSION) {
+		syslog(LOG_WARNING, "%s (%s): bad protocol version %d", 
+		       theirhost, theirip, mp->vers);
+		send_reject_packet(mp, &sn, BADVERSION, 0);
 		return;
 	}
 
@@ -314,7 +316,7 @@ int
 main(int argc, char *argv[])
 {
 	struct sockaddr_in sn;
-	size_t sz = sizeof(sn);
+	socklen_t sz = sizeof(sn);
 	int do_debug=0, do_badpackets=0, ch;
 
 	/* make sure we're a daemon */
@@ -345,6 +347,5 @@ main(int argc, char *argv[])
 	for (;;) {
 		do_one_packet();
 	}
-	return 0;
+/*	return 0;  <--- unreachable because of the above loop */
 }
-

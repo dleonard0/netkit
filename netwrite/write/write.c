@@ -6,6 +6,28 @@
  * write.c - Write to another user's tty
  *
  * $Log: write.c,v $
+ * Revision 1.15  1999/12/12 19:56:40  dholland
+ * Clean up 8-bit character handling.
+ *
+ * Revision 1.14  1999/12/12 19:53:21  dholland
+ * reindent.
+ *
+ * Revision 1.13  1999/11/25 05:05:05  netbug
+ * minor DEC stuff
+ *
+ * Revision 1.12  1999/10/02 17:58:51  dholland
+ * More header file cleanup; we don't use pathnames.h any more, so toast it.
+ *
+ * Revision 1.11  1999/10/02 01:46:45  netbug
+ * some extraneous header files commented out
+ * added socklen_t to MCONFIG.in and to writed.c
+ *
+ * Revision 1.10  1999/08/01 00:05:24  dholland
+ * Use new version of confgen. Set version to 0.15. Update README.
+ *
+ * Revision 1.9  1997/09/23 03:33:40  dholland
+ * keep getservbyname() from trashing gethostbyname() results
+ *
  * Revision 1.8  1997/04/06 01:40:49  dholland
  * better utmp handling
  *
@@ -41,24 +63,25 @@
  *
  */
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
 #include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
 #include <signal.h>
 #include <utmp.h>
-#include <sys/time.h>
+#if 0
+	#include <time.h>
+#endif
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <pwd.h>
 #include <unistd.h>
-#include "pathnames.h"
 
 #define	NMAX	sizeof(((struct utmp *)NULL)->ut_name)  /* hack */
 #define	LMAX	sizeof(((struct utmp *)NULL)->ut_line)
@@ -71,7 +94,8 @@
  * @(#)write.c	4.13 3/13/86
  */
 
-char rcsid[] = "$Id: write.c,v 1.8 1997/04/06 01:40:49 dholland Exp $";
+char rcsid[] = "$Id: write.c,v 1.15 1999/12/12 19:56:40 dholland Exp $";
+#include "../version.h"
 
 /*********************** conditionals for ports ************************/
 
@@ -134,82 +158,82 @@ typedef struct {
  * Get local "me" tty
  */
 static char *getmytty(void) {
-  struct stat stbuf;
-  char *mytty = ttyname(2);
-  if (!mytty) {
-    fprintf(stderr, "write: Can't find your tty\n");
-    exit(1);
+   struct stat stbuf;
+   char *mytty = ttyname(2);
+   if (!mytty) {
+      fprintf(stderr, "write: Can't find your tty\n");
+      exit(1);
+   }
+   if (stat(mytty, &stbuf) < 0) {
+      perror("write: Can't stat your tty");
+      exit(1);
   }
-  if (stat(mytty, &stbuf) < 0) {
-    perror("write: Can't stat your tty");
-    exit(1);
-  }
-  if ((stbuf.st_mode&020) == 0) {
-    fprintf(stderr, "write: You have write permission turned off.\n");
-    if (getuid()!=0) exit(1);
-  }
-  mytty += 5; /* skip /dev/ */  /* strchr(mytty, '/') + 1; */
-  return mytty;
+   if ((stbuf.st_mode&020) == 0) {
+      fprintf(stderr, "write: You have write permission turned off.\n");
+      if (getuid()!=0) exit(1);
+   }
+   mytty += 5; /* skip /dev/ */
+   return mytty;
 }
 
 /*
  * Search utmp file
  */
 static int hunt_utmp(person *himm) {
-  static char savebuf[LMAX+5];
-  int gothim = 0, logcnt=0;
-  struct stat stbuf;
-  struct utmp *uptr;
-  char tempbuf[NMAX+1];
-  char ttybuf[LMAX+5];
-  setutent();
-  while ((uptr = getutent())!=NULL) {
+   static char savebuf[LMAX+5];
+   int gothim = 0, logcnt=0;
+   struct stat stbuf;
+   struct utmp *uptr;
+   char tempbuf[NMAX+1];
+   char ttybuf[LMAX+5];
+   setutent();
+   while ((uptr = getutent())!=NULL) {
 #ifdef CHECK_UT_TYPE
-    if (uptr->ut_type != USER_PROCESS) continue;
+      if (uptr->ut_type != USER_PROCESS) continue;
 #endif
-    if (uptr->ut_name[0] == '\0') continue;
-    memcpy(tempbuf, uptr->ut_name, NMAX);  /* ut_name doesn't necessarily */
-    tempbuf[NMAX]=0;                      /* come null-terminated... */
-    if (strchr(tempbuf, ' ')) *strchr(tempbuf, ' ')=0;
-    if (strcmp(himm->user, tempbuf)) continue;
-    if (himm->asktty && strcmp(himm->asktty, uptr->ut_line)) continue;
-    logcnt++;
-    if (gothim) continue;
-    strcpy(ttybuf, "/dev/");
-    strcat(ttybuf, uptr->ut_line);
-    if (!stat(ttybuf, &stbuf) && (stbuf.st_mode&020)) {
-      strcpy(savebuf, ttybuf);
-      gothim=1;
-    }
-  }
-  endutent();
-  himm->tty = savebuf;
-  return logcnt;
+      if (uptr->ut_name[0] == '\0') continue;
+      memcpy(tempbuf, uptr->ut_name, NMAX);  /* ut_name doesn't necessarily */
+      tempbuf[NMAX]=0;                      /* come null-terminated... */
+      if (strchr(tempbuf, ' ')) *strchr(tempbuf, ' ')=0;
+      if (strcmp(himm->user, tempbuf)) continue;
+      if (himm->asktty && strcmp(himm->asktty, uptr->ut_line)) continue;
+      logcnt++;
+      if (gothim) continue;
+      strcpy(ttybuf, "/dev/");
+      strcat(ttybuf, uptr->ut_line);
+      if (!stat(ttybuf, &stbuf) && (stbuf.st_mode&020)) {
+	 strcpy(savebuf, ttybuf);
+	 gothim=1;
+      }
+   }
+   endutent();
+   himm->tty = savebuf;
+   return logcnt;
 }
 
 /*
  * Go grub for the target [local] user in /etc/utmp.
  */
 static void doutmp(person *him) {
-  int logcnt = hunt_utmp(him);
-  if (logcnt==0) {
-    fprintf(stderr, "write: %s not logged in%s\n", him->user,
-	    him->asktty ? " on that tty" : "");
-    exit(1);
-  }
-  if (!him->asktty && logcnt > 1) {
-    fprintf(stderr, "write: %s logged in more than once ... writing to %s\n",
-	    him->user, him->tty+5);
-  }
-/*#ifdef _AIX*/
-  /* This appears to flush the stderr buffer on the PS/2 so that
-     both sides of the connection don't receive the message. 
-     Weird. - Ezra */
-  /* HP-UX has the same problem, but flushing stderr doesn't solve it.
-     I'm leaving the flush in, because it's not a bad idea anyway. See
-     below for the real fix. - dholland */
-  fflush(stderr);
-/*#endif*/
+   int logcnt = hunt_utmp(him);
+   if (logcnt==0) {
+      fprintf(stderr, "write: %s not logged in%s\n", him->user,
+	      him->asktty ? " on that tty" : "");
+      exit(1);
+   }
+   if (!him->asktty && logcnt > 1) {
+      fprintf(stderr, "write: %s logged in more than once ... writing to %s\n",
+	      him->user, him->tty+5);
+   }
+   /*#ifdef _AIX*/
+   /* This appears to flush the stderr buffer on the PS/2 so that
+      both sides of the connection don't receive the message. 
+      Weird. - Ezra */
+   /* HP-UX has the same problem, but flushing stderr doesn't solve it.
+      I'm leaving the flush in, because it's not a bad idea anyway. See
+      below for the real fix. - dholland */
+   fflush(stderr);
+   /*#endif*/
 }
 
 /********************* open socket for net write **************************/
@@ -218,83 +242,86 @@ static void doutmp(person *him) {
  * Open write socket to specified host.
  */
 static FILE *opensocket(struct hostent *hp) {
-  FILE *f;
-  int fds;
-  struct sockaddr_in sin;
-  struct servent *sp = getservbyname("write", "tcp");
-  if (sp == 0) {
-    fprintf(stderr, "tcp/write: unknown service\n");
-    exit(1);
-  }
-  sin.sin_family = hp->h_addrtype;
-  if (hp->h_length > (int)sizeof(sin.sin_addr)) {
-    hp->h_length = sizeof(sin.sin_addr);
-  }
-  memcpy(&sin.sin_addr, hp->h_addr, hp->h_length);
-  sin.sin_port = sp->s_port;
-  fds = socket(hp->h_addrtype, SOCK_STREAM, 0);
-  if (fds < 0) {
-    perror("socket");
-    exit(1);
-  }
-  if (connect(fds, (struct sockaddr *)&sin, sizeof (sin)) < 0) {
-    perror("connect");
-    close(fds);
-    exit(1);
-  }
-  f = fdopen(fds, "r+");
-  if (!f) {
-    perror("fdopen");
-    close(fds);
-    exit(1);
-  }
-  return f;
+   FILE *f;
+   int fds;
+   struct sockaddr_in sin;
+   struct servent *sp;
+   sin.sin_family = hp->h_addrtype;
+   if (hp->h_length > (int)sizeof(sin.sin_addr)) {
+      hp->h_length = sizeof(sin.sin_addr);
+   }
+   memcpy(&sin.sin_addr, hp->h_addr, hp->h_length);
+   
+   sp = getservbyname("write", "tcp");
+   if (sp == 0) {
+      fprintf(stderr, "tcp/write: unknown service\n");
+      exit(1);
+   }
+   sin.sin_port = sp->s_port;
+   
+   fds = socket(sin.sin_family, SOCK_STREAM, 0);
+   if (fds < 0) {
+      perror("socket");
+      exit(1);
+   }
+   if (connect(fds, (struct sockaddr *)&sin, sizeof (sin)) < 0) {
+      perror("connect");
+      close(fds);
+      exit(1);
+   }
+   f = fdopen(fds, "r+");
+   if (!f) {
+      perror("fdopen");
+      close(fds);
+      exit(1);
+   }
+   return f;
 }
 
 /*
  * Translate machine name into hostent.
  */
 static struct hostent *find_remote(const char *hishost) {
-  struct hostent *hp;
-  hp = gethostbyname(hishost);
-  if (hp == NULL) {
-    static struct hostent def;
-    static struct in_addr defaddr;
-    static char namebuf[256];
-    
-    if (!inet_aton(hishost, &defaddr)) {
-      printf("unknown host: %s\n", hishost);
-      exit(1);
-    }
-    strncpy(namebuf, hishost, sizeof(namebuf));
-    namebuf[sizeof(namebuf)-1] = 0;
-    def.h_name = namebuf;
-    def.h_addr = (char *)&defaddr;
-    def.h_length = sizeof (struct in_addr);
-    def.h_addrtype = AF_INET;
-    def.h_aliases = 0;
-    hp = &def;
-  }
-  return hp;
+   struct hostent *hp;
+   hp = gethostbyname(hishost);
+   if (hp == NULL) {
+      static struct hostent def;
+      static struct in_addr defaddr;
+      static char namebuf[256];
+      
+      if (!inet_aton(hishost, &defaddr)) {
+	 printf("unknown host: %s\n", hishost);
+	 exit(1);
+      }
+      strncpy(namebuf, hishost, sizeof(namebuf));
+      namebuf[sizeof(namebuf)-1] = 0;
+      def.h_name = namebuf;
+      def.h_addr = (char *)&defaddr;
+      def.h_length = sizeof (struct in_addr);
+      def.h_addrtype = AF_INET;
+      def.h_aliases = 0;
+      hp = &def;
+   }
+   return hp;
 }
 
 /*
  * Open a remote machine for writing.
  */
 static FILE *open_to_remote(const person *me, const person *him) {
-  char buf[128];
-  struct hostent *hp = find_remote(him->host);
-  FILE *tf = opensocket(hp);
-  fprintf(tf, "%s@%s@%s %s%s%s\r\n", me->user, me->host, me->tty, 
-	  him->user, him->asktty ? " " : "", him->asktty ? him->asktty : "");
-  fflush(tf);
-  while (1) {
-    if (fgets(buf, sizeof(buf), tf) == NULL) exit(1);
-    if (buf[0] == '\n') break;
-    write(1, buf, strlen(buf));
-  }
-  fflush(tf);   /* Apparently this is needed in Irix */
-  return tf;
+   char buf[128];
+   struct hostent *hp = find_remote(him->host);
+   FILE *tf = opensocket(hp);
+   fprintf(tf, "%s@%s@%s %s%s%s\r\n", me->user, me->host, me->tty, 
+	   him->user, him->asktty ? " " : "", him->asktty ? him->asktty : "");
+   fflush(tf);
+   while (1) {
+      if (fgets(buf, sizeof(buf), tf) == NULL) exit(1);
+      if (buf[0] == '\n') break;
+      write(1, buf, strlen(buf));
+   }
+   fflush(tf);   /* Apparently this is needed in Irix */
+   return tf;
 }
 
 /*********************** open a tty for local write ******************/
@@ -303,53 +330,47 @@ static FILE *open_to_remote(const person *me, const person *him) {
  * Signal handler for timeout
  */
 static void timout(int ignore) {
-  (void)ignore;
-  fprintf(stderr, "write: open tty: timed out\n");
-  exit(1);
+   (void)ignore;
+   fprintf(stderr, "write: open tty: timed out\n");
+   exit(1);
 }
 
 /*
  * Open a local tty for writing.
  */
 static FILE *open_to_local(const person *me, const person *him) {
-  FILE *tf;
-  int fd;
-  struct stat stbuf;
-  time_t clock = time(NULL);
-  struct tm *localclock = localtime( &clock );
+   FILE *tf;
+   int fd;
+   struct stat stbuf;
+   time_t clock = time(NULL);
+   struct tm *localclock = localtime( &clock );
+   
+   signal(SIGALRM, timout);
+   alarm(5);
 
-  signal(SIGALRM, timout);
-  alarm(5);
-/*
-#ifndef ultrix
-  if (setpgrp(0,0)) perror("setpgrp 0");
-#endif
-*/
-  if (stat(him->tty, &stbuf) < 0 || (stbuf.st_mode&020) == 0
-      || (fd = open(him->tty, O_WRONLY|O_NOCTTY)) < 0) {
-    fprintf(stderr, "write: Permission denied\n");
-    exit(1);
-  }
-  tf = fdopen(fd, "w");
-  if (!tf) { 
-    fprintf(stderr, "write: fdopen failed\n");
-    exit(1);
-  }
-/*
-  if (setpgrp(0,getpid())) perror("setpgrp !0");
-*/
-  alarm(0);
+   if (stat(him->tty, &stbuf) < 0 || (stbuf.st_mode&020) == 0
+       || (fd = open(him->tty, O_WRONLY|O_NOCTTY)) < 0) {
+      fprintf(stderr, "write: Permission denied\n");
+      exit(1);
+   }
+   tf = fdopen(fd, "w");
+   if (!tf) { 
+      fprintf(stderr, "write: fdopen failed\n");
+      exit(1);
+   }
+
+   alarm(0);
   
-  if (me->fromnet) {
-    printf("\n");
-    fflush(stdout);
-  }
-  fprintf(tf, "\r\nMessage from %s@%s%s%s %sat %d:%02d ...\r\n\007\007\007",
-	  me->user, me->host, me->tty ? " on " : "", me->tty ? me->tty : "", 
-	  me->authentic ? "" : "[UNAUTHENTICATED] ",
-	  localclock->tm_hour, localclock->tm_min);
-  fflush(tf);
-  return tf;
+   if (me->fromnet) {
+      printf("\n");
+      fflush(stdout);
+   }
+   fprintf(tf, "\r\nMessage from %s@%s%s%s %sat %d:%02d ...\r\n\007\007\007",
+	   me->user, me->host, me->tty ? " on " : "", me->tty ? me->tty : "", 
+	   me->authentic ? "" : "[UNAUTHENTICATED] ",
+	   localclock->tm_hour, localclock->tm_min);
+   fflush(tf);
+   return tf;
 }
 
 /***************************** main loop ***********************************/
@@ -362,45 +383,56 @@ static int mainloop_done=0;
  * blocked in to return immediately.
  */
 static void catch(int ignore) {
-  (void)ignore;
-  mainloop_done=1;
-  close(0);
+   (void)ignore;
+   mainloop_done=1;
+   close(0);
 }
 
 /*
- * Assumes all 8-bit (>=128) characters are valid and printable (maybe dumb...)
+ * Treats 0-31 and 128-159 as nonprinting control characters, 
+ * except for \r, \n, and \t.
  */
 static int printc(int ch, FILE *tf) {
-  if (ch=='\n') { fputs("\r\n", tf); fflush(tf); }
-  else if (strchr("\r\t ", ch) || (ch>32 && ch<127) || ch<0 || ch>127) fputc(ch, tf);
-  else if (ch==127) fputs("^?", tf);
-  else { fputc('^', tf); fputc(ch|64, tf); }
-  if (ferror(tf) || feof(tf)) return -1;
-  return 0;
+   if (ch=='\n') { 
+      fputs("\r\n", tf); 
+      fflush(tf);
+   }
+   else if (ch=='\r' || ch=='\t' || ((ch&127)>=32 && (ch&127)<127)) {
+      fputc(ch, tf);
+   }
+   else if (ch==127) {
+      fputs("^?", tf);
+   }
+   else { 
+      fputc('^', tf); 
+      fputc(ch|64, tf);
+   }
+   if (ferror(tf) || feof(tf)) return -1;
+   return 0;
 }
 
 /*
  * Main loop. 
  */
-static void writeloop (FILE *tf, int nethim, const char *hisname) {
-  char buf[BUFSIZ];
-  int j,len;
-  signal(SIGHUP, catch);
-  signal(SIGINT, catch);
-  signal(SIGQUIT, catch);
-  while(!mainloop_done) {
-    len = read(0, buf, sizeof(buf));
-    if (len<=0) break;
-    for (j=0; j<len && !mainloop_done; j++) 
-      if (printc(buf[j], tf)) {
-	printf("\n\007Write failed (%s logged out?)\n", hisname);
-	exit(1);
-      }
-  }
-  if (!nethim) {
-    fprintf(tf, "EOF\r\n");
-    fflush(tf);
-  }
+static void writeloop(FILE *tf, int nethim, const char *hisname) {
+   char buf[BUFSIZ];
+   int j,len;
+   signal(SIGHUP, catch);
+   signal(SIGINT, catch);
+   signal(SIGQUIT, catch);
+   while (!mainloop_done) {
+      len = read(0, buf, sizeof(buf));
+      if (len<=0) break;
+      for (j=0; j<len && !mainloop_done; j++) 
+	 if (printc(buf[j], tf)) {
+	    printf("\n\007Write failed (%s logged out?)\n", hisname);
+	    exit(1);
+	 }
+   }
+   if (!nethim) {
+      fprintf(tf, "EOF\r\n");
+      fflush(tf);
+   }
 }
 
 /**************************** setup *************************************/
@@ -409,26 +441,26 @@ static void writeloop (FILE *tf, int nethim, const char *hisname) {
  * Fill in the person structure for the target.
  */
 static void makehim(person *him, char *himarg, const char *histtya) {
-  char *x;
-  him->tty = NULL;
-  him->asktty = histtya;
-  him->user = himarg;
-  him->authentic = 1;  /* not really relevant anyway */
-  x = strchr(himarg, '@');
-  if (x) {
-    *x++=0;
-    if (strchr(x, '@')) {
-      fprintf(stderr, "Usage: write user [tty]\n");
-      exit(1);
-    }
-    him->host = x;
-    him->fromnet = 1;
-  }
-  else {
-    him->host = NULL;
-    him->fromnet = 0;
-    doutmp(him);
-  }
+   char *x;
+   him->tty = NULL;
+   him->asktty = histtya;
+   him->user = himarg;
+   him->authentic = 1;  /* not really relevant anyway */
+   x = strchr(himarg, '@');
+   if (x) {
+      *x++=0;
+      if (strchr(x, '@')) {
+	 fprintf(stderr, "Usage: write user [tty]\n");
+	 exit(1);
+      }
+      him->host = x;
+      him->fromnet = 1;
+   }
+   else {
+      him->host = NULL;
+      him->fromnet = 0;
+      doutmp(him);
+   }
 }
 
 /*
@@ -436,40 +468,40 @@ static void makehim(person *him, char *himarg, const char *histtya) {
  * We may get just user@host though.
  */
 static int makeme_net(person *me, char *netarg, int authentic) {
-  char *x;
+   char *x;
 
-  /*
-   * It appears that on some systems (including AIX and HP-UX), inetd
-   * doesn't bother to open stderr. This leads to the file opened to
-   * the user also being stderr, with two different FILE * open on it,
-   * which causes just absolutely wonderful things to happen.
-   * This should fix the problem and be harmless on nonbroken systems.
-   * Gotta love System V.
-   * dholland 4/28/96
-   *
-   * Actually, this is more puzzling than I thought, since writed does
-   * dup2(0,1); dup2(0,2); ... and yet this fix caused the bug to go away.
-   * Still very strange.
-   * dholland 4/29/96
-   */
-  dup2(1,2);
-
-  me->user = netarg;
-  me->asktty = NULL;
-  me->tty = NULL;
-  me->fromnet = 1;
-  me->authentic = authentic;
-  x = strchr(netarg, '@');
-  if (!x) return -1;                /* no @'s */
-  *x++ = 0;
-  me->host = x;
-  x = strchr(x, '@');
-  if (x) {
-    *x++=0;
-    me->tty = x;
-    if (strchr(x, '@')) return -1;  /* too many @'s */
-  }
-  return 0;
+   /*
+    * It appears that on some systems (including AIX and HP-UX), inetd
+    * doesn't bother to open stderr. This leads to the file opened to
+    * the user also being stderr, with two different FILE * open on it,
+    * which causes just absolutely wonderful things to happen.
+    * This should fix the problem and be harmless on nonbroken systems.
+    * Gotta love System V.
+    * dholland 4/28/96
+    *
+    * Actually, this is more puzzling than I thought, since writed does
+    * dup2(0,1); dup2(0,2); ... and yet this fix caused the bug to go away.
+    * Still very strange.
+    * dholland 4/29/96
+    */
+   dup2(1,2);
+   
+   me->user = netarg;
+   me->asktty = NULL;
+   me->tty = NULL;
+   me->fromnet = 1;
+   me->authentic = authentic;
+   x = strchr(netarg, '@');
+   if (!x) return -1;                /* no @'s */
+   *x++ = 0;
+   me->host = x;
+   x = strchr(x, '@');
+   if (x) {
+      *x++=0;
+      me->tty = x;
+      if (strchr(x, '@')) return -1;  /* too many @'s */
+   }
+   return 0;
 }
 
 /*
@@ -477,31 +509,31 @@ static int makeme_net(person *me, char *netarg, int authentic) {
  * If we can't getlogin(), people can't write back, so deny access.
  */
 static void makeme_local(person *me) {
-  static char hostname[128];
-  struct hostent *h;
-  gethostname(hostname, sizeof(hostname));
-  h = gethostbyname(hostname);
-  if (h) {   /* if we fail, pretend we didn't try */
-    strncpy(hostname, h->h_name, sizeof(hostname));
-    hostname[sizeof(hostname)-1] = 0; /* ensure null termination */
-  }
-
-  me->user = getlogin();
-  me->host = hostname;
-  me->tty = getmytty();
-  me->asktty = NULL;
-  me->fromnet = 0;
-  me->authentic = 1;
-  if (!me->user) {
-    if (getuid()) {
-      fprintf(stderr, "Where are you?\n");
-      exit(1);
-    }
-    else {
-      fprintf(stderr, "Warning - you aren't really logged in...\n");
-      me->user = "root";
-    }
-  }
+   static char hostname[128];
+   struct hostent *h;
+   gethostname(hostname, sizeof(hostname));
+   h = gethostbyname(hostname);
+   if (h) {   /* if we fail, pretend we didn't try */
+      strncpy(hostname, h->h_name, sizeof(hostname));
+      hostname[sizeof(hostname)-1] = 0; /* ensure null termination */
+   }
+   
+   me->user = getlogin();
+   me->host = hostname;
+   me->tty = getmytty();
+   me->asktty = NULL;
+   me->fromnet = 0;
+   me->authentic = 1;
+   if (!me->user) {
+      if (getuid()) {
+	 fprintf(stderr, "Where are you?\n");
+	 exit(1);
+      }
+      else {
+	 fprintf(stderr, "Warning - you aren't really logged in...\n");
+	 me->user = "root";
+      }
+   }
 }
 
 
@@ -514,27 +546,27 @@ static void makeme_local(person *me) {
  */
 
 static void usage(void) {
-  fprintf(stderr, "Usage: write user [ttyname]\n");
-  exit(1);
+   fprintf(stderr, "Usage: write user [ttyname]\n");
+   exit(1);
 }
 
 int main(int argc, char *argv[]) {
-  person me, him;
-  FILE *tf;
-  if (argc<2 || argc>5) usage();
-  if (!strcmp(argv[1], "-f") || !strcmp(argv[1], "-a")) {
-    if (getuid()!=0 || argc<4) usage();
-    if (makeme_net(&me, argv[2], !strcmp(argv[1], "-a"))) usage();
-    argv += 2;
-  }
-  else if (argc>3) usage();
-  else makeme_local(&me);
-  makehim(&him, argv[1], argv[2]);
-  if (me.fromnet && him.fromnet) usage();
-  if (him.fromnet) tf = open_to_remote(&me, &him);
-  else tf = open_to_local(&me, &him); 
-
-  writeloop(tf, him.fromnet, him.user); 
-  fclose(tf);
-  return 0;
+   person me, him;
+   FILE *tf;
+   if (argc<2 || argc>5) usage();
+   if (!strcmp(argv[1], "-f") || !strcmp(argv[1], "-a")) {
+      if (getuid()!=0 || argc<4) usage();
+      if (makeme_net(&me, argv[2], !strcmp(argv[1], "-a"))) usage();
+      argv += 2;
+   }
+   else if (argc>3) usage();
+   else makeme_local(&me);
+   makehim(&him, argv[1], argv[2]);
+   if (me.fromnet && him.fromnet) usage();
+   if (him.fromnet) tf = open_to_remote(&me, &him);
+   else tf = open_to_local(&me, &him); 
+   
+   writeloop(tf, him.fromnet, him.user); 
+   fclose(tf);
+   return 0;
 }

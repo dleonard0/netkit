@@ -14,6 +14,7 @@ tftpsubs.h:
 	ln -sf ../tftp/tftpsubs.h .
 
 $(OBJS): tftpsubs.h
+tftpd.o: ../version.h
 
 install: tftpd
 	install -s -m$(DAEMONMODE) tftpd $(INSTALLROOT)$(SBINDIR)/in.tftpd

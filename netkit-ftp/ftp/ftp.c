@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 1985, 1989 Regents of the University of California.
  * All rights reserved.
- *
+ * 
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
@@ -35,7 +35,7 @@
  * From: @(#)ftp.c	5.38 (Berkeley) 4/22/91
  */
 char ftp_rcsid[] = 
-  "$Id: ftp.c,v 1.15 1997/03/21 02:02:05 dholland Exp $";
+  "$Id: ftp.c,v 1.25 1999/12/13 20:33:20 dholland Exp $";
 
 #include <sys/param.h>
 #include <sys/stat.h>
@@ -57,7 +57,6 @@ char ftp_rcsid[] =
 #include <unistd.h>
 #include <errno.h>
 #include <netdb.h>
-#include <fcntl.h>
 #include <pwd.h>
 #include <stdarg.h>
 
@@ -101,7 +100,7 @@ hookup(char *host, int port)
 {
 	register struct hostent *hp = 0;
 	int s, tos;
-	size_t len;
+	socklen_t len;
 	static char hostnamebuf[256];
 
 	memset(&hisctladdr, 0, sizeof(hisctladdr));
@@ -143,8 +142,8 @@ hookup(char *host, int port)
 			errno = oerrno;
 			perror((char *) 0);
 			hp->h_addr_list++;
-			bcopy(hp->h_addr_list[0],
-			     (caddr_t)&hisctladdr.sin_addr, hp->h_length);
+			memcpy(&hisctladdr.sin_addr, hp->h_addr_list[0], 
+			       hp->h_length);
 			fprintf(stdout, "Trying %s...\n",
 				inet_ntoa(hisctladdr.sin_addr));
 			(void) close(s);
@@ -234,7 +233,10 @@ dologin(const char *host)
 			printf("Name (%s:%s): ", host, myname);
 		else
 			printf("Name (%s): ", host);
-		(void) fgets(tmp, sizeof(tmp) - 1, stdin);
+		if (fgets(tmp, sizeof(tmp) - 1, stdin)==NULL) {
+			fprintf(stderr, "\nLogin failed.\n");
+			return 0;
+		}
 		tmp[strlen(tmp) - 1] = '\0';
 		if (*tmp == '\0')
 			luser = myname;
@@ -339,7 +341,8 @@ getreply(int expecteof)
 	int originalcode = 0, continuation = 0;
 	void (*oldintr)(int);
 	int pflag = 0;
-	char *pt = pasv;
+	size_t px = 0;
+	size_t psize = sizeof(pasv);
 
 	oldintr = signal(SIGINT, cmdabort);
 	for (;;) {
@@ -394,10 +397,11 @@ getreply(int expecteof)
 			if (dig > 4 && pflag == 1 && isdigit(c))
 				pflag = 2;
 			if (pflag == 2) {
-				if (c != '\r' && c != ')')
-					*pt++ = c;
+				if (c != '\r' && c != ')') {
+					if (px < psize-1) pasv[px++] = c;
+				}
 				else {
-					*pt = '\0';
+					pasv[px] = '\0';
 					pflag = 3;
 				}
 			}
@@ -433,13 +437,13 @@ getreply(int expecteof)
 }
 
 static int
-empty(fd_set *mask, int sec)
+empty(fd_set *mask, int hifd, int sec)
 {
 	struct timeval t;
 
 	t.tv_sec = (long) sec;
 	t.tv_usec = 0;
-	return(select(32, mask, (fd_set *) 0, (fd_set *) 0, &t));
+	return(select(hifd+1, mask, (fd_set *) 0, (fd_set *) 0, &t));
 }
 
 static void
@@ -684,6 +688,8 @@ sendrequest(const char *cmd, char *local, char *remote, int printnames)
 	if (closefunc != NULL)
 		(*closefunc)(fin);
 	(void) fclose(dout);
+	/* closes data as well, so discard it */
+	data = -1;
 	(void) getreply(0);
 	(void) signal(SIGINT, oldintr);
 	if (oldintp)
@@ -700,12 +706,14 @@ abort:
 		code = -1;
 		return;
 	}
+	if (dout) {
+		(void) fclose(dout);
+	}
 	if (data >= 0) {
+		/* if it just got closed with dout, again won't hurt */
 		(void) close(data);
 		data = -1;
 	}
-	if (dout)
-		(void) fclose(dout);
 	(void) getreply(0);
 	code = -1;
 	if (closefunc != NULL && fin != NULL)
@@ -773,7 +781,7 @@ recvrequest(const char *cmd,
 	}
 	oldintr = signal(SIGINT, abortrecv);
 	if (strcmp(local, "-") && *local != '|') {
-		if (access(local, 2) < 0) {
+		if (access(local, W_OK) < 0) {
 			char *dir = rindex(local, '/');
 
 			if (errno != ENOENT && errno != EACCES) {
@@ -785,7 +793,7 @@ recvrequest(const char *cmd,
 			}
 			if (dir != NULL)
 				*dir = 0;
-			d = access(dir ? local : ".", 2);
+			d = access(dir ? local : ".", W_OK);
 			if (dir != NULL)
 				*dir = '/';
 			if (d < 0) {
@@ -799,8 +807,12 @@ recvrequest(const char *cmd,
 			    chmod(local, 0600) < 0) {
 				fprintf(stderr, "local: %s: %s\n", local,
 					strerror(errno));
+				/*
+				 * Believe it or not, this was actually
+				 * repeated in the original source.
+				 */
 				(void) signal(SIGINT, oldintr);
-				(void) signal(SIGINT, oldintr);
+				/*(void) signal(SIGINT, oldintr);*/
 				code = -1;
 				return;
 			}
@@ -1027,6 +1039,8 @@ break2:
 		(void) signal(SIGPIPE, oldintp);
 	(void) gettimeofday(&stop, (struct timezone *)0);
 	(void) fclose(din);
+	/* closes data as well, so discard it */
+	data = -1;
 	(void) getreply(0);
 	if (bytes > 0 && is_retr)
 		ptransfer("received", bytes, &start, &stop);
@@ -1037,7 +1051,7 @@ abort:
 
 	(void) gettimeofday(&stop, (struct timezone *)0);
 	if (oldintp)
-		(void) signal(SIGPIPE, oldintr);
+		(void) signal(SIGPIPE, oldintp);
 	(void) signal(SIGINT, SIG_IGN);
 	if (!cpend) {
 		code = -1;
@@ -1047,14 +1061,16 @@ abort:
 
 	abort_remote(din);
 	code = -1;
+	if (closefunc != NULL && fout != NULL)
+		(*closefunc)(fout);
+	if (din) {
+		(void) fclose(din);
+	}
 	if (data >= 0) {
+		/* if it just got closed with din, again won't hurt */
 		(void) close(data);
 		data = -1;
 	}
-	if (closefunc != NULL && fout != NULL)
-		(*closefunc)(fout);
-	if (din)
-		(void) fclose(din);
 	if (bytes > 0)
 		ptransfer("received", bytes, &start, &stop);
 	(void) signal(SIGINT, oldintr);
@@ -1069,7 +1085,7 @@ initconn(void)
 {
 	register char *p, *a;
 	int result, tmpno = 0;
-	size_t len;
+	socklen_t len;
 	int on = 1;
 	int tos;
 	u_long a1,a2,a3,a4,p1,p2;
@@ -1190,7 +1206,7 @@ dataconn(const char *lmode)
 {
 	struct sockaddr_in from;
 	int s, tos;
-	size_t fromlen = sizeof(from);
+	socklen_t fromlen = sizeof(from);
 
         if (passivemode)
             return (fdopen(data, lmode));
@@ -1468,7 +1484,7 @@ abort:
 	if (cpend) {
 		FD_ZERO(&mask);
 		FD_SET(fileno(cin), &mask);
-		if ((nfnd = empty(&mask, 10)) <= 0) {
+		if ((nfnd = empty(&mask, fileno(cin), 10)) <= 0) {
 			if (nfnd < 0) {
 				perror("abort");
 			}
@@ -1496,7 +1512,7 @@ reset(void)
 	FD_ZERO(&mask);
 	while (nfnd > 0) {
 		FD_SET(fileno(cin), &mask);
-		if ((nfnd = empty(&mask,0)) < 0) {
+		if ((nfnd = empty(&mask, fileno(cin), 0)) < 0) {
 			perror("reset");
 			code = -1;
 			lostpeer(0);
@@ -1517,7 +1533,7 @@ gunique(char *local)
 
 	if (cp)
 		*cp = '\0';
-	d = access(cp ? local : ".", 2);
+	d = access(cp ? local : ".", W_OK);
 	if (cp)
 		*cp = '/';
 	if (d < 0) {
@@ -1538,7 +1554,7 @@ gunique(char *local)
 			ext = '0';
 		else
 			ext++;
-		if ((d = access(new, 0)) < 0)
+		if ((d = access(new, F_OK)) < 0)
 			break;
 		if (ext != '0')
 			cp--;
@@ -1556,24 +1572,26 @@ static void
 abort_remote(FILE *din)
 {
 	char buf[BUFSIZ];
-	int nfnd;
+	int nfnd, hifd;
 	fd_set mask;
 
 	/*
 	 * send IAC in urgent mode instead of DM because 4.3BSD places oob mark
 	 * after urgent byte rather than before as is protocol now
 	 */
-	sprintf(buf, "%c%c%c", IAC, IP, IAC);
+	snprintf(buf, sizeof(buf), "%c%c%c", IAC, IP, IAC);
 	if (send(fileno(cout), buf, 3, MSG_OOB) != 3)
 		perror("abort");
 	fprintf(cout,"%cABOR\r\n", DM);
 	(void) fflush(cout);
 	FD_ZERO(&mask);
 	FD_SET(fileno(cin), &mask);
+	hifd = fileno(cin);
 	if (din) { 
 		FD_SET(fileno(din), &mask);
+		if (hifd < fileno(din)) hifd = fileno(din);
 	}
-	if ((nfnd = empty(&mask, 10)) <= 0) {
+	if ((nfnd = empty(&mask, hifd, 10)) <= 0) {
 		if (nfnd < 0) {
 			perror("abort");
 		}

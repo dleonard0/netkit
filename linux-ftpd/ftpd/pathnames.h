@@ -34,7 +34,7 @@
  *	NetBSD: pathnames.h,v 1.5 1995/04/11 02:44:59 cgd Exp
  *	OpenBSD: pathnames.h,v 1.2 1996/07/28 22:42:46 downsj Exp
  *	OpenBSD: pathnames.h,v 1.3 1997/03/25 22:47:08 millert Exp
- *      $Id: pathnames.h,v 1.3 1997/05/19 10:38:59 dholland Exp $
+ *      $Id: pathnames.h,v 1.3 1999/07/15 22:37:26 dholland Exp $
  */
 
 #include <paths.h>

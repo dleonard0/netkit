@@ -9,6 +9,10 @@
 #include <syslog.h>
 #include <unistd.h>
 
+#include "../version.h"
+const char bootparamd_rcsid[] = 
+  "$Id: rpc.bootparamd.c,v 1.9 1999/09/14 11:01:16 dholland Exp $";
+
 extern int debug, dolog;
 extern struct in_addr route_addr;
 extern char *bootpfile;
@@ -26,39 +30,50 @@ static char askname[MAX_MACHINE_NAME];
 static char path[MAX_PATH_LEN];
 static char domain_name[MAX_MACHINE_NAME];
 
-  
+static
+const char *
+my_ntoa(struct ip_addr_t addr)
+{
+    static char buf[20];
+
+    /*
+     * This is the same order it used to print the fields in before I 
+     * combined all the printing, but I really wonder if it's right.
+     */
+
+    snprintf(buf, sizeof(buf), "%d.%d.%d.%d", 
+	     addr.net&255, addr.host&255, addr.lh&255, addr.impno&255); 
+    return buf;
+}
+
 bp_whoami_res *
 bootparamproc_whoami_1_svc(bp_whoami_arg *whoami, struct svc_req *svc_req)
 {
-    long haddr;
     static bp_whoami_res res;
+    struct ip_addr_t addr;
+    const char *addrname;
     
     (void)svc_req;
 
+    addr = whoami->client_address.bp_address_u.ip_addr;
+    addrname = my_ntoa(addr);
+
     if (debug) {
-	fprintf(stderr,"whoami got question for %d.%d.%d.%d\n", 
-		255 & whoami->client_address.bp_address_u.ip_addr.net,
-		255 & whoami->client_address.bp_address_u.ip_addr.host,
-		255 & whoami->client_address.bp_address_u.ip_addr.lh,
-		255 & whoami->client_address.bp_address_u.ip_addr.impno);
+	fprintf(stderr, "bootparamd: whoami got question for %s\n", addrname);
     }
     if (dolog) {
-	syslog(LOG_NOTICE, "whoami got question for %d.%d.%d.%d\n", 
-	       255 & whoami->client_address.bp_address_u.ip_addr.net,
-	       255 & whoami->client_address.bp_address_u.ip_addr.host,
-	       255 & whoami->client_address.bp_address_u.ip_addr.lh,
-	       255 & whoami->client_address.bp_address_u.ip_addr.impno);
+	syslog(LOG_NOTICE, "whoami got question for %s\n", addrname);
     }
 
-    memcpy(&haddr, &whoami->client_address.bp_address_u.ip_addr, 
-	   sizeof(haddr));
-    he = gethostbyaddr((char *)&haddr,sizeof(haddr),AF_INET);
+    he = gethostbyaddr((char *)&addr, sizeof(addr), AF_INET);
     if (!he) goto failed;
 
     if (debug) fprintf(stderr,"This is host %s\n", he->h_name);
     if (dolog) syslog(LOG_NOTICE,"This is host %s\n", he->h_name);
     
-    strcpy(askname, he->h_name);
+    strncpy(askname, he->h_name, sizeof(askname));
+    askname[sizeof(askname)-1] = 0;
+
     if (checkhost(askname, hostname)) {
 	res.client_name = hostname;
 	getdomainname(domain_name, MAX_MACHINE_NAME);
@@ -66,25 +81,19 @@ bootparamproc_whoami_1_svc(bp_whoami_arg *whoami, struct svc_req *svc_req)
 	
 	if (res.router_address.address_type != IP_ADDR_TYPE) {
 	    res.router_address.address_type = IP_ADDR_TYPE;
-	    memcpy(&res.router_address.bp_address_u.ip_addr, &route_addr, 4);
+	    memcpy(&res.router_address.bp_address_u.ip_addr, &route_addr, 
+		   sizeof(route_addr));
 	}
 	if (debug) fprintf(stderr,
-			   "Returning %s   %s    %d.%d.%d.%d\n", 
+			   "Returning %s   %s    %s\n", 
 			   res.client_name,
 			   res.domain_name,
-			   255& res.router_address.bp_address_u.ip_addr.net,
-			   255& res.router_address.bp_address_u.ip_addr.host,
-			   255& res.router_address.bp_address_u.ip_addr.lh,
-			   255& res.router_address.bp_address_u.ip_addr.impno);
+			   my_ntoa(res.router_address.bp_address_u.ip_addr));
 	if (dolog) syslog(LOG_NOTICE,
-			  "Returning %s   %s    %d.%d.%d.%d\n", 
+			  "Returning %s   %s    %s\n", 
 			  res.client_name,
 			  res.domain_name,
-			  255 & res.router_address.bp_address_u.ip_addr.net,
-			  255 & res.router_address.bp_address_u.ip_addr.host,
-			  255 & res.router_address.bp_address_u.ip_addr.lh,
-			  255 & res.router_address.bp_address_u.ip_addr.impno);
-	
+			  my_ntoa(res.router_address.bp_address_u.ip_addr));
 	return(&res);
     }
   failed:
@@ -110,11 +119,12 @@ bootparamproc_getfile_1_svc(bp_getfile_arg *getfile,struct svc_req *svc_req)
 	syslog(LOG_NOTICE,"getfile got question for \"%s\" and file \"%s\"\n",
 	       getfile->client_name, getfile->file_id);
     
-    he = NULL;
     he = gethostbyname(getfile->client_name);
-    if (! he ) goto failed;
+    if (!he) goto failed;
     
-    strcpy(askname,he->h_name);
+    strncpy(askname, he->h_name, sizeof(askname));
+    askname[sizeof(askname)-1] = 0;
+
     if (getthefile(askname, getfile->file_id,buffer)) {
 	if ((where = strchr(buffer,':'))!=NULL) {
 	    /* buffer is re-written to contain the name of the info of file */
@@ -123,7 +133,7 @@ bootparamproc_getfile_1_svc(bp_getfile_arg *getfile,struct svc_req *svc_req)
 	    where++;
 	    strcpy(path, where);
 	    he = gethostbyname(hostname);
-	    if ( !he ) goto failed;
+	    if (!he) goto failed;
 	    bcopy( he->h_addr, &res.server_address.bp_address_u.ip_addr, 4);
 	    res.server_name = hostname;
 	    res.server_path = path;
@@ -139,20 +149,14 @@ bootparamproc_getfile_1_svc(bp_getfile_arg *getfile,struct svc_req *svc_req)
 	}
 	if (debug) 
 	    fprintf(stderr, 
-		    "returning server:%s path:%s address: %d.%d.%d.%d\n",
+		    "returning server:%s path:%s address: %s\n",
 		    res.server_name, res.server_path,
-		    255 & res.server_address.bp_address_u.ip_addr.net,
-		    255 & res.server_address.bp_address_u.ip_addr.host,
-		    255 & res.server_address.bp_address_u.ip_addr.lh,
-		    255 & res.server_address.bp_address_u.ip_addr.impno);
+		    my_ntoa(res.server_address.bp_address_u.ip_addr));
 	if (dolog) 
 	    syslog(LOG_NOTICE, 
-		   "returning server:%s path:%s address: %d.%d.%d.%d\n",
+		   "returning server:%s path:%s address: %s\n",
 		   res.server_name, res.server_path,
-		   255 & res.server_address.bp_address_u.ip_addr.net,
-		   255 & res.server_address.bp_address_u.ip_addr.host,
-		   255 & res.server_address.bp_address_u.ip_addr.lh,
-		   255 & res.server_address.bp_address_u.ip_addr.impno);
+		   my_ntoa(res.server_address.bp_address_u.ip_addr));
 	return(&res);
     }
   failed:
@@ -266,7 +270,6 @@ checkhost(char *askname, char *hostname)
 	} 
 	else {
 	    /* check the alias list */
-	    he = NULL;
 	    he = gethostbyname(hostname);
 	    if (he && !strcmp(askname, he->h_name)) {
 		res = 1;

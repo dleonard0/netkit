@@ -32,7 +32,7 @@
  *
  *	from: @(#)defs.h	5.10 (Berkeley) 2/28/91
  *	from: @(#)defs.h	8.1 (Berkeley) 6/5/93
- *	$Id: defs.h,v 1.7 1997/04/05 22:26:22 dholland Exp $
+ *	$Id: defs.h,v 1.9 1999/08/01 19:19:16 dholland Exp $
  */
 
 /*
@@ -74,8 +74,8 @@
 
 extern struct sockaddr_in addr;	/* address of daemon's socket */
 
-extern int s;			/* source and sink of all data */
-extern int supplier;		/* process should supply updates */
+extern int sock;			/* source and sink of all data */
+extern int supplier;			/* process should supply updates */
 extern int lookforinterfaces;	/* if 1 probe kernel for new up interfaces */
 extern struct timeval now;		/* current idea of time */
 extern struct timeval lastbcast;	/* last time all/changes broadcast */
@@ -88,7 +88,7 @@ extern int kernel_version;		/* kernel we are running under */
 extern char	packet[MAXPACKETSIZE+1];
 extern struct	rip *msg;
 
-extern struct	servent *sp;
+extern int rip_port;              /* port number we use (network byte order) */
 
 void supply(struct sockaddr *, int, struct interface *, int);
 
@@ -125,14 +125,8 @@ void traceaction(FILE *, char *, struct rt_entry *);
 void traceinit(struct interface *);
 void tracenewmetric(FILE *, struct rt_entry *, int);
 
-/*
- * rboolean represents boolean type used for ripcmd_trace_accepted variable;
- * ripcmd_trace_accepted variable controls availability of remote acceptance
- * of RIPCMD_TRACEON and RIPCMD_TRACEOFF commands inside routed
- */
-typedef enum {no, yes} rboolean;
-extern rboolean ripcmd_trace_accepted;
-
 #define ADD 1
 #define DELETE 2
 #define CHANGE 3
+#define ROOT "root"
+#define NOBODY "nobody"

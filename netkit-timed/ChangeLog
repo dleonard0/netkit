@@ -1,3 +1,16 @@
+1-Aug-1999:
+	Did complete y2k and y2038 audit. Alas, timed isn't
+	  y2038-compliant, but it looks like it should survive y2k.
+
+31-Jul-1999:
+	Redid makefiles/config stuff for new confgen version.
+
+23-Sep-1997:
+	Fix a suspicious strncpy in timed.
+
+12-Jun-1997:
+	netkit-timed-0.10 released.
+
 08-Jun-1997:
 	More adjustments for glibc.
 

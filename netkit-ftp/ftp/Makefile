@@ -3,10 +3,6 @@ all: ftp
 include ../MCONFIG
 include ../MRULES
 
-ifneq ($(USE_GLIBC),1)
-CFLAGS += -D_GNU_SOURCE
-endif
-
 ifeq ($(USE_READLINE),1)
 CFLAGS += -D__USE_READLINE__
 LIBS += -lreadline $(LIBTERMCAP)
@@ -24,6 +20,7 @@ install: ftp
 	ln -sf ftp $(INSTALLROOT)$(BINDIR)/pftp
 	install -m$(MANMODE) ftp.1 $(INSTALLROOT)$(MANDIR)/man1
 	ln -sf ftp.1 $(INSTALLROOT)$(MANDIR)/man1/pftp.1
+	install -m$(MANMODE) netrc.5 $(INSTALLROOT)$(MANDIR)/man5
 
 clean:
 	rm -f *.o ftp

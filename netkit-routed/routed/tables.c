@@ -36,7 +36,7 @@
  * From: @(#)tables.c	8.1 (Berkeley) 6/5/93
  */
 char tables_rcsid[] = 
-  "$Id: tables.c,v 1.6 1996/11/25 17:28:24 dholland Exp $";
+  "$Id: tables.c,v 1.12 1999/10/02 16:36:39 dholland Exp $";
 
 
 /*
@@ -294,10 +294,11 @@ void rtdeleteall(int sig)
 	register struct rthash *rh;
 	register struct rt_entry *rt;
 	struct rthash *base = hosthash;
-	int doinghost = 1;
+	int doinghost = 1, i;
 
 again:
-	for (rh = base; rh < &base[ROUTEHASHSIZ]; rh++) {
+	for (i = 0; i < ROUTEHASHSIZ; i++) {
+		rh = &base[i];
 		rt = rh->rt_forw;
 		for (; rt != (struct rt_entry *)rh; rt = rt->rt_forw) {
 			if (rt->rt_state & RTS_INTERFACE ||
@@ -336,11 +337,16 @@ void rtdefault(void)
 void rtinit(void)
 {
 	register struct rthash *rh;
+	int i;
 
-	for (rh = nethash; rh < &nethash[ROUTEHASHSIZ]; rh++)
+	for (i = 0; i < ROUTEHASHSIZ; i++) {
+		rh = &nethash[i];
 		rh->rt_forw = rh->rt_back = (struct rt_entry *)rh;
-	for (rh = hosthash; rh < &hosthash[ROUTEHASHSIZ]; rh++)
+	}
+	for (i = 0; i < ROUTEHASHSIZ; i++) {
+		rh = &hosthash[i];
 		rh->rt_forw = rh->rt_back = (struct rt_entry *)rh;
+	}
 }
 
 int rtioctl(int action, struct rtuentry *ort)
@@ -373,18 +379,18 @@ int rtioctl(int action, struct rtuentry *ort)
 	if (traceactions) {
 		fprintf(ftrace, "rtioctl %s %08lx/%08lx\n",
 			action == ADD ? "ADD" : "DEL",
-			ntohl(dst),
-			ntohl(netmask));
+			(unsigned long int)ntohl(dst),
+			(unsigned long int)ntohl(netmask));
 		fflush(ftrace);
 	}
 
 	switch (action) {
 
 	case ADD:
-		return (ioctl(s, SIOCADDRT, (char *)&rt));
+		return (ioctl(sock, SIOCADDRT, (char *)&rt));
 
 	case DELETE:
-		return (ioctl(s, SIOCDELRT, (char *)&rt));
+		return (ioctl(sock, SIOCDELRT, (char *)&rt));
 
 	default:
 		return (-1);

@@ -1,3 +1,19 @@
+5-Dec-1999:
+	Performance fixes. (Andi Kleen, ak@suse.de)
+
+14-Sep-1999:
+	Added ftpusers(5) man page. (Peter Tobias, tobias@et-inf.fho-emden.de)
+
+1-Aug-1999:
+	Complete y2k and y2038 audit.
+
+31-Jul-1999:
+	Redid makefiles/config stuff for new confgen version.
+
+15-Jul-1999:
+	Merge from OpenBSD of 7/15/99.
+
+
 New in 0.10: (5/20/97)
 - Patches from Marek Michalkiewicz (marekm@i17linuxb.ists.pwr.wroc.pl):
     - shadow support

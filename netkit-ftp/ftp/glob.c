@@ -35,7 +35,7 @@
  * From: @(#)glob.c	5.9 (Berkeley) 2/25/91
  */
 char glob_rcsid[] = 
-  "$Id: glob.c,v 1.5 1996/08/14 23:27:28 dholland Exp $";
+  "$Id: glob.c,v 1.9 1999/10/02 13:25:23 netbug Exp $";
 
 /*
  * C-shell glob for random programs.
@@ -130,7 +130,8 @@ ftpglob(const char *v)
 	gpath = agpath; 
 	gpathp = gpath; 
 	*gpathp = 0;
-	lastgpathp = agpath + sizeof(agpath) - 2;
+	/* added ()'s to sizeof, (ambigious math for the compiler) */
+	lastgpathp = agpath + (sizeof(agpath)- 2);
 
 	ginit(agargv); 
 	globcnt = 0;
@@ -221,7 +222,11 @@ expand(const char *as)
 				*gpathp = 0;
 				if (gethdir(gpath + 1))
 					globerr = "Unknown user name after ~";
-				(void) strcpy(gpath, gpath + 1);
+				/*
+				 * Was: strcpy(gpath, gpath + 1);
+				 * but that's WRONG
+				 */
+				memmove(gpath, gpath+1, strlen(gpath+1)+1);
 			} 
 			else {
 				(void) strcpy(gpath, home);
@@ -439,11 +444,12 @@ amatch(const char *s, const char *p)
 					if (scc == (lc = cc))
 						ok++;
 			}
-			if (cc == 0)
+			if (cc == 0) {
 				if (ok)
 					p--;
 				else
 					return 0;
+			}
 			continue;
 
 		case '*':
@@ -482,12 +488,14 @@ slash:
 			while (*s)
 				addpath(*s++);
 			addpath('/');
-			if (stat(gpath, &stb) == 0 && isdir(stb))
+			if (stat(gpath, &stb) == 0 && isdir(stb)) {
 				if (*p == 0) {
 					Gcat(gpath, "");
 					globcnt++;
-				} else
+				} else {
 					expand(p);
+				}
+			}
 			gpathp = sgpathp;
 			*gpathp = 0;
 			return (0);
@@ -495,6 +503,7 @@ slash:
 	}
 }
 
+#if 0 /* dead code */
 static 
 int
 Gmatch(const char *s, const char *p)
@@ -554,6 +563,7 @@ Gmatch(const char *s, const char *p)
 		}
 	}
 }
+#endif
 
 static 
 void
@@ -592,11 +602,12 @@ rscan(centry *t, int (*f)(char))
 	char c;
 
 	while ((p = (t++)->text) != NULL) {
-		if (f == tglob)
+		if (f == tglob) {
 			if (*p == '~')
 				gflag |= 2;
 			else if (eq(p, "{") || eq(p, "{}"))
 				continue;
+		}
 		while ((c = *p++) != 0)
 			(*f)(c);
 	}
@@ -723,6 +734,8 @@ strend(char *cp)
  * The argument points to a buffer where the name of the
  * user whose home directory is sought is currently.
  * We write the home directory of the user back there.
+ *
+ * XXX, this needs buffer length checking and stuff.
  */
 static 
 int

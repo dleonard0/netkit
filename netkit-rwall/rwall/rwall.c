@@ -40,26 +40,28 @@ char copyright[] =
  * From: @(#)wall.c	5.14 (Berkeley) 3/2/91
  */
 char rcsid[] = 
-  "$Id: rwall.c,v 1.5 1996/08/15 03:23:56 dholland Exp $";
+  "$Id: rwall.c,v 1.8 1999/12/12 18:05:05 dholland Exp $";
 
 /*
  * This program is not related to David Wall, whose Stanford Ph.D. thesis
  * is entitled "Mechanisms for Broadcast and Selective Broadcast".
  */
 
+#include <sys/types.h>
+#include <sys/param.h>
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <sys/param.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <pwd.h>
 #include <unistd.h>
 #include <paths.h>
 
 #include <rpc/rpc.h>
 #include "rwall.h"
+
+#include "../version.h"
 
 struct timeval timeout = { 25, 0 };
 static unsigned mbufsize;
@@ -86,7 +88,7 @@ main(int argc, char *argv[])
 	 * Create client "handle" used for calling MESSAGEPROG on the
 	 * server designated on the command line. We tell the rpc package
 	 * to use the "tcp" protocol when contacting the server.
-	*/
+	 */
 	cl = clnt_create(wallhost, WALLPROG, WALLVERS, "udp");
 	if (cl == NULL) {
 		/*
@@ -98,7 +100,7 @@ main(int argc, char *argv[])
 	}
 
 	if (clnt_call(cl, WALLPROC_WALL, 
-		      (xdrproc_t) xdr_wrapstring, &mbuf, 
+		      (xdrproc_t) xdr_wrapstring, (char *)&mbuf, 
 		      (xdrproc_t) xdr_void, &res, timeout) != RPC_SUCCESS) 
 	{
 		/*

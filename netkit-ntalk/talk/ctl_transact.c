@@ -35,14 +35,14 @@
  * From: @(#)ctl_transact.c	5.8 (Berkeley) 3/1/91
  */
 char ctlt_rcsid[] = 
-  "$Id: ctl_transact.c,v 1.11 1998/11/27 11:12:02 dholland Exp $";
+  "$Id: ctl_transact.c,v 1.12 1999/09/28 22:04:14 netbug Exp $";
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <sys/time.h>
 #include <netinet/in.h>
-#include <netinet/ip.h>
+/* #include <netinet/ip.h> looks like this is not needed (no functions used) */
 #include <string.h>
 #include <errno.h>
 #include "talk.h"
@@ -60,7 +60,7 @@ void
 open_ctl(void) 
 {
 	struct sockaddr_in loc, rem;
-	size_t length;
+	socklen_t length;
 	int on=1;
 
 	to_local_talkd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -142,7 +142,7 @@ static void
 clean_up_packet(int sock, CTL_MSG *msg, int type)
 {
 	struct sockaddr_in here;
-	size_t len = sizeof(here);
+	socklen_t len = sizeof(here);
 
 	msg->vers = TALK_VERSION;
 	msg->type = type;

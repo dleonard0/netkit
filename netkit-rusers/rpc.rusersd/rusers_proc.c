@@ -1,4 +1,4 @@
-/*-
+#/*-
  *  Copyright (c) 1993 John Brezak
  *  All rights reserved.
  * 
@@ -27,7 +27,7 @@
  */
 
 char rp_rcsid[] = 
-  "$Id: rusers_proc.c,v 1.10 1997/04/06 01:12:28 dholland Exp $";
+  "$Id: rusers_proc.c,v 1.14 1999/12/12 15:33:39 dholland Exp $";
 
 #include <signal.h>
 #include <sys/types.h>
@@ -49,13 +49,20 @@ char rp_rcsid[] =
 /*
  * Sigh.
  */
-#ifdef GNU_LIBC
-#define UT_TIME ut_xtime
+#ifdef __GLIBC__
+	#define UT_TIME ut_xtime
+	#define RUT_TIME rut_time
 #else
-#define UT_TIME ut_time
+	#define UT_TIME ut_time
+	#define RUT_TIME ut_time
 #endif
 
-#include "rusers.h"
+/* Glibc strikes again */
+#ifdef __GLIBC__
+	#include <rpcsvc/rusers.h>
+#else
+	#include "rusers.h"
+#endif 
 
 void rusers_service(struct svc_req *rqstp, SVCXPRT *transp);
 
@@ -75,9 +82,9 @@ void rusers_service(struct svc_req *rqstp, SVCXPRT *transp);
 #define UT_HOSTSIZE sizeof(((struct utmp *)0)->ut_host)
 #endif
 
-typedef char ut_line_t[UT_LINESIZE];
-typedef char ut_name_t[UT_NAMESIZE];
-typedef char ut_host_t[UT_HOSTSIZE];
+typedef char ut_line_t[UT_LINESIZE+1];
+typedef char ut_name_t[UT_NAMESIZE+1];
+typedef char ut_host_t[UT_HOSTSIZE+1];
 
 struct rusers_utmp utmps[MAXUSERS];
 struct utmpidle *utmp_idlep[MAXUSERS];
@@ -171,7 +178,7 @@ getidle(char *tty, char *display)
         else {
 #endif
 	{
-                sprintf(devname, "%s/%s", _PATH_DEV, tty);
+                snprintf(devname, sizeof(devname), "%s/%s", _PATH_DEV, tty);
                 if (stat(devname, &st) < 0) {
 #ifdef DEBUG
                         printf("%s: %s\n", devname, strerror(errno));
@@ -251,12 +258,20 @@ do_names_3(int all)
                         utmps[nusers].ut_line = line[nusers];
                         strncpy(line[nusers], uptr->ut_line, 
 				sizeof(line[nusers]));
+			line[nusers][sizeof(line[nusers])-1] = 0;
                         utmps[nusers].ut_user = name[nusers];
                         strncpy(name[nusers], uptr->ut_name, 
 				sizeof(name[nusers]));
+			name[nusers][sizeof(name[nusers])-1] = 0;
                         utmps[nusers].ut_host = host[nusers];
                         strncpy(host[nusers], uptr->ut_host, 
 				sizeof(host[nusers]));
+			host[nusers][sizeof(host[nusers])-1] = 0;
+
+			line[nusers][UT_LINESIZE] = '\0';
+			name[nusers][UT_NAMESIZE] = '\0';
+			host[nusers][UT_HOSTSIZE] = '\0';
+
                         nusers++;
                 }
 	}
@@ -280,6 +295,11 @@ rusersproc_allnames_3(void *tmp1, CLIENT *tmp2)
 	(void)tmp1;
 	(void)tmp2;
         return do_names_3(1);
+}
+
+static void do_strncpy(char *tgt, const char *src, size_t len) {
+    strncpy(tgt, src, len);
+    tgt[len-1] = 0;
 }
 
 static 
@@ -312,13 +332,13 @@ do_names_2(int all)
                                 uptr->UT_TIME;
                         utmp_idle[nusers].ui_idle =
                                 getidle(uptr->ut_line, uptr->ut_host);
-                        strncpy(utmp_idle[nusers].ui_utmp.ut_line, 
+                        do_strncpy(utmp_idle[nusers].ui_utmp.ut_line, 
 				uptr->ut_line, 
 				sizeof(utmp_idle[nusers].ui_utmp.ut_line));
-                        strncpy(utmp_idle[nusers].ui_utmp.ut_name, 
+                        do_strncpy(utmp_idle[nusers].ui_utmp.ut_name, 
 				uptr->ut_name, 
 				sizeof(utmp_idle[nusers].ui_utmp.ut_name));
-                        strncpy(utmp_idle[nusers].ui_utmp.ut_host, 
+                        do_strncpy(utmp_idle[nusers].ui_utmp.ut_host, 
 				uptr->ut_host, 
 				sizeof(utmp_idle[nusers].ui_utmp.ut_host));
                         nusers++;
@@ -420,7 +440,7 @@ rusers_service(struct svc_req *rqstp, SVCXPRT *transp)
 		goto leave;
 	}
 	memset(&argument, 0, sizeof(argument));
-	if (!svc_getargs(transp, xdr_argument, &argument)) {
+	if (!svc_getargs(transp, (xdrproc_t)xdr_argument, (char *)&argument)) {
 		svcerr_decode(transp);
 		goto leave;
 	}
@@ -429,7 +449,7 @@ rusers_service(struct svc_req *rqstp, SVCXPRT *transp)
 	    !svc_sendreply(transp, xdr_result, result)) {
 		svcerr_systemerr(transp);
 	}
-	if (!svc_freeargs(transp, xdr_argument, &argument)) {
+	if (!svc_freeargs(transp, (xdrproc_t)xdr_argument, (char *)&argument)) {
 		(void)fprintf(stderr, "unable to free arguments\n");
 		exit(1);
 	}

@@ -27,14 +27,21 @@
  */
 
 char rusersd_rcsid[] = 
-  "$Id: rusersd.c,v 1.4 1996/08/15 06:54:14 dholland Exp $";
+  "$Id: rusersd.c,v 1.8 1999/12/12 19:32:05 dholland Exp $";
 
 #include <stdio.h>
 #include <signal.h>
+#include <sys/socket.h>
 #include <syslog.h>
 #include <rpc/rpc.h>
 #include <rpc/pmap_clnt.h>
-#include "rusers.h"
+#ifdef __GLIBC__
+	#include <rpcsvc/rusers.h>
+#else
+	#include "rusers.h"
+#endif
+
+#include "../version.h"
 
 void rusers_service(struct svc_req *rqstp, SVCXPRT *transp);
 int daemon(int, int);
@@ -59,7 +66,7 @@ main(void)
         int sock = 0;
         int proto = 0;
 	struct sockaddr_in from;
-	int fromlen;
+	int fromlen = sizeof(from);
         
         /*
          * See if inetd started us

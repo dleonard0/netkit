@@ -39,10 +39,11 @@
  * From: @(#)conf.c	8.243 (Berkeley) 11/20/95
  */
 char setproctitle_rcsid[] =
-  "$Id: setproctitle.c,v 1.3 1997/05/19 12:58:15 dholland Exp $";
+  "$Id: setproctitle.c,v 1.6 1999/09/29 01:28:07 netbug Exp $";
 
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <stdarg.h>
 #include <stdio.h>
 
@@ -104,14 +105,14 @@ initsetproctitle(int argc, char **argv, char **envp)
 	if (!tmp) tmp = argv[0];
 	else tmp++;
 	strncpy(Argv0, tmp, sizeof(Argv0));
-	Argv0[sizeof(Argv0)] = 0;
+	Argv0[sizeof(Argv0)-1] = 0;
 }
 
 void
 setproctitle(const char *fmt, ...)
 {
 	register char *p;
-	register int i;
+	register int i=0;
 	static char buf[2048];
 	va_list ap;
 
