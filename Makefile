@@ -9,6 +9,9 @@ HAVE_SHADOW_PASSWORDS=true
 # I use the GNU readline support from bash-1.14 for this.
 USE_GNU_READLINE=true
 
+# You could also use "YACC=yacc", if you have the BSD yacc.
+YACC=bison -y
+
 # The TCP wrapper doesn't really work for the "rexecd", since it
 # waits for further incoming connections once invoked (which are not
 # checked by the TCP wrapper binary).
@@ -37,7 +40,7 @@ CFLAGS = ${O} ${IBSD}
 LDLIBS = -lbsd
 
 SUB = biff comsat finger fingerd ftp ftpd inetd libtelnet lpr \
-	ping portmap rcp rdist rexecd rlogin rlogind routed rpcgen.new \
+	ping portmap rcp rexecd rlogin rlogind routed rpcgen.new \
 	rpc.rusersd rpc.rwalld rpcinfo rsh rshd rusers rwall rwho rwhod \
 	slattach.new sliplogin talk talkd telnet telnetd tftp tftpd timed
 # Missing subdirs: rarpd, rup

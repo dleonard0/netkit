@@ -1404,7 +1404,7 @@ cleanup(sig)
 	int sig;
 {
 #ifndef	CRAY
-# if (BSD > 43) || defined(convex)
+# if (BSD > 43) || defined(convex) || defined(linux)
 	char *p;
 
 	p = line + sizeof("/dev/") - 1;
@@ -1649,7 +1649,7 @@ cleantmpdir(jid, tpath, user)
  * remove the utmp entry for this person.
  */
 
-#if	!defined(CRAY) && BSD <= 43
+#if	!defined(CRAY) && BSD <= 43 && !defined(linux)
 	void
 rmut()
 {

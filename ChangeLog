@@ -1,3 +1,37 @@
+ToDo:
+- Remove logwtmp.c from rlogind and telnetd, if they are fixed in the
+  linux shared C library.
+  Maybe leave these versions together with the programs and add stuff like
+  recording the IP address.
+- Install all programs like in.ftpd in /usr/libexec/ ?
+- You could change talk to use ncurses instead of bsd curses.
+- Remove rdist source directory.
+- Don't put all things in one directory, but make a better dir structure.
+  Suggested by Daniel Quinland:
+  ./daemons     Standard networking daemons \
+        /inetd  inetd-based daemons          -> I think these all are
+        /rpc    daemons that use Sun RPC    /   placed in /usr/sbin
+  ./clients     Standard networking clients -> some in /bin & most in /usr/bin
+  ./etc         Et cetera files       -> All of these go in /etc, I think.
+
+
+New in 0.05:
+- Fixed writing entries to /var/adm/wtmp by ftpd, rlogind and
+  telnetd. (logwtmp.c) Florian
+  This is only necessary for the GNU last, not for the one in util-linux...
+- Fixed finger/util.c to cope with XDM login entry in utmp (Leonard Zubkoff)
+- Put "YACC=bison -y" in the main Makefile (Vesa Ruokonen)
+- Fixed talk connection problem for multihomed hosts (Pauline Middelink)
+  This patch must be activated by editing the Makefile of "talk" as this
+  is not the correct way to set up a linux host/solve this problem...
+- Fixed rdist to not work with freed memory, done by Florian (that's me)
+- Kept rdist source, but don't install it. It has security problems and there
+  is a better (rewritten) rdist available.
+- Changed rsh to stop lookin for options after the first non-option.
+  (See POSIXLY_CORRECT environment and "+" as first option for GNU getopt.)
+- Don't install /etc/rpc.
+
+
 New in 0.04:
 - Added new program rdist from NetBSD with many bug-fixes from me.
 - Changed inetd to store pid-file in /var/run.
@@ -6,7 +40,7 @@ New in 0.04:
 - 'arp' is no longer installed. The Linux version is better and the BSD
   version currently doesn't work anyway. (Vesa Ruokonen)
 - Install slattach as bsdslattach, since we have also a Linux version of it.
-  (Resa Ruokonen)
+  (Vesa Ruokonen)
 - Changed Makefile, so that rpcgen was build before it is needed...
   (Vesa Ruokonen)
 - Changed several Makefiles from "../rpcgen/rpcgen" to "../rpcgen.new/rpcgen".

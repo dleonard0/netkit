@@ -33,7 +33,7 @@
 
 #ifndef lint
 /* from: static char sccsid[] = "@(#)docmd.c	8.1 (Berkeley) 6/9/93"; */
-static char *rcsid = "$Id: docmd.c,v 1.6 1994/03/07 05:05:26 cgd Exp $";
+static char *rcsid = "$Id: docmd.c,v 1.1 1994/08/08 10:23:59 florian Exp florian $";
 #endif /* not lint */
 
 #include "defs.h"
@@ -181,13 +181,14 @@ done:
 		if (sc->sc_type == NOTIFY)
 			notify(tempfile, rhost, sc->sc_args, 0);
 	if (!nflag) {
+		struct linkbuf *tmp;
 		(void) unlink(tempfile);
-		for (; ihead != NULL; ihead = ihead->nextp) {
+		for (; ihead != NULL; ihead = tmp) {
+			if (!(opts & IGNLNKS) && ihead->count != 0)
+				log(lfp, "%s: Warning: missing links\n",
+					ihead->pathname);
+			tmp = ihead->nextp;
 			free(ihead);
-			if ((opts & IGNLNKS) || ihead->count == 0)
-				continue;
-			log(lfp, "%s: Warning: missing links\n",
-				ihead->pathname);
 		}
 	}
 }

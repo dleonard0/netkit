@@ -3,7 +3,7 @@ CFLAGS += '-DISSUE_FILE="/etc/issue.net"' -DAUTHENTICATE -I.. \
 LDLIBS = -lbsd -ltermcap -ltelnet -L ../libtelnet
 
 telnetd: telnetd.o state.o termstat.o slc.o sys_term.o utility.o \
-		global.o authenc.o
+		global.o authenc.o logwtmp.o
 
 install: telnetd
 	install -s -m744 telnetd /usr/sbin/in.telnetd
