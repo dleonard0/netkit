@@ -35,7 +35,7 @@
  * From: @(#)sys_term.c	5.16 (Berkeley) 3/22/91
  */
 char st_rcsid[] = 
-  "$Id: sys_term.c,v 1.4 1996/07/16 08:58:22 dholland Exp $";
+  "$Id: sys_term.c,v 1.5 1996/07/26 04:39:19 dholland Exp $";
 
 #include "telnetd.h"
 #include "pathnames.h"
@@ -449,10 +449,10 @@ getpty()
 	for (i = 0; i < 16; i++) {
 		struct stat stb;
 
-		*p1 = "pqrstuvwxyzABCDE"[i];
+		*p1 = "pqrstuvwxyzabcde"[i];
 		*p2 = '0';
 		if (stat(line, &stb) < 0)
-			break;
+			continue;
 		for (j = 0; j < 16; j++) {
 			*p2 = "0123456789abcdef"[j];
 			p = open(line, 2);

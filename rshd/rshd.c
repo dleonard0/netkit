@@ -42,7 +42,7 @@ char copyright[] =
 /*
  * From: @(#)rshd.c	5.38 (Berkeley) 3/2/91
  */
-char rcsid[] = "$Id: rshd.c,v 1.7 1996/07/24 00:16:36 dholland Exp $";
+char rcsid[] = "$Id: rshd.c,v 1.8 1996/07/26 05:05:41 dholland Exp $";
 
 /*
  * remote shell server:
@@ -78,6 +78,7 @@ char rcsid[] = "$Id: rshd.c,v 1.7 1996/07/24 00:16:36 dholland Exp $";
 
 #ifdef USE_PAM
 #include <security/pam_appl.h>
+#include <security/pam_misc.h>
 static pam_handle_t *pamh;
 static int retcode;
 #endif /* USE_PAM */
@@ -103,7 +104,7 @@ main(int argc, char *argv[])
 	struct linger linger;
 	int ch, on = 1, fromlen;
 	struct sockaddr_in from;
-
+	_check_rhosts_file=1;
 	openlog("rshd", LOG_PID | LOG_ODELAY, LOG_DAEMON);
 
 	opterr = 0;
@@ -200,7 +201,11 @@ doit(struct sockaddr_in *fromp)
 	int one = 1;
 	char remotehost[2 * MAXHOSTNAMELEN + 1];
 #ifdef USE_PAM
-       extern struct pam_conv conv;
+	char c;
+	static struct pam_conv conv = {
+	  misc_conv,
+	  NULL
+	};
 #endif /* USE_PAM */
 
 	(void) signal(SIGINT, SIG_DFL);
@@ -383,37 +388,31 @@ doit(struct sockaddr_in *fromp)
         (void) pam_set_item (pamh, PAM_RUSER, remuser);
         (void) pam_set_item (pamh, PAM_RHOST, hostname);
         (void) pam_set_item (pamh, PAM_TTY,   "/dev/tty");
-        do {
-                retcode = pam_authenticate(pamh, 0);
-                if (retcode == PAM_SUCCESS)
-                        retcode = pam_acct_mgmt(pamh, 0);
-                if (retcode == PAM_SUCCESS)
-                        break;
+	retcode = pam_authenticate(pamh, 0);
+	if (retcode == PAM_SUCCESS)
+	  retcode = pam_acct_mgmt(pamh, 0);
+	if (retcode == PAM_SUCCESS) {
+	  if (setgid(pwd->pw_gid) != 0) {
+	    fprintf(stderr, "Permission denied.\n");
+	    pam_end(pamh,PAM_SYSTEM_ERR);
+	    exit (1);
+	  }
 
-                if (retcode == PAM_AUTHTOKEN_REQD)
-                        retcode = pam_chauthtok (pamh,PAM_CHANGE_EXPIRED_AUTHTOK);
-        } while (retcode == PAM_SUCCESS);
+	  if (initgroups(locuser, pwd->pw_gid) != 0) {
+	    fprintf(stderr, "Permission denied.\n");
+	    pam_end(pamh,PAM_SYSTEM_ERR);
+	    exit (1);
+	  }
+	  retcode = pam_setcred(pamh, PAM_CRED_ESTABLISH);
+	}
 
+	if (retcode == PAM_SUCCESS)
+	  retcode = pam_open_session(pamh,0);
 	if (retcode != PAM_SUCCESS) {
-		pam_end(pamh,PAM_AUTH_ERR);
+		pam_end(pamh,retcode);
 		exit (1);
 	}
-        if (setgid(pwd->pw_gid) != 0) {
-                fprintf(stderr, "cannot assume gid\n");
-                exit (1);
-        }
 
- 	if (initgroups(locuser, pwd->pw_gid) != 0) {
-                fprintf(stderr, "cannot initgroups\n");
-                exit (1);
-        }
-
-	retcode = pam_setcred(pamh, PAM_CRED_ESTABLISH);
-
-	if (retcode != PAM_SUCCESS) {
-		pam_end(pamh,PAM_CRED_ERR);
-	}
-	retcode = pam_open_session(pamh,0);
 #endif
 
 	if (pwd->pw_uid && !access(_PATH_NOLOGIN, F_OK)) {
@@ -519,10 +518,6 @@ doit(struct sockaddr_in *fromp)
 		    syslog(LOG_INFO|LOG_AUTH, "%s@%s as %s: cmd='%s'",
 			remuser, hostname, locuser, cmdbuf);
 	}
-
-#ifdef USE_PAM
-       pam_end(pamh, PAM_SUCCESS);
-#endif USE_PAM
 
 	execl(pwd->pw_shell, cp, "-c", cmdbuf, 0);
 	perror(pwd->pw_shell);
