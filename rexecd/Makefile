@@ -18,7 +18,7 @@ LDFLAGS += -lshadow
 endif
 
 # -DRESTRICT_FTP if you want to deny all users in /etc/ftpusers to use rexecd
-CFLAGS += -DRESTRICT_FTP
+CFLAGS += -DRESTRICT_FTP -DSHADOW_PWD
 
 rexecd: rexecd.o
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@

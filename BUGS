@@ -23,9 +23,6 @@ finger:
 	- add option to issue CRs so fingerd doesn't need to fork
 	- Some nameservers hose on "", patch finger to work around it
 
-fingerd: 
-	- rejection of finger forwarding should be optional
-
 inetd:
 	- will shut down services respawning too fast. Should bring them 
 	  up again after a few minutes.

@@ -86,6 +86,7 @@ main(int argc, char *argv[])
 	const char *av[ENTRIES + 1];
 	char line[1024];
 	int welcome = 0, heavylogging = 0, nouserlist = 0;
+	int forwarding = 0;
 	int k, pid, nusers;
 	char *s, *t;
 	const char *fingerpath = NULL;
@@ -103,7 +104,7 @@ main(int argc, char *argv[])
 	}
 
 	opterr = 0;
-	while ((ca = getopt(argc, argv, "wlLpuh?")) != EOF) {
+	while ((ca = getopt(argc, argv, "wlLpufh?")) != EOF) {
 		switch(ca) {
 		  case 'w':
 			welcome = 1;
@@ -118,10 +119,13 @@ main(int argc, char *argv[])
 		  case 'u':
 		        nouserlist = 1;
 			break;
+		  case 'f':
+			forwarding = 1;
+			break;
 		  case '?':
 		  case 'h':
 		  default:
-			syslog(LOG_ERR, "usage: fingerd [-lLwu]");
+			syslog(LOG_ERR, "usage: fingerd [-lLwuf]");
 			exit(1);
 		}
 	}
@@ -169,7 +173,7 @@ main(int argc, char *argv[])
 		/* RFC742: "/[Ww]" == "-l" */
 		if (!strncasecmp(s, "/w", 2)) memcpy(s, "-l", 2);
 		t = strchr(s, '@');
-		if (t) {
+		if (t && !forwarding) {
 			fprintf(stderr, "fingerd: forwarding not allowed\r\n");
 			syslog(LOG_WARNING, "rejected %s\n", s);
 			exit(1);

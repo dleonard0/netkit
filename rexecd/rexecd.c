@@ -58,6 +58,15 @@ char rcsid[] =
 #include <string.h>
 #include <paths.h>
 #include <grp.h>
+#include <time.h>
+
+#ifdef SHADOW_PWD
+#include <shadow.h>
+#endif
+
+#ifndef FAIL_DELAY  /* slow down password guessing attempts */
+#define FAIL_DELAY 2
+#endif
 
 #ifdef USE_SHADOW
 #include <shadow.h>
@@ -192,6 +201,38 @@ static struct pam_conv PAM_conversation = {
 };
 #endif /* USE_PAM */
 
+#ifdef SHADOW_PWD
+static void
+check_expired(const struct spwd *sp)
+{
+	long days = ((unsigned long) time(NULL)) / 86400L;
+
+	if (sp->sp_expire > 0 && days > sp->sp_expire) {
+		/* current date is later than sp_expire */
+		syslog(LOG_NOTICE,
+			"attempt to use expired account %s from %.128s",
+			sp->sp_namp, remote);
+		fatal("Account has expired -- contact administrator.\n");
+	}
+	if (sp->sp_lstchg <= 0 && sp->sp_max <= 0)
+		return;
+	days -= sp->sp_lstchg + sp->sp_max;
+	if (sp->sp_inact > 0 && days > sp->sp_inact) {
+		/* expired password not changed for sp_inact days */
+		syslog(LOG_NOTICE,
+			"attempt to use inactive account %s from %.128s",
+			sp->sp_namp, remote);
+		fatal("Account is inactive -- contact administrator.\n");
+	}
+	if (days > 0) {
+		/* password has expired */
+		syslog(LOG_NOTICE,
+			"expired password for user %s from %.128s",
+			sp->sp_namp, remote);
+		fatal("Please change password and try again.\n");
+	}
+}
+#endif
 
 static void
 doit(int f, struct sockaddr_in *fromp)
@@ -206,6 +247,9 @@ doit(int f, struct sockaddr_in *fromp)
 	char buf[BUFSIZ], sig;
 	const char *theshell;
 	const char *cp2;
+#ifdef SHADOW_PWD
+	struct spwd *sp;
+#endif
 #ifdef RESTRICT_FTP
 	FILE *fp;
 #endif
@@ -273,8 +317,15 @@ doit(int f, struct sockaddr_in *fromp)
 	if (pwd == NULL) {
 		/* Log failed attempts. */
 		syslog(LOG_ERR, "LOGIN FAILURE from %.128s, %s", remote, user);
+		sleep(FAIL_DELAY);
 		fatal("Login incorrect.\n");
 	}
+#ifdef SHADOW_PWD
+	sp = getspnam(user);
+	if (sp)
+		pwd->pw_passwd = sp->sp_pwdp;
+	endspent();
+#endif
 	endpwent();
 #ifdef USE_SHADOW
 	{
@@ -291,12 +342,14 @@ doit(int f, struct sockaddr_in *fromp)
 			/* Log failed attempts. */
 			syslog(LOG_ERR, "LOGIN FAILURE from %.128s, %s",
 			       remote, user);
+			sleep(FAIL_DELAY);
 			fatal("Login incorrect.\n");
 		}
 	}
 	/* Disallow access to root account. */
 	if (pwd->pw_uid == 0) {
 		syslog(LOG_ERR, "%s LOGIN REFUSED from %.128s", user, remote);
+		sleep(FAIL_DELAY);
 		fatal("Login incorrect.\n");
 	}
 #ifdef RESTRICT_FTP
@@ -309,12 +362,17 @@ doit(int f, struct sockaddr_in *fromp)
 		if (strcmp(buf, pwd->pw_name) == 0) {
 			syslog(LOG_ERR, "%s LOGIN REFUSED from %.128s",
 			       user, remote);
+			sleep(FAIL_DELAY);
 			fatal("Login incorrect.\n");
 		}
 	    }
 	    fclose(fp);
 	}
 	else syslog(LOG_ERR, "cannot open /etc/ftpusers");
+#endif
+#ifdef SHADOW_PWD
+	if (sp)
+		check_expired(sp);  /* returns only if ok to login */
 #endif
 #endif /* !USE_PAM */
 

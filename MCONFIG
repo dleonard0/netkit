@@ -38,6 +38,12 @@ MANMODE=644
 #
 USE_GNU_READLINE=1
 
+#
+# Support for shadow passwords.  It is safe to leave this enabled by
+# default - both shadow and non-shadow passwords will work, and libc5
+# has support for shadow passwords (libshadow.a is no longer needed).
+# This option has no effect if the PAM support above is enabled.
+SHADOW_PWD=1
 
 #
 # Do you want to use the PAM (Pluggable Authentication Modules) system
