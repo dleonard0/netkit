@@ -40,7 +40,7 @@ char copyright[] =
 /*
  * From: @(#)ping.c	5.9 (Berkeley) 5/12/91
  */
-char rcsid[] = "$Id: ping.c,v 1.22 1997/06/08 19:39:47 dholland Exp $";
+char rcsid[] = "$Id: ping.c,v 1.24 1997/09/23 09:46:31 dholland Exp $";
 char pkg[] = "netkit-base-0.10";
 
 /*
@@ -374,7 +374,8 @@ main(int argc, char *argv[])
 			hp->h_length = sizeof(to->sin_addr);
 		}
 		memcpy(&to->sin_addr, hp->h_addr, hp->h_length);
-		(void)strncpy(hnamebuf, hp->h_name, sizeof(hnamebuf) - 1);
+		strncpy(hnamebuf, hp->h_name, sizeof(hnamebuf) - 1);
+		hnamebuf[sizeof(hnamebuf)-1] = 0;
 		hostname = hnamebuf;
 	}
 
@@ -435,7 +436,7 @@ main(int argc, char *argv[])
 	 * ethernet, or just want to fill the arp cache to get some stuff for
 	 * /etc/ethers.
 	 */
-	hold = 48 * 1024;
+	hold = 64 * 1024;
 	(void)setsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *)&hold,
 	    sizeof(hold));
 

@@ -1,3 +1,29 @@
+24-Oct-1997:
+	Added virtual hosting capability, based on code from 
+	Martin Lucina <mato@Pod-Palmou.drp.fmph.uniba.sk>
+	but modified syntax.
+	(John Payne   netbug@ftp.uk.linux.org)
+
+23-Sep-1997:
+	Fix missing {} in inetd that led to excess calls of sleep().
+	(D. Richard Hipp, drh@acm.org)
+
+22-Sep-1997:
+	Fix a strncpy() misuse bug in ping, and others in inetd.
+	Reject udp source ports lower than 128 in inetd services to
+	  prevent a single spoofed packet from triggering a local udp
+	  storm. (Willy TARREAU, tarreau@aemiaif.ibp.fr)
+
+20-Aug-1997:
+	Fixed minor doc bug in inetd.8.
+
+14-Jul-1997:
+	Fixed bug in inetd where two entries in /etc/inetd.conf for the
+	  same service would confuse it.
+
+12-Jun-1997:
+	netkit-base-0.10 released.
+
 19-May-1997:
 	glibc fixes from Red Hat.
 

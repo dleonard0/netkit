@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)inetd.c	5.30 (Berkeley) 6/3/91
  */
 char rcsid[] = 
-  "$Id: inetd.c,v 1.13 1997/06/08 19:42:34 dholland Exp $";
+  "$Id: inetd.c,v 1.19 1997/09/23 09:16:40 dholland Exp dholland $";
 char pkg[] = "netkit-base-0.10";
 
 /*
@@ -172,6 +172,7 @@ char pkg[] = "netkit-base-0.10";
 #define	TOOMANY		40		/* don't start more than TOOMANY */
 #define	CNT_INTVL	60		/* servers in CNT_INTVL sec. */
 #define	RETRYTIME	(60*10)		/* retry after bind or server fail */
+#define MINUDPSRCPORT	128	/* ignore inbound udp on low-number ports */
 
 struct servtab *getconfigent(void);
 struct servtab *enter(struct servtab *);
@@ -179,6 +180,7 @@ static void config(int);
 static void reapchild(int);
 static void retry(int);
 static void goaway(int);
+static char *newstr(char *);
 
 /* Length of socket listen queue. Should be per-service probably. */
 static int 	global_queuelen = 128;
@@ -207,6 +209,7 @@ struct rlimit	rlim_ofile;
 #endif
 
 struct	servtab {
+	int	se_saddr;		/* ip address to bind to */
 	char	*se_service;		/* name of service */
 	int	se_socktype;		/* type of socket to use */
 	int	se_family;		/* address family */
@@ -422,9 +425,10 @@ main(int argc, char *argv[], char *envp[])
 	    readable = allsock;
 	    if ((n = select(maxsock + 1, &readable, (fd_set *)0,
 		(fd_set *)0, (struct timeval *)0)) <= 0) {
-		    if (n < 0 && errno != EINTR)
-			syslog(LOG_WARNING, "select: %m\n");
-		    sleep(1);
+		    if (n < 0 && errno != EINTR) {
+			syslog(LOG_WARNING, "select: %m");
+			sleep(1);
+		    }
 		    continue;
 	    }
 	    for (sep = servtab; n && sep; sep = sep->se_next)
@@ -630,12 +634,52 @@ config(int signum)
 	for (sep = servtab; sep; sep = sep->se_next)
 		sep->se_checked = 0;
 	while ((cp = getconfigent())!=NULL) {
+
+		/*
+		 * dholland 7/14/1997: always use the canonical service 
+		 * name to protect against silly configs that list a 
+		 * service twice under different aliases. This has been
+		 * observed in the wild thanks to Slackware... 
+		 * Note: this is a patch, not a fix. The real fix is
+		 * to key the table by port and protocol, not service name
+		 * and protocol.
+		 */
+		if (cp->se_family==AF_INET && !isrpcservice(cp)) {
+		    u_short port = htons(atoi(cp->se_service));
+
+		    if (!port) {
+			struct servent *sp;
+			sp = getservbyname(cp->se_service,
+					   cp->se_proto);
+			if (sp != NULL) { /* bogus services are caught later */
+			    if (strcmp(cp->se_service, sp->s_name)) {
+#if 0 /* this message would probably confuse the lusers */
+				syslog(LOG_INFO, 
+				       "%s/%s is an alias for %s/%s\n", 
+				       cp->se_service, cp->se_proto,
+				       sp->s_name, cp->se_proto);
+#endif
+				free(cp->se_service);
+				cp->se_service = newstr(sp->s_name);
+			    }
+			}
+		    }
+		}
+		/* End silly patch */
+
 		for (sep = servtab; sep; sep = sep->se_next)
 			if (strcmp(sep->se_service, cp->se_service) == 0 &&
 			    strcmp(sep->se_proto, cp->se_proto) == 0)
 				break;
 		if (sep != 0) {
 			int i;
+
+			if (sep->se_checked) {
+			    syslog(LOG_WARNING, 
+				   "extra conf for service %s/%s (skipped)\n",
+				   sep->se_service, sep->se_proto);
+			    continue;  /* to while (... getconfigent()...) */
+			}
 
 #define SWAP(type, a, b) {type c=(type)a; (type)a=(type)b; (type)b=(type)c;}
 
@@ -651,6 +695,8 @@ config(int signum)
 				sep->se_wait = cp->se_wait;
 			if (cp->se_max != sep->se_max)
 				SWAP(int, cp->se_max, sep->se_max);
+			if (cp->se_saddr != sep->se_saddr)
+				SWAP(int, cp->se_saddr, sep->se_saddr);
 			if (cp->se_user)
 				SWAP(char *, sep->se_user, cp->se_user);
 			if (cp->se_group)
@@ -683,7 +729,9 @@ config(int signum)
 			n = strlen(sep->se_service);
 			if (n > sizeof(sep->se_ctrladdr_un.sun_path) - 1) 
 				n = sizeof(sep->se_ctrladdr_un.sun_path) - 1;
-			strncpy(sep->se_ctrladdr_un.sun_path, sep->se_service, n);
+			strncpy(sep->se_ctrladdr_un.sun_path, 
+				sep->se_service, n);
+			sep->se_ctrladdr_un.sun_path[n] = 0;
 			sep->se_ctrladdr_un.sun_family = AF_UNIX;
 			sep->se_ctrladdr_size = n +
 					sizeof sep->se_ctrladdr_un.sun_family;
@@ -691,6 +739,9 @@ config(int signum)
 			break;
 		case AF_INET:
 			sep->se_ctrladdr_in.sin_family = AF_INET;
+/* VIRTUAL HOSTING */
+			sep->se_ctrladdr_in.sin_addr.s_addr=sep->se_saddr;
+/* /VIRTUAL HOSTING */
 			sep->se_ctrladdr_size = sizeof sep->se_ctrladdr_in;
 			if (isrpcservice(sep)) {
 				struct rpcent *rp;
@@ -935,7 +986,6 @@ static struct servtab serv;
 static char line[256];
 static char *skip(char **);
 static char *nextline(FILE *);
-static char *newstr(char *);
 
 static int
 setconfig()
@@ -963,7 +1013,8 @@ getconfigent(void)
 {
 	register struct servtab *sep = &serv;
 	int argc;
-	char *cp, *arg;
+	char *cp, *arg, *addr;
+	struct hostent *he;
 
 more:
 #ifdef MULOG
@@ -1001,7 +1052,31 @@ more:
 	if (cp == NULL)
 		return ((struct servtab *)0);
 	bzero((char *)sep, sizeof *sep);
-	sep->se_service = newstr(skip(&cp));
+/*	sep->se_service = newstr(skip(&cp)); */
+/* VIRTUAL HOSTING */
+	arg = newstr(skip(&cp)); 
+	addr = newstr(strtok(arg,"@"));
+	if(!strlen(sep->se_service = newstr(strtok(NULL,"@"))))
+	{
+		sep->se_service=newstr(addr);
+		addr=strcpy(addr, "*");
+	}
+	if(strcmp(addr,"*")) {
+		he=gethostbyname(addr);
+		if(he==NULL) {
+			syslog(LOG_ERR, "source hostname %s unknown\n",addr);
+			goto more;
+		}
+		else {
+			memcpy(&sep->se_saddr,he->h_addr,sizeof sep->se_saddr);
+		}
+	}      		
+	else {
+		sep->se_saddr=htonl(INADDR_ANY);
+	}
+	if (addr)
+		free(addr);
+/* /VIRTUAL HOSTING */
 	arg = skip(&cp);
 	if (arg == NULL)
 		goto more;
@@ -1049,7 +1124,7 @@ more:
 					goto badafterall;
 			}
 #else
-			syslog(LOG_ERR, "%s: rpc services not suported",
+			syslog(LOG_ERR, "%s: rpc services not supported",
 			    sep->se_service);
 			goto more;
 #endif /* RPC */
@@ -1218,6 +1293,7 @@ setproctitle(char *a, int s)
 	else
 		(void) sprintf(buf, "-%s", a); 
 	strncpy(cp, buf, LastArg - cp);
+	*LastArg = 0;
 	cp += strlen(cp);
 	while (cp < LastArg)
 		*cp++ = ' ';
@@ -1295,14 +1371,18 @@ void
 echo_dg(int s, struct servtab *sep)
 {
 	char buffer[BUFSIZE];
-	int i;
+	int i, port;
 	size_t size;
 	struct sockaddr sa;
 
 	(void)sep;
 
 	size = sizeof(sa);
-	if ((i = recvfrom(s, buffer, sizeof(buffer), 0, &sa, &size)) < 0)
+	i = recvfrom(s, buffer, sizeof(buffer), 0, &sa, &size);
+	if (i < 0)
+		return;
+	port = ((struct sockaddr_in *)&sa)->sin_port;
+	if (ntohs(port) < MINUDPSRCPORT) 
 		return;
 	(void) sendto(s, buffer, i, 0, &sa, sizeof(sa));
 }
@@ -1390,6 +1470,7 @@ chargen_dg(int s, struct servtab *sep)
 	static char *rs;
 	size_t len, size;
 	char text[LINESIZ+2];
+	int port;
 
 	(void)sep;
 
@@ -1400,6 +1481,10 @@ chargen_dg(int s, struct servtab *sep)
 
 	size = sizeof(sa);
 	if (recvfrom(s, text, sizeof(text), 0, &sa, &size) < 0)
+		return;
+
+	port = ((struct sockaddr_in *)&sa)->sin_port;
+	if (ntohs(port)<MINUDPSRCPORT)
 		return;
 
 	if ((len = endring - rs) >= LINESIZ)
@@ -1451,10 +1536,14 @@ machtime_dg(int s, struct servtab *sep)
 	long result;
 	struct sockaddr sa;
 	size_t size;
+	int port;
 	(void)sep;
 
 	size = sizeof(sa);
 	if (recvfrom(s, (char *)&result, sizeof(result), 0, &sa, &size) < 0)
+		return;
+	port = ((struct sockaddr_in *)&sa)->sin_port;
+	if (ntohs(port) < MINUDPSRCPORT)
 		return;
 	result = machtime();
 	(void) sendto(s, (char *) &result, sizeof(result), 0, &sa, sizeof(sa));
@@ -1482,12 +1571,16 @@ daytime_dg(int s, struct servtab *sep)
 	time_t clocc;
 	struct sockaddr sa;
 	size_t size;
+	int port;
 
 	(void)sep;
 
 	clocc = time(NULL);
 	size = sizeof(sa);
 	if (recvfrom(s, buffer, sizeof(buffer), 0, &sa, &size) < 0)
+		return;
+	port = ((struct sockaddr_in *)&sa)->sin_port;
+	if (ntohs(port) < MINUDPSRCPORT)
 		return;
 	sprintf(buffer, "%.24s\r\n", ctime(&clocc));
 	sendto(s, buffer, strlen(buffer), 0, &sa, sizeof(sa));
