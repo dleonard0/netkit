@@ -1,3 +1,12 @@
+02-Aug-1997:
+	netkit-rusers-0.11 released.
+
+02-Aug-1997:
+	Fix buffer overrun security hole in rusers client.
+
+12-Jun-1997:
+	netkit-rusers-0.10 released.
+
 08-Jun-1997:
 	More adjustments for glibc.
 

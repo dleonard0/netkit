@@ -1,4 +1,7 @@
-This is netkit-rusers-0.10 for Linux.
+This is netkit-rusers-0.11 for Linux.
+
+This version replaces netkit-rusers-0.10. netkit-rusers-0.10 should
+not be used.
 
 This package updates the rusers and rusersd from NetKit-0.09. NetKit
 as a package no longer exists. To do a full update of NetKit-0.09
@@ -51,9 +54,9 @@ Installation:
 	  warned you.
 
 Security:
-	This release contains no security fixes relative to the rusers
-	and rusersd from NetKit-0.09. Versions prior to NetKit-0.09
-	should not be used.
+	This release fixes a remotely exploitable buffer overrun in
+	the rusers *client*. Consequently, versions of rusers prior to
+	this one should not be used.
 
 Bugs:
 	If something doesn't compile for you, send diffs. If you can't
@@ -72,4 +75,4 @@ Bugs:
 
 
 David A. Holland	dholland@hcs.harvard.edu
-								8-Mar-1997
+								2-Aug-1997

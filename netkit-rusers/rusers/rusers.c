@@ -28,7 +28,7 @@
 
 #ifndef lint
 char rusers_rcsid[] = 
-  "$Id: rusers.c,v 1.9 1997/04/05 22:26:22 dholland Exp $";
+  "$Id: rusers.c,v 1.10 1997/08/02 16:00:45 dholland Exp $";
 #endif /* not lint */
 
 #include <sys/types.h>
@@ -156,18 +156,30 @@ rusers_reply(char *replyp, struct sockaddr_in *raddrp)
 		}
 
 		strncpy(remote, up->uia_arr[x]->ui_utmp.ut_host,
-		    sizeof(remote)-1);
+			sizeof(remote)-1);
+		remote[sizeof(remote)-1] = 0;
+
 		if (strlen(remote) != 0)
 			sprintf(remote, "(%.16s)",
 			    up->uia_arr[x]->ui_utmp.ut_host);
 
 		if (longopt) {
-			strncpy(local, host, sizeof(local));
-			local[sizeof(local)-1] = 0;
-			local[HOST_WIDTH + LINE_WIDTH + 1 -
-			    strlen(up->uia_arr[x]->ui_utmp.ut_line) - 1] = 0;
-			strcat(local, ":");
-			strcat(local, up->uia_arr[x]->ui_utmp.ut_line);
+			/* Fit into HOST_WIDTH+LINE_WIDTH+1 chars */
+			int len1 = strlen(host);
+			int len2 = strlen(up->uia_arr[x]->ui_utmp.ut_line);
+			if (len1 + len2 > HOST_WIDTH+LINE_WIDTH+1) {
+			    int excess = len1 + len2 - HOST_WIDTH-LINE_WIDTH-1;
+			    if (excess < len1) len1 -= excess;
+			    else if (excess < len2) len2 -= excess;
+			    else {
+				/* Hmm. Probably an attack... */
+				len1 = HOST_WIDTH;
+				len2 = LINE_WIDTH;
+			    }
+			}
+			snprintf(local, sizeof(local),
+				 "%-.*s:%-.*%s", len1, host, len2,
+				 up->uia_arr[x]->ui_utmp.ut_line);
 
 			printf("%-8.8s %-*.*s %-12.12s %8s %.18s\n",
 			    up->uia_arr[x]->ui_utmp.ut_name,
