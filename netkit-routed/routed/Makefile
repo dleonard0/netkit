@@ -1,4 +1,4 @@
-all: routed ripquery
+all: routed
 
 include ../MCONFIG
 include ../MRULES
@@ -13,12 +13,10 @@ ripquery:
 	$(MAKE) -C query 
 
 install: all
-	install -s -m$(DAEMONMODE) routed $(INSTALLROOT)$(SBINDIR)
-	install -m$(MANMODE) routed.8 $(INSTALLROOT)$(MANDIR)/man8
-	$(MAKE) -C query install
+	install -s -m $(DAEMONMODE) routed $(INSTALLROOT)$(SBINDIR)
+	install -m $(MANMODE) routed.8.gz $(INSTALLROOT)$(MANDIR)/man8
 
 clean:
 	rm -f *.o routed
-	$(MAKE) -C query clean
 
 $(OBJS): defs.h trace.h interface.h table.h af.h pathnames.h

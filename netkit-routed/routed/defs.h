@@ -125,6 +125,14 @@ void traceaction(FILE *, char *, struct rt_entry *);
 void traceinit(struct interface *);
 void tracenewmetric(FILE *, struct rt_entry *, int);
 
+/*
+ * rboolean represents boolean type used for ripcmd_trace_accepted variable;
+ * ripcmd_trace_accepted variable controls availability of remote acceptance
+ * of RIPCMD_TRACEON and RIPCMD_TRACEOFF commands inside routed
+ */
+typedef enum {no, yes} rboolean;
+extern rboolean ripcmd_trace_accepted;
+
 #define ADD 1
 #define DELETE 2
 #define CHANGE 3

@@ -1,11 +1,12 @@
-This is netkit-routed-0.10.
+This is netkit-routed-0.12.
 
-This package updates the routed from NetKit-0.09. NetKit as a package
+This package updates the routed from netkit-routed-0.10. NetKit as a package
 no longer exists. To do a full update of NetKit-0.09 please consult
 NetKit.txt from your local ftp archive.
 
 Contents:
-	This package contains the programs routed and ripquery.
+	This package contains the programs routed, routed-trace,
+	and routed-query.
 
 	If you're reading this off a CD, go right away and check the
 	net archives for later versions and security fixes.
@@ -35,17 +36,18 @@ Please make sure your header files in /usr/include match your libc
 version installed in /lib and /usr/lib. If you have weird problems
 this is the most likely culprit.
 
-
 Installation:
 	Do "./configure", or edit MCONFIG to set the configuration options. 
 	Do "make".
 	Do "make install" as root to install everything. Save backup copies 
-	  of important tools, or confirm the new ones work first. Etc. We 
-	  warned you.
+	of important tools, or confirm the new ones work first. Etc. We 
+	warned you.
 
 Security:
-	This release contains no security fixes relative to
-	NetKit-0.09. Versions prior to NetKit-0.09 should not be used.
+	This release contains fix for serious security problem
+	present in all versions prior to this release (see
+	ChangeLog and routed.8 for problem describtion).
+	Versions prior to netkit-routed-0.12 should not be used.
 
 Bugs:
 	If something doesn't compile for you, send diffs. If you can't

@@ -75,6 +75,8 @@ void	getkversion(void);
 int getsocket(int, int, struct sockaddr *);
 void process(int);
 
+rboolean ripcmd_trace_accepted = no;
+
 int main(int argc, char *argv[])
 {
 	int n, nfd, tflags = 0;
@@ -117,6 +119,11 @@ int main(int argc, char *argv[])
 			argv++, argc--;
 			continue;
 		}
+		if (strcmp(*argv, "-r") == 0) {
+			ripcmd_trace_accepted = yes;
+			argv++, argc--;
+			continue;
+		}
 		if (strcmp(*argv, "-d") == 0) {
 			debug++;
 			setlogmask(LOG_UPTO(LOG_DEBUG));
@@ -129,7 +136,7 @@ int main(int argc, char *argv[])
 			continue;
 		}
 		fprintf(stderr,
-			"usage: routed [ -s ] [ -q ] [ -t ] [ -g ]\n");
+			"usage: routed [ -s ] [ -q ] [ -t ] [ -g ] [ -r ] [ /path/to/logfile ] \n");
 		exit(1);
 	}
 

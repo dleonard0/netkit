@@ -1,3 +1,23 @@
+26-Aug-1998:
+	* "query" and "trace" directories renamed to "routed-query"
+	  and "routed-trace", and moved to upper directory
+	* some cosmetic changes in "trace.c" from "routed-trace" and
+	  in "query.c" from "routed-query"
+	* "routed-trace/Makefile" supplied
+	* "ripquery" target from "routed-query/Makefile" changed to
+	  "routed-query" to avoid confusion with gated's "ripquery"
+	* routed: introduced new "-r" commandline parameter. By default,
+	  routed will not accept RIPCMD_TRACEON/OFF requests sent by
+	  remote host, unless "-r" is specified. I know this is more
+	  like kludge, but I had no idea on how this could be done
+	  more efficiently. But the security is important. Acceptance
+	  of RIPCMD_TRACEON/OFF sent remotely is done via
+	  "ripcmd_trace_accepted" variable for now.
+	* "routed" manpage updated
+	* new man pages for "routed-trace" and "routed-query" introduced
+
+	Jan Rafaj	<rafaj@vabo.cz>
+
 19-May-1997:
 	glibc fixes from Red Hat.
 

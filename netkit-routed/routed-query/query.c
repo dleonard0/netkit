@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
 	argv += optind;
 
 	if (!*argv) {
-usage:		printf("usage: ripquery [-n] hosts...\n");
+usage:		printf("usage: routed-query [-n] <host1> [host2] [host3] ..\n");
 		exit(1);
 	}
 
@@ -153,7 +153,7 @@ void query(char *host)
 	if (inet_aton(host, &router.sin_addr) == 0) {
 		hp = gethostbyname(host);
 		if (hp == NULL) {
-			fprintf(stderr, "ripquery: %s: ", host);
+			fprintf(stderr, "routed-query: %s: ", host);
 			herror((char *)NULL);
 			exit(1);
 		}

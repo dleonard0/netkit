@@ -34,21 +34,20 @@
  */
 
 #ifndef lint
-static char copyright[] =
+char copyright[] =
 "@(#) Copyright (c) 1983, 1988, 1993\n\
 	The Regents of the University of California.  All rights reserved.\n";
 #endif /* not lint */
 
 #ifndef lint
 #if 0
-static char sccsid[] = "@(#)trace.c	8.1 (Berkeley) 6/5/93";
+char sccsid[] = "@(#)trace.c	8.1 (Berkeley) 6/5/93";
 #else
-static char rcsid[] = "$NetBSD: trace.c,v 1.8 1995/05/21 14:22:27 mycroft Exp $";
+char rcsid[] = "$NetBSD: trace.c,v 1.8 1995/05/21 14:22:27 mycroft Exp $";
 #endif
 #endif /* not lint */
 
 #include <sys/param.h>
-#include <sys/protosw.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <protocols/routed.h>
@@ -61,12 +60,9 @@ static char rcsid[] = "$NetBSD: trace.c,v 1.8 1995/05/21 14:22:27 mycroft Exp $"
 struct	sockaddr_in myaddr;
 char	packet[MAXPACKETSIZE];
 
-main(argc, argv)
-	int argc;
-	char **argv;
+int main(int argc, char **argv)
 {
 	int size, s;
-	struct sockaddr from;
 	struct sockaddr_in router;
 	register struct rip *msg = (struct rip *)packet;
 	struct hostent *hp;
@@ -74,8 +70,8 @@ main(argc, argv)
 	
 	if (argc < 3) {
 usage:
-		printf("usage: trace cmd machines,\n");
-		printf("cmd either \"on filename\", or \"off\"\n");
+		printf("usage: routed-trace <cmd> <targethost1> [targethost2] ..\n");
+		printf("cmd is either \"on /path_to_tracefile\", or \"off\"\n");
 		exit(1);
 	}
 	s = socket(AF_INET, SOCK_DGRAM, 0);
@@ -93,16 +89,21 @@ usage:
 	argv++, argc--;
 	msg->rip_cmd = strcmp(*argv, "on") == 0 ?
 		RIPCMD_TRACEON : RIPCMD_TRACEOFF;
+	if (msg->rip_cmd == RIPCMD_TRACEOFF && strcmp(*argv, "off") != 0)
+		goto usage;
+	if (msg->rip_cmd == RIPCMD_TRACEON && argc == 2)
+		goto usage;
 	msg->rip_vers = RIPVERSION;
+	printf("routed-trace: sending command \"%s", *argv);
 	argv++, argc--;
 	size = sizeof (int);
 	if (msg->rip_cmd == RIPCMD_TRACEON) {
 		strcpy(msg->rip_tracefile, *argv);
 		size += strlen(*argv);
+		printf(" %s", *argv);
 		argv++, argc--;
 	}
-	if (argc == 0)
-		goto usage;
+	printf("\"\n");
 	memset(&router, 0, sizeof (router));
 	router.sin_family = AF_INET;
 	sp = getservbyname("router", "udp");
@@ -116,15 +117,17 @@ usage:
 		if (inet_aton(*argv, &router.sin_addr) == 0) {
 			hp = gethostbyname(*argv);
 			if (hp == NULL) {
-				fprintf(stderr, "trace: %s: ", *argv);
+				fprintf(stderr, "routed-trace: %s: ", *argv);
 				herror((char *)NULL);
-				continue;
+				exit(1);
 			}
 			memcpy(&router.sin_addr, hp->h_addr, hp->h_length);
 		}
 		if (sendto(s, packet, size, 0,
 		    (struct sockaddr *)&router, sizeof(router)) < 0)
 			perror(*argv);
+		printf("routed-trace: command succesfully sent to %s\n", *argv);
 		argv++, argc--;
 	}
+	exit(0);
 }

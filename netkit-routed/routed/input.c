@@ -143,6 +143,9 @@ void rip_input(struct sockaddr *from, struct rip *rip, int size)
 
 	case RIPCMD_TRACEON:
 	case RIPCMD_TRACEOFF:
+		/* first, verify whether we are allowed to act upon remote request */
+		if (ripcmd_trace_accepted == no)
+			return;
 		/* verify message came from a privileged port */
 		if ((*afp->af_portcheck)(from) == 0)
 			return;
