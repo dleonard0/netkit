@@ -36,7 +36,7 @@
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)net.c	5.5 (Berkeley) 6/1/90";*/
-char net_rcsid[] = "$Id: net.c,v 1.4 1996/08/14 18:56:40 dholland Exp $";
+char net_rcsid[] = "$Id: net.c,v 1.6 1996/11/25 18:42:46 dholland Exp $";
 #endif /* not lint */
 
 #include <sys/types.h>
@@ -69,8 +69,7 @@ void netfinger(const char *name) {
 	*host++ = '\0';
 	hp = gethostbyname(host);
 	if (!hp) {
-		defaddr.s_addr = inet_addr(host);
-		if (defaddr.s_addr == (unsigned long)-1) {
+		if (!inet_aton(host, &defaddr)) {
 			fprintf(stderr, "finger: unknown host: %s\n", host);
 			return;
 		}
@@ -87,10 +86,13 @@ void netfinger(const char *name) {
 		fprintf(stderr, "finger: tcp/finger: unknown service\n");
 		return;
 	}
+	memset(&sn, 0, sizeof(sn));
 	sn.sin_family = hp->h_addrtype;
+	if (hp->h_length > (int)sizeof(sn.sin_addr)) {
+	    hp->h_length = sizeof(sn.sin_addr);
+	}
 	memcpy(&sn.sin_addr, hp->h_addr, hp->h_length);
 	sn.sin_port = sp->s_port;
-	memset(sn.sin_zero, 0, sizeof(sn.sin_zero));
 
 	if ((s = socket(hp->h_addrtype, SOCK_STREAM, 0)) < 0) {
 		perror("finger: socket");

@@ -32,7 +32,7 @@
  * From @(#)rpc_main.c 1.30 89/03/30 (C) 1987 SMI;
  */
 char main_rcsid[] =
-  "$Id: rpc_main.c,v 1.4 1996/08/15 02:53:26 dholland Exp $";
+  "$Id: rpc_main.c,v 1.5 1996/08/30 01:22:51 dholland Exp $";
 
 /*
  * rpc_main.c, Top level of the RPC protocol compiler. 
@@ -482,6 +482,7 @@ h_output(const char *infile, const char *define, int extend,
 	 const char *outfile)
 {
 	definition *def;
+	const char *ifilename;
 	const char *outfilename;
 	long tell;
 	char *guard;
@@ -491,7 +492,8 @@ h_output(const char *infile, const char *define, int extend,
 	outfilename =  extend ? extendfile(infile, outfile) : outfile;
 	open_output(infile, outfilename);
 	add_warning();
-	guard = generate_guard(  outfilename ? outfilename: infile );
+	ifilename = (infile == NULL) ? "STDIN" : infile;
+	guard = generate_guard(  outfilename ? outfilename: ifilename );
 
 	f_print(fout,"#ifndef _%s\n#define _%s\n\n", guard,
 		guard);

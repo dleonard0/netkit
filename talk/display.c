@@ -35,7 +35,7 @@
  * From: @(#)display.c	5.4 (Berkeley) 6/1/90
  */
 char display_rcsid[] = 
-  "$Id: display.c,v 1.4 1996/08/20 20:25:55 dholland Exp $";
+  "$Id: display.c,v 1.5 1996/11/22 13:40:55 dholland Exp $";
 
 /*
  * The window 'manager', initializes curses and handles the actual
@@ -68,10 +68,10 @@ max(int a, int b)
  * characters while we are at it.
  */
 void
-display(xwin_t *win, char *text, int size)
+display(xwin_t *win, unsigned char *text, int size)
 {
 	int j;
-	char cch;
+	unsigned char cch;
 
 	for (j = 0; j < size; j++) {
 		if (*text == '\n') {

@@ -32,7 +32,7 @@
  * From: @(#)rpc_clntout.c 1.11 89/02/22 (C) 1987 SMI
  */
 char clntout_rcsid[] = 
-  "$Id: rpc_clntout.c,v 1.3 1996/08/15 02:53:26 dholland Exp $";
+  "$Id: rpc_clntout.c,v 1.4 1996/12/29 20:42:01 dholland Exp $";
 
 /*
  * rpc_clntout.c, Client-stub outputter for the RPC protocol compiler
@@ -197,14 +197,15 @@ printbody(proc_list *proc)
 		    l->decl.name, l->decl.name);
 	  }
 	  f_print(fout,
-		  "\tif (clnt_call(clnt, %s, xdr_%s", proc->proc_name,
+		  "\tif (clnt_call(clnt, %s, (xdrproc_t) xdr_%s", 
+		  proc->proc_name,
 		  proc->args.argname);
 	  f_print(fout, 
- 		      ", &arg, xdr_%s, %s%s, TIMEOUT) != RPC_SUCCESS) {\n",
+		  ", &arg, (xdrproc_t) xdr_%s, %s%s, TIMEOUT) != RPC_SUCCESS) {\n",
  		  stringfix(proc->res_type), ampr(proc->res_type), RESULT);
 	} else {  /* single argument, new or old style */
 	      f_print(fout,
- 		      "\tif (clnt_call(clnt, %s, xdr_%s, %s%s, xdr_%s, %s%s, TIMEOUT) != RPC_SUCCESS) {\n",
+ 		      "\tif (clnt_call(clnt, %s, (xdrproc_t) xdr_%s, %s%s, (xdrproc_t) xdr_%s, %s%s, TIMEOUT) != RPC_SUCCESS) {\n",
 		      proc->proc_name, 
 		      stringfix(proc->args.decls->decl.type), 
 		      (newstyle ? "&" : ""),

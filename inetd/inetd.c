@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)inetd.c	5.30 (Berkeley) 6/3/91
  */
 char rcsid[] = 
-  "$Id: inetd.c,v 1.6 1996/08/14 23:54:14 dholland Exp $";
+  "$Id: inetd.c,v 1.9 1996/11/23 18:44:01 dholland Exp $";
 
 
 /*
@@ -138,6 +138,7 @@ char rcsid[] =
 #include <sys/resource.h>
 
 #include <netinet/in.h>
+#include <netinet/ip.h>
 #include <arpa/inet.h>
 
 #include <errno.h>
@@ -148,6 +149,8 @@ char rcsid[] =
 #include <grp.h>
 #include <stdio.h>
 #include <string.h>
+#include <getopt.h>
+#include <unistd.h>
 
 #ifdef RPC
 /* work around a compiler warning in rpc.h */
@@ -176,6 +179,9 @@ static void config(int);
 static void reapchild(int);
 static void retry(int);
 static void goaway(int);
+
+/* Length of socket listen queue. Should be per-service probably. */
+static int 	global_queuelen = 128;
 
 static int	debug = 0;
 static int	nsock, maxsock;
@@ -327,15 +333,20 @@ main(int argc, char *argv[], char *envp[])
 	progname = strrchr(argv[0], '/');
 	progname = progname ? progname + 1 : argv[0];
 
-	while ((ch = getopt(argc, argv, "d")) != EOF)
+	while ((ch = getopt(argc, argv, "dq:")) != EOF)
 		switch(ch) {
 		case 'd':
 			debug = 1;
 			options |= SO_DEBUG;
 			break;
+		case 'q':
+		        global_queuelen = atoi(optarg);
+			if (global_queuelen < 8) global_queuelen=8;
+			break;
 		case '?':
 		default:
-			fprintf(stderr, "usage: %s [-d] [conf]", progname);
+			fprintf(stderr, "usage: %s [-d] [-q len] [conf]", 
+				progname);
 			exit(1);
 		}
 	argc -= optind;
@@ -411,8 +422,7 @@ main(int argc, char *argv[], char *envp[])
 			/* Fixed AGC */
 			fcntl(sep->se_fd,F_SETFL,O_NDELAY);
 			/* --------- */
-			ctrl = accept(sep->se_fd, (struct sockaddr *)0,
-			    (int *)0);
+			ctrl = accept(sep->se_fd, NULL, NULL);
 			fcntl(sep->se_fd,F_SETFL, 0);
 			if (debug)
 				fprintf(stderr, "accept, ctrl %d\n", ctrl);
@@ -802,7 +812,7 @@ setsockopt(fd, SOL_SOCKET, opt, (char *)&on, sizeof (on))
 		return;
 	}
 	if (sep->se_socktype == SOCK_STREAM)
-		listen(sep->se_fd, 10);
+		listen(sep->se_fd, global_queuelen);
 
 	FD_SET(sep->se_fd, &allsock);
 	nsock++;
@@ -817,7 +827,8 @@ static void
 register_rpc(struct servtab *sep)
 {
 #ifdef RPC
-	int n;
+	size_t m;
+	int i;
 	struct sockaddr_in sn;
 	struct protoent *pp;
 
@@ -826,21 +837,23 @@ register_rpc(struct servtab *sep)
 		    sep->se_proto);
 		return;
 	}
-	n = sizeof(sn);
-	if (getsockname(sep->se_fd, (struct sockaddr *)&sn, &n) < 0) {
+	m = sizeof(sn);
+	if (getsockname(sep->se_fd, (struct sockaddr *)&sn, &m) < 0) {
 		syslog(LOG_ERR, "%s/%s: getsockname: %m",
 		    sep->se_service, sep->se_proto);
 		return;
 	}
 
-	for (n = sep->se_rpcversl; n <= sep->se_rpcversh; n++) {
+	for (i = sep->se_rpcversl; i <= sep->se_rpcversh; i++) {
 		if (debug)
 			fprintf(stderr, "pmap_set: %u %u %u %u\n",
-			sep->se_rpcprog, n, pp->p_proto, ntohs(sn.sin_port));
-		(void)pmap_unset(sep->se_rpcprog, n);
-		if (!pmap_set(sep->se_rpcprog, n, pp->p_proto, ntohs(sn.sin_port)))
+				sep->se_rpcprog, i, 
+				pp->p_proto, ntohs(sn.sin_port));
+		(void)pmap_unset(sep->se_rpcprog, i);
+		if (!pmap_set(sep->se_rpcprog, i, pp->p_proto, ntohs(sn.sin_port)))
 			syslog(LOG_ERR, "pmap_set: %u %u %u %u: %m",
-			sep->se_rpcprog, n, pp->p_proto, ntohs(sn.sin_port));
+			       sep->se_rpcprog, i, 
+			       pp->p_proto, ntohs(sn.sin_port));
 	}
 #endif /* RPC */
 }
@@ -1160,7 +1173,7 @@ newstr(char *cp)
 static void
 setproctitle(char *a, int s)
 {
-	int size;
+	size_t size;
 	register char *cp;
 	struct sockaddr_in sn;
 	char buf[80];
@@ -1249,7 +1262,8 @@ void
 echo_dg(int s, struct servtab *sep)
 {
 	char buffer[BUFSIZE];
-	int i, size;
+	int i;
+	size_t size;
 	struct sockaddr sa;
 
 	(void)sep;
@@ -1341,7 +1355,7 @@ chargen_dg(int s, struct servtab *sep)
 {
 	struct sockaddr sa;
 	static char *rs;
-	int len, size;
+	size_t len, size;
 	char text[LINESIZ+2];
 
 	(void)sep;
@@ -1403,7 +1417,7 @@ machtime_dg(int s, struct servtab *sep)
 {
 	long result;
 	struct sockaddr sa;
-	int size;
+	size_t size;
 	(void)sep;
 
 	size = sizeof(sa);
@@ -1434,7 +1448,7 @@ daytime_dg(int s, struct servtab *sep)
 	char buffer[256];
 	time_t clocc;
 	struct sockaddr sa;
-	int size;
+	size_t size;
 
 	(void)sep;
 
@@ -1455,17 +1469,17 @@ print_service(const char *action, struct servtab *sep)
 {
 	if (isrpcservice(sep))
 		fprintf(stderr,
-		    "%s: %s rpcprog=%d, rpcvers = %d/%d, proto=%s, wait.max=%d.%d, user.group=%s.%s builtin=%x server=%s\n",
+		    "%s: %s rpcprog=%d, rpcvers = %d/%d, proto=%s, wait.max=%d.%d, user.group=%s.%s builtin=%lx server=%s\n",
 		    action, sep->se_service,
 		    sep->se_rpcprog, sep->se_rpcversh, sep->se_rpcversl, sep->se_proto,
 		    sep->se_wait, sep->se_max, sep->se_user, sep->se_group,
-		    (int)sep->se_bi, sep->se_server);
+		    (unsigned long)sep->se_bi, sep->se_server);
 	else
 		fprintf(stderr,
-		    "%s: %s proto=%s, wait.max=%d.%d, user.group=%s.%s builtin=%x server=%s\n",
+		    "%s: %s proto=%s, wait.max=%d.%d, user.group=%s.%s builtin=%lx server=%s\n",
 		    action, sep->se_service, sep->se_proto,
 		    sep->se_wait, sep->se_max, sep->se_user, sep->se_group,
-		    (int)sep->se_bi, sep->se_server);
+		    (unsigned long)sep->se_bi, sep->se_server);
 }
 
 

@@ -12,6 +12,11 @@ CFLAGS += -DUSE_PAM
 LDFLAGS += -ldl -lpam
 endif
 
+ifeq ($(USE_SHADOW),1)
+CFLAGS += -DUSE_SHADOW
+LDFLAGS += -lshadow
+endif
+
 # -DRESTRICT_FTP if you want to deny all users in /etc/ftpusers to use rexecd
 CFLAGS += -DRESTRICT_FTP
 
@@ -19,8 +24,9 @@ rexecd: rexecd.o
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 install: rexecd
-	install -s -m744 rexecd /usr/sbin/in.rexecd
-	install -m644 rexecd.8 /usr/man/man8/in.rexecd.8
+	install -s -m$(DAEMONMODE) rexecd $(SBINDIR)/in.rexecd
+	install -m$(MANMODE) rexecd.8 $(MANDIR)/man8/in.rexecd.8
+	ln -sf in.rexecd.8 $(MANDIR)/man8/rexecd.8
 
 clean:
 	rm -f *.o rexecd

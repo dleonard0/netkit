@@ -35,7 +35,7 @@
  * From: @(#)table.c	5.7 (Berkeley) 2/26/91
  */
 char table_rcsid[] = 
-  "$Id: table.c,v 1.4 1996/08/15 03:44:13 dholland Exp $";
+  "$Id: table.c,v 1.5 1996/12/29 17:13:53 dholland Exp $";
 
 /*
  * Routines to handle insertion, deletion, etc on the table
@@ -48,12 +48,12 @@ char table_rcsid[] =
 #include <sys/param.h>
 #include <sys/time.h>
 #include <sys/socket.h>
-#include <protocols/talkd.h>
 #include <syslog.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "mytalkd.h"
 #include "proto.h"
 
 #define MAX_ID 16000	/* << 2^15 so I don't have sign troubles */

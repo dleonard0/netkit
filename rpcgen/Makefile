@@ -12,8 +12,8 @@ rpcgen: $(OBJECTS)
 $(OBJECTS): proto.h rpc_parse.h rpc_scan.h rpc_util.h
 
 install: rpcgen
-	install -s rpcgen /usr/bin
-	install rpcgen.1 /usr/man/man1
+	install -s -m$(BINMODE) rpcgen $(BINDIR)
+	install -m$(MANMODE) rpcgen.1 $(MANDIR)/man1
 
 clean:
 	rm -f *.o rpcgen

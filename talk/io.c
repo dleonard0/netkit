@@ -35,7 +35,7 @@
  * From: @(#)io.c	5.6 (Berkeley) 3/1/91
  */
 char io_rcsid[] = 
-  "$Id: io.c,v 1.6 1996/08/20 20:26:00 dholland Exp $";
+  "$Id: io.c,v 1.9 1996/12/29 16:50:37 dholland Exp $";
 
 /*
  * This file contains the I/O handling and the exchange of 
@@ -51,72 +51,56 @@ char io_rcsid[] =
 #include <unistd.h>
 #include "talk.h"
 
-#define A_LONG_TIME 10000000
-#define STDIN_MASK (1<<fileno(stdin))	/* the bit mask for standard
-					   input */
-
 /*
  * The routine to do the actual talking
  */
 void
 talk(void)
 {
-	register int read_template, sockt_mask;
-	int read_set, nb;
-	char buf[BUFSIZ];
-	struct timeval wait;
+	fd_set read_set;
+	int nb;
+	unsigned char buf[BUFSIZ];
 
 	message("Connection established");
 	beep();
 	wrefresh(curscr);
 
 	current_line = 0;
-	sockt_mask = (1<<sockt);
 
 	/*
-	 * Wait on both the other process (sockt_mask) and 
-	 * standard input ( STDIN_MASK )
+	 * Wait on both the other process and standard input
 	 */
-	read_template = sockt_mask | STDIN_MASK;
 	for (;;) {
-		read_set = read_template;
-		wait.tv_sec = A_LONG_TIME;
-		wait.tv_usec = 0;
-		nb = select(32, (fd_set *) &read_set, 0, 0, &wait);
+		FD_ZERO(&read_set);
+		FD_SET(0, &read_set);
+		FD_SET(sockt, &read_set);
+		nb = select(sockt+1, &read_set, NULL, NULL, NULL);
 		if (nb <= 0) {
 			if (errno == EINTR) {
-				read_set = read_template;
 				continue;
 			}
 			/* panic, we don't know what happened */
 			p_error("Unexpected error from select");
 			quit();
 		}
-		if (read_set & sockt_mask) { 
+		if (FD_ISSET(sockt, &read_set)) { 
 			/* There is data on sockt */
-			nb = read(sockt, buf, sizeof buf);
+			nb = read(sockt, buf, sizeof(buf));
 			if (nb <= 0) {
 				message("Connection closed. Exiting");
 				quit();
 			}
 			display(&his_win, buf, nb);
 		}
-		if (read_set & STDIN_MASK) {
-			/*
-			 * We can't make the tty non_blocking, because
-			 * curses's output routines would screw up
-			 */
-			ioctl(0, FIONREAD, (struct sgttyb *) &nb);
-			nb = read(0, buf, nb);
+		if (FD_ISSET(0, &read_set)) {
+			buf[0] = getch();
+			nb = 1;
 			display(&my_win, buf, nb);
-			/* might lose data here because sockt is non-blocking */
+			/* might lose data here because sockt is nonblocking */
 			write(sockt, buf, nb);
 		}
 	}
 }
-
-extern	int errno;
-extern	int sys_nerr;
 
 /*
  * p_error prints the system error message on the standard location

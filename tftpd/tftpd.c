@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)tftpd.c	5.13 (Berkeley) 2/26/91
  */
 char rcsid[] = 
-  "$Id: tftpd.c,v 1.6 1996/08/15 05:40:38 dholland Exp $";
+  "$Id: tftpd.c,v 1.8 1996/12/29 18:42:40 dholland Exp $";
 
 /*
  * Trivial file transfer protocol server.
@@ -54,6 +54,7 @@ char rcsid[] =
 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/ip.h>
 #include <arpa/tftp.h>
 #include <netdb.h>
 
@@ -65,6 +66,7 @@ char rcsid[] =
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <pwd.h>
 
 #include "tftpsubs.h"
 
@@ -87,7 +89,7 @@ static int	maxtimeout = 5*TIMEOUT;
 static char	buf[PKTSIZE];
 static char	ackbuf[PKTSIZE];
 static struct	sockaddr_in from;
-static int	fromlen;
+static size_t	fromlen;
 
 #define MAXARG	4
 static char	*dirs[MAXARG+1];
@@ -100,6 +102,7 @@ main(int ac, char **av)
 	int on = 1;
 
 	ac--; av++;
+	if (ac==0) dirs[0] = "/tftpboot";  /* default directory */
 	while (ac-- > 0 && n < MAXARG)
 		dirs[n++] = *av++;
 	openlog("tftpd", LOG_PID, LOG_DAEMON);
@@ -107,7 +110,7 @@ main(int ac, char **av)
 		syslog(LOG_ERR, "ioctl(FIONBIO): %m\n");
 		exit(1);
 	}
-	fromlen = sizeof (from);
+	fromlen = sizeof(from);
 	n = recvfrom(0, buf, sizeof (buf), 0,
 	    (struct sockaddr *)&from, &fromlen);
 	if (n < 0) {
@@ -130,7 +133,8 @@ main(int ac, char **av)
 	 */
 	{
 		int pid;
-		int i, j;
+		int i;
+		size_t k;
 
 		for (i = 1; i < 20; i++) {
 		    pid = fork();
@@ -146,12 +150,12 @@ main(int ac, char **av)
 				 * than one tftpd being started up to service
 				 * a single request from a single client.
 				 */
-				j = sizeof from;
+				k = sizeof(from);
 				i = recvfrom(0, buf, sizeof (buf), 0,
-				    (struct sockaddr *)&from, &j);
+				    (struct sockaddr *)&from, &k);
 				if (i > 0) {
 					n = i;
-					fromlen = j;
+					fromlen = k;
 				}
 		    } else {
 				break;
@@ -163,6 +167,11 @@ main(int ac, char **av)
 		} else if (pid != 0) {
 			exit(0);
 		}
+	}
+	if (!getuid() || !geteuid()) {
+		struct passwd *pwd = getpwnam("nobody");
+		if (pwd) setuid(pwd->pw_uid);
+		else setuid(32765); /* hope this doesn't hose anything */
 	}
 	from.sin_family = AF_INET;
 	alarm(0);

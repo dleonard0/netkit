@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 1989 The Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1989, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,8 +30,10 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	from: @(#)pathnames.h	5.3 (Berkeley) 6/1/90
- *	$Id: pathnames.h,v 1.1 1996/07/15 16:49:21 dholland Exp $
+ *	From: @(#)pathnames.h	5.3 (Berkeley) 6/1/90
+ *	From: @(#)pathnames.h	8.1 (Berkeley) 6/5/93
+ *	From: NetBSD: pathnames.h,v 1.6 1995/03/18 15:00:37 cgd Exp
+ *	$Id: pathnames.h,v 1.2 1996/11/25 16:36:17 dholland Exp $
  */
 
 #include <paths.h>

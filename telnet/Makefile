@@ -3,6 +3,8 @@ all: telnet
 include ../MCONFIG
 include ../MRULES
 
+#CFLAGS:=$(patsubst -O2, -g, $(CFLAGS))
+
 # -DAUTHENTICATE
 CFLAGS += -DUSE_TERMIO -DKLUDGELINEMODE
 LIBS += $(LIBTERMCAP)
@@ -23,8 +25,8 @@ depend:
 	$(CC) $(CFLAGS) -MM $(SRCS) >.depend
 
 install: telnet
-	install -s telnet /usr/bin
-	install -m644 telnet.1 /usr/man/man1
+	install -s -m$(BINMODE) telnet $(BINDIR)
+	install -m$(MANMODE) telnet.1 $(MANDIR)/man1
 
 clean:
 	rm -f *.o telnet

@@ -35,7 +35,7 @@
  * From: @(#)ring.c	5.2 (Berkeley) 3/1/91
  */
 char ring_rcsid[] =
-  "$Id: ring.cc,v 1.16 1996/08/15 04:18:19 dholland Exp $";
+  "$Id: ring.cc,v 1.20 1996/12/29 18:07:35 dholland Exp $";
 
 /*
  * This defines a structure for a ring buffer. 
@@ -72,6 +72,7 @@ int ringbuf::init(int sz, datasink *sink, source *src) {
 
 int ringbuf::gets(char *rbuf, int max) {
     int i=0, ch;
+    assert(max>0);
     while (getch(&ch)>0 && i<max-1) rbuf[i++] = ch;
     rbuf[i]=0;
     return i;
@@ -96,12 +97,15 @@ void ringbuf::ungetch(int ch) {
     int x = tail;
     x--;
     if (x<0) x += size;
-    if (buf[x]==ch) {
+    int och = buf[x];   /* avoid sign-extension and other such problems */
+    if ((och&0xff) == (ch&0xff)) {
 	tail = x;
 	count++;
     }
     else {
-	assert(!"Bad ungetch");
+	//assert(!"Bad ungetch");
+	tail = x;
+	count++;
     }
 }
 
@@ -118,25 +122,39 @@ int ringbuf::flush() {
     assert(count>=0);
     if (count==0) return 0;
     
+    static int busy=0;
+    if (busy) {
+	return -1;
+    }
+    busy=1;
+
+    /* should always be true */
+    assert(((size+head-tail)%size)==count);
+
     while (count > 0) {
 	int bot = tail;
 	int top = head;
 	if (top < bot) top = size;
 	if (marked > bot) top = marked;
+	assert(top-bot > 0 && top-bot <= count);
+
 	int n;
 	if (marked==bot) n = binding->writeurg(buf+bot, top-bot);
 	else n = binding->write(buf+bot, top-bot);
-	if (n < 0) return -2;
-	else if (n==0) return -1;
+	if (n < 0) { busy=0; return -2; }
+	else if (n==0) { busy=0; return -1; }
 	
 	if (marked==bot) marked = -1;
 	tail += n;
 	if (tail >= size) tail -= size;
 	count -= n;
+	assert(((size+head-tail)%size)==count);
 	
-	if (n > 0 && n < top-bot) return n+1;
+	if (n > 0 && n < top-bot) { busy=0; return n+1; }
 	/* otherwise (if we wrote all data) loop */
     }
+    assert(((size+head-tail)%size)==count);
+    busy=0;
     return 1;
 }
 

@@ -41,17 +41,22 @@
  * From: @(#)rpcinfo.c	2.2 88/08/11 4.0 RPCSRC
  */
 char rcsid[] = 
-  "$Id: rpcinfo.c,v 1.4 1996/08/15 03:04:48 dholland Exp $";
+  "$Id: rpcinfo.c,v 1.7 1996/11/25 18:42:46 dholland Exp $";
 
 #include <stdio.h>
 #include <netdb.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netinet/ip.h>
 #include <rpc/rpc.h>
 #include <rpc/pmap_prot.h>
 #include <rpc/pmap_clnt.h>
 #include <signal.h>
 #include <ctype.h>
+#include <getopt.h>
+#include <unistd.h>
+#include <string.h>
 
 #define MAXHOSTLEN 256
 
@@ -641,16 +646,16 @@ get_inet_address(struct sockaddr_in *addr, char *host)
 {
 	register struct hostent *hp;
 
-	bzero((char *)addr, sizeof *addr);
-	addr->sin_addr.s_addr = (u_long) inet_addr(host);
-	if (addr->sin_addr.s_addr == (unsigned long)-1 || 
-	    addr->sin_addr.s_addr == 0) 
-	{
+	memset(addr, 0, sizeof(*addr));
+	if (!inet_aton(host, &addr->sin_addr)) {
 		if ((hp = gethostbyname(host)) == NULL) {
 			fprintf(stderr, "rpcinfo: %s is unknown host\n", host);
 			exit(1);
 		}
-		bcopy(hp->h_addr, (char *)&addr->sin_addr, hp->h_length);
+		if (hp->h_length > (int)sizeof(addr->sin_addr)) {
+			hp->h_length = sizeof(addr->sin_addr);
+		}
+		memcpy(&addr->sin_addr, hp->h_addr, hp->h_length);
 	}
 	addr->sin_family = AF_INET;
 }

@@ -39,15 +39,15 @@ char copyright[] =
  * from: @(#)main.c	5.18 (Berkeley) 3/1/91
  */
 char main_rcsid[] = 
-  "$Id: main.c,v 1.9 1996/08/14 23:27:28 dholland Exp $";
+  "$Id: main.c,v 1.11 1996/08/30 21:05:57 dholland Exp $";
 
 
 /*
  * FTP User Program -- Command Interface.
  */
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
-#include <sys/types.h>
 
 #include <arpa/ftp.h>
 
@@ -509,7 +509,7 @@ OUT:
 	return NULL;
 }
 
-#define HELPINDENT (sizeof ("directory"))
+#define HELPINDENT ((int) sizeof ("directory"))
 
 /*
  * Help command.

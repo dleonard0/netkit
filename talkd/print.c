@@ -35,15 +35,15 @@
  * From: @(#)print.c	5.8 (Berkeley) 2/26/91
  */
 char print_rcsid[] = 
-  "$Id: print.c,v 1.3 1996/08/15 03:44:13 dholland Exp $";
+  "$Id: print.c,v 1.4 1996/12/29 17:13:53 dholland Exp $";
 
 /* debug print routines */
 
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <protocols/talkd.h>
 #include <syslog.h>
 #include <stdio.h>
+#include "mytalkd.h"
 #include "proto.h"
 
 static const char *types[] = { 

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 1983, 1988 Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1983, 1988, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,14 +33,16 @@
 
 /*
  * From: @(#)output.c	5.15 (Berkeley) 2/28/91
+ * From: @(#)output.c	8.1 (Berkeley) 6/5/93
  */
 char output_rcsid[] = 
-  "$Id: output.c,v 1.3 1996/07/15 17:45:59 dholland Exp $";
+  "$Id: output.c,v 1.6 1996/11/25 16:54:04 dholland Exp $";
 
 
 /*
  * Routing Table Management Daemon
  */
+
 #include "defs.h"
 
 /*
@@ -49,13 +51,13 @@ char output_rcsid[] =
  * use of broadcasting use it, otherwise address
  * the output to the known router.
  */
-void
-toall(int (*f)(), int, int rtstate, struct interface *skipif)
+
+void toall(void (*f)(struct sockaddr *, int, struct interface *, int), 
+	int rtstate, struct interface *skipif)
 {
-	register struct interface *ifp;
-	register struct sockaddr *dst;
-	register int flags = 0;
-	extern struct interface *ifnet;
+	struct interface *ifp;
+	struct sockaddr *dst;
+	int flags;
 
 	for (ifp = ifnet; ifp; ifp = ifp->int_next) {
 		if (ifp->int_flags & IFF_PASSIVE || ifp == skipif)
@@ -63,9 +65,7 @@ toall(int (*f)(), int, int rtstate, struct interface *skipif)
 		dst = ifp->int_flags & IFF_BROADCAST ? &ifp->int_broadaddr :
 		      ifp->int_flags & IFF_POINTOPOINT ? &ifp->int_dstaddr :
 		      &ifp->int_addr;
-#ifndef __linux__
 		flags = ifp->int_flags & IFF_INTERFACE ? MSG_DONTROUTE : 0;
-#endif
 		(*f)(dst, flags, ifp, rtstate);
 	}
 }
@@ -73,10 +73,10 @@ toall(int (*f)(), int, int rtstate, struct interface *skipif)
 /*
  * Output a preformed packet.
  */
-/*ARGSUSED*/
-void
-sndmsg(struct sockaddr *dst, int flags, struct interface *ifp, int rtstate)
+
+void sndmsg(struct sockaddr *dst, int flags, struct interface *ifp, int rtstate)
 {
+	(void)rtstate;
 
 	(*afswitch[dst->sa_family].af_output)(s, flags,
 		dst, sizeof (struct rip));
@@ -87,16 +87,18 @@ sndmsg(struct sockaddr *dst, int flags, struct interface *ifp, int rtstate)
  * Supply dst with the contents of the routing tables.
  * If this won't fit in one packet, chop it up into several.
  */
-void
-supply(struct sockaddr *dst, int flags, struct interface *ifp, int rtstate)
+ 
+void supply(struct sockaddr *dst, int flags, struct interface *ifp, int rtstate)
 {
-	register struct rt_entry *rt;
-	register struct netinfo *n = msg->rip_nets;
-	register struct rthash *rh;
+	struct rt_entry *rt;
+	struct netinfo *n = msg->rip_nets;
+	struct rthash *rh;
 	struct rthash *base = hosthash;
 	int doinghost = 1, size;
-	int (*output)() = afswitch[dst->sa_family].af_output;
-	int (*sendroute)() = afswitch[dst->sa_family].af_sendroute;
+	void (*output)(int,int,struct sockaddr *,int) = 
+		afswitch[dst->sa_family].af_output;
+	int (*sendroute)(struct rt_entry *, struct sockaddr *) = 
+		afswitch[dst->sa_family].af_sendroute;
 	int npackets = 0;
 
 	msg->rip_cmd = RIPCMD_RESPONSE;
@@ -132,7 +134,7 @@ again:
 				continue;
 		}
 		size = (char *)n - packet;
-		if (size > MAXPACKETSIZE - sizeof (struct netinfo)) {
+		if (size > MAXPACKETSIZE - (int)sizeof (struct netinfo)) {
 			TRACE_OUTPUT(ifp, dst, size);
 			(*output)(s, flags, dst, size);
 			/*
@@ -148,7 +150,7 @@ again:
 		n->rip_dst = rt->rt_dst;
 #if BSD < 198810
 		if (sizeof(n->rip_dst.sa_family) > 1)	/* XXX */
-		n->rip_dst.sa_family = htons(n->rip_dst.sa_family);
+			n->rip_dst.sa_family = htons(n->rip_dst.sa_family);
 #else
 #define osa(x) ((struct osockaddr *)(&(x)))
 		osa(n->rip_dst)->sa_family = htons(n->rip_dst.sa_family);

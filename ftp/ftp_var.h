@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)ftp_var.h	5.9 (Berkeley) 6/1/90
- *	$Id: ftp_var.h,v 1.6 1996/08/14 23:27:28 dholland Exp $
+ *	$Id: ftp_var.h,v 1.7 1996/08/30 02:08:38 dholland Exp $
  */
 
 /*
@@ -141,7 +141,7 @@ Extern char macbuf[4096];
 char *hookup(char *host, int port);
 struct cmd *getcmd(const char *);
 char **makeargv(int *pargc, char **parg);
-int login(const char *host);
+int dologin(const char *host);
 int command(const char *fmt, ...);
 void sendrequest(const char *cmd, char *local, char *remote, int printnames);
 void recvrequest(const char *cmd, char *local, char *remote, 

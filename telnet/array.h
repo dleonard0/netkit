@@ -9,6 +9,9 @@
 //   Change log:
 //
 // $Log: array.h,v $
+// Revision 1.2  1996/08/29  22:36:06  dholland
+// glibc fixes
+//
 // Revision 1.1  1996/07/31  05:54:45  dholland
 // Initial revision
 //
@@ -28,7 +31,7 @@
 #define NULL 0
 #endif
 
-inline void *operator new(unsigned int, void *v) { return v; }
+inline void *operator new(size_t, void *v) { return v; }
 
 template <class T>
 class array {

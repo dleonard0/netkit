@@ -35,7 +35,7 @@
  * From: @(#)ftp.c	5.38 (Berkeley) 4/22/91
  */
 char ftp_rcsid[] = 
-  "$Id: ftp.c,v 1.9 1996/08/15 07:54:48 dholland Exp $";
+  "$Id: ftp.c,v 1.13 1996/11/25 18:42:46 dholland Exp $";
 
 
 #include <sys/param.h>
@@ -99,14 +99,15 @@ char *
 hookup(char *host, int port)
 {
 	register struct hostent *hp = 0;
-	int s, len, tos;
+	int s, tos;
+	size_t len;
 	static char hostnamebuf[256];
 
 	memset(&hisctladdr, 0, sizeof(hisctladdr));
-	hisctladdr.sin_addr.s_addr = inet_addr(host);
-	if (hisctladdr.sin_addr.s_addr != (unsigned long)-1) {
+	if (inet_aton(host, &hisctladdr.sin_addr)) {
 		hisctladdr.sin_family = AF_INET;
-		(void) strncpy(hostnamebuf, host, sizeof(hostnamebuf));
+		strncpy(hostnamebuf, host, sizeof(hostnamebuf));
+		hostnamebuf[sizeof(hostnamebuf)-1]=0;
 	} 
 	else {
 		hp = gethostbyname(host);
@@ -117,8 +118,10 @@ hookup(char *host, int port)
 			return((char *) 0);
 		}
 		hisctladdr.sin_family = hp->h_addrtype;
-		bcopy(hp->h_addr_list[0],
-		    (caddr_t)&hisctladdr.sin_addr, hp->h_length);
+		if (hp->h_length > (int)sizeof(hisctladdr.sin_addr)) {
+			hp->h_length = sizeof(hisctladdr.sin_addr);
+		}
+		memcpy(&hisctladdr.sin_addr, hp->h_addr_list[0], hp->h_length);
 		(void) strncpy(hostnamebuf, hp->h_name, sizeof(hostnamebuf));
 		hostnamebuf[sizeof(hostnamebuf)-1] = 0;
 	}
@@ -206,7 +209,7 @@ bad:
 }
 
 int
-login(const char *host)
+dologin(const char *host)
 {
 	char tmp[80];
 	char *luser, *pass, *zacct;
@@ -1064,7 +1067,8 @@ static int
 initconn(void)
 {
 	register char *p, *a;
-	int result, len, tmpno = 0;
+	int result, tmpno = 0;
+	size_t len;
 	int on = 1;
 	int tos;
 	u_long a1,a2,a3,a4,p1,p2;
@@ -1184,7 +1188,8 @@ static FILE *
 dataconn(const char *lmode)
 {
 	struct sockaddr_in from;
-	int s, fromlen = sizeof (from), tos;
+	int s, tos;
+	size_t fromlen = sizeof(from);
 
         if (passivemode)
             return (fdopen(data, lmode));

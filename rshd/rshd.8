@@ -30,7 +30,7 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)rshd.8	6.11 (Berkeley) 4/20/91
-.\"	$Id: rshd.8,v 1.1 1996/07/15 20:24:28 dholland Exp $
+.\"	$Id: rshd.8,v 1.2 1996/11/23 19:36:21 dholland Exp $
 .\"
 .Dd April 20, 1991
 .Dt RSHD 8
@@ -40,7 +40,7 @@
 .Nd remote shell server
 .Sh SYNOPSIS
 .Nm rshd
-.Op Fl alnL
+.Op Fl ahlnL
 .Sh DESCRIPTION
 The
 .Nm rshd
@@ -122,12 +122,17 @@ which uses the file
 .Pa /etc/hosts.equiv
 and the
 .Pa .rhosts
-file found in the user's home directory.  The
+file found in the user's home directory. The
 .Fl l
 option prevents
 .Xr ruserok 3
-from doing any validation based on the user's ``.rhosts'' file,
-unless the user is the superuser.
+from doing any validation based on the user's ``.rhosts'' file
+(unless the user is the superuser and the 
+.Fl h 
+option is used.) If the
+.Fl h
+option is not used, superuser accounts may not be accessed via this
+service at all.
 .It
 A null byte is returned on the initial socket
 and the command line is passed to the normal login

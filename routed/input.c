@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 1983, 1988 Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1983, 1988, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,35 +33,44 @@
 
 /*
  * From: @(#)input.c	5.22 (Berkeley) 6/1/90
+ * From: @(#)input.c	8.1 (Berkeley) 6/5/93
  */
 char input_rcsid[] = 
-  "$Id: input.c,v 1.2 1996/07/15 17:45:59 dholland Exp $";
+  "$Id: input.c,v 1.6 1996/11/25 17:28:24 dholland Exp $";
 
 
 /*
  * Routing Table Management Daemon
  */
+
 #include "defs.h"
-#include <sys/syslog.h>
+#include <syslog.h>
+
+struct timeval now;		/* current idea of time */
+struct timeval lastbcast;	/* last time all/changes broadcast */
+struct timeval lastfullupdate;	/* last time full table broadcast */
+struct timeval nextbcast;    /* time to wait before changes broadcast */
+int needupdate;		    /* true if we need update at nextbcast */
 
 /*
  * Process a newly received packet.
  */
-void
-rip_input(struct sockaddr *from, struct rip *rip, int size)
+extern struct interface *if_ifwithdstaddr(struct sockaddr *);
+
+void rip_input(struct sockaddr *from, struct rip *rip, int size)
 {
-	register struct rt_entry *rt;
-	register struct netinfo *n;
-	register struct interface *ifp;
-	struct interface *if_ifwithdstaddr();
+	struct rt_entry *rt;
+	struct netinfo *n;
+	struct interface *ifp;
 	int count, changes = 0;
-	register struct afswitch *afp;
+	struct afswitch *afp;
 	static struct sockaddr badfrom, badfrom2;
+	char buf1[256], buf2[256];
 
 	ifp = 0;
 	TRACE_INPUT(ifp, from, (char *)rip, size);
 	if (from->sa_family >= af_max ||
-	    (afp = &afswitch[from->sa_family])->af_hash == (int (*)())0) {
+	    (afp = &afswitch[from->sa_family])->af_hash == (void (*)(struct sockaddr *, struct afhash *))0) {
 		syslog(LOG_INFO,
 	 "\"from\" address in unsupported address family (%d), cmd %d\n",
 		    from->sa_family, rip->rip_cmd);
@@ -70,7 +79,9 @@ rip_input(struct sockaddr *from, struct rip *rip, int size)
 	if (rip->rip_vers == 0) {
 		syslog(LOG_ERR,
 		    "RIP version 0 packet received from %s! (cmd %d)",
-		    (*afswitch[from->sa_family].af_format)(from), rip->rip_cmd);
+		    (*afswitch[from->sa_family].af_format)(from, buf1,
+							   sizeof(buf1)),
+		    rip->rip_cmd);
 		return;
 	}
 	switch (rip->rip_cmd) {
@@ -78,10 +89,10 @@ rip_input(struct sockaddr *from, struct rip *rip, int size)
 	case RIPCMD_REQUEST:
 		n = rip->rip_nets;
 		count = size - ((char *)n - (char *)rip);
-		if (count < sizeof (struct netinfo))
+		if (count < (int)sizeof (struct netinfo))
 			return;
 		for (; count > 0; n++) {
-			if (count < sizeof (struct netinfo))
+			if (count < (int)sizeof (struct netinfo))
 				break;
 			count -= sizeof (struct netinfo);
 
@@ -135,13 +146,31 @@ rip_input(struct sockaddr *from, struct rip *rip, int size)
 		/* verify message came from a privileged port */
 		if ((*afp->af_portcheck)(from) == 0)
 			return;
-		if ((ifp = if_iflookup(from)) == 0 || (ifp->int_flags &
-		    (IFF_BROADCAST | IFF_POINTOPOINT | IFF_REMOTE)) == 0 ||
-		    ifp->int_flags & IFF_PASSIVE) {
+		if ((ifp = if_iflookup(from)) == 0) {
 			syslog(LOG_ERR, "trace command from unknown router, %s",
-			    (*afswitch[from->sa_family].af_format)(from));
+			    (*afswitch[from->sa_family].af_format)(from, buf1,
+							       sizeof(buf1)));
 			return;
 		}
+
+		if ((ifp->int_flags & 
+			(IFF_BROADCAST|IFF_POINTOPOINT|IFF_REMOTE)) == 0) {
+			syslog(LOG_ERR,
+			    "trace command from router %s, with bad flags %x",
+			    (*afswitch[from->sa_family].af_format)(from, buf1,
+							       sizeof(buf1)),
+			    ifp->int_flags);
+			return;
+		}
+
+		if ((ifp->int_flags & IFF_PASSIVE) != 0) {
+			syslog(LOG_ERR,
+				"trace command from  %s on a passive interface",
+			    (*afswitch[from->sa_family].af_format)(from, buf1,
+							       sizeof(buf1)));
+			return;
+		}
+
 		((char *)rip)[size] = '\0';
 		if (rip->rip_cmd == RIPCMD_TRACEON)
 			traceon(rip->rip_tracefile);
@@ -160,12 +189,13 @@ rip_input(struct sockaddr *from, struct rip *rip, int size)
 			if (ifp->int_flags & IFF_PASSIVE) {
 				syslog(LOG_ERR,
 				  "bogus input (from passive interface, %s)",
-				  (*afswitch[from->sa_family].af_format)(from));
+				  (*afswitch[from->sa_family].af_format)(from,
+							 buf1, sizeof(buf1)));
 				return;
 			}
 			rt = rtfind(from);
-			if (rt == 0 || ((rt->rt_state & RTS_INTERFACE) == 0 &&
-					rt->rt_metric >= ifp->int_metric)) 
+			if (rt == 0 || (((rt->rt_state & RTS_INTERFACE)==0) &&
+					rt->rt_metric >= ifp->int_metric))
 				addrouteforif(ifp);
 			else
 				rt->rt_timer = 0;
@@ -194,7 +224,8 @@ rip_input(struct sockaddr *from, struct rip *rip, int size)
 			if (memcmp(from, &badfrom, sizeof(badfrom)) != 0) {
 				syslog(LOG_ERR,
 				  "packet from unknown router, %s",
-				  (*afswitch[from->sa_family].af_format)(from));
+				  (*afswitch[from->sa_family].af_format)(from,
+							 buf1, sizeof(buf1)));
 				badfrom = *from;
 			}
 			return;
@@ -202,7 +233,7 @@ rip_input(struct sockaddr *from, struct rip *rip, int size)
 		size -= 4 * sizeof (char);
 		n = rip->rip_nets;
 		for (; size > 0; size -= sizeof (struct netinfo), n++) {
-			if (size < sizeof (struct netinfo))
+			if (size < (int)sizeof (struct netinfo))
 				break;
 #if BSD < 198810
 			if (sizeof(n->rip_dst.sa_family) > 1)	/* XXX */
@@ -216,29 +247,34 @@ rip_input(struct sockaddr *from, struct rip *rip, int size)
 			n->rip_metric = ntohl(n->rip_metric);
 			if (n->rip_dst.sa_family >= af_max ||
 			    (afp = &afswitch[n->rip_dst.sa_family])->af_hash ==
-			    (int (*)())0) {
+			    (void (*)(struct sockaddr *,struct afhash *))0) {
 				syslog(LOG_INFO,
 		"route in unsupported address family (%d), from %s (af %d)\n",
 				   n->rip_dst.sa_family,
-				   (*afswitch[from->sa_family].af_format)(from),
+				   (*afswitch[from->sa_family].af_format)(from,
+							  buf1, sizeof(buf1)),
 				   from->sa_family);
 				continue;
 			}
 			if (((*afp->af_checkhost)(&n->rip_dst)) == 0) {
 				syslog(LOG_DEBUG,
-				    "bad host in route from %s (af %d)\n",
-				   (*afswitch[from->sa_family].af_format)(from),
+				   "bad host %s in route from %s (af %d)\n",
+				   (*afswitch[n->rip_dst.sa_family].af_format)(
+					&n->rip_dst, buf1, sizeof(buf1)),
+				   (*afswitch[from->sa_family].af_format)(from,
+					buf2, sizeof(buf2)),
 				   from->sa_family);
 				continue;
 			}
 			if (n->rip_metric == 0 ||
 			    (unsigned) n->rip_metric > HOPCNT_INFINITY) {
-				if (bcmp((char *)from, (char *)&badfrom2,
+				if (memcmp(from, &badfrom2,
 				    sizeof(badfrom2)) != 0) {
 					syslog(LOG_ERR,
 					    "bad metric (%d) from %s\n",
 					    n->rip_metric,
-				  (*afswitch[from->sa_family].af_format)(from));
+				  (*afswitch[from->sa_family].af_format)(from,
+						buf1, sizeof(buf1)));
 					badfrom2 = *from;
 				}
 				continue;
@@ -292,7 +328,7 @@ rip_input(struct sockaddr *from, struct rip *rip, int size)
 						    GARBAGE_TIME - EXPIRE_TIME;
 				} else if (rt->rt_metric < HOPCNT_INFINITY)
 					rt->rt_timer = 0;
-			} else if ((unsigned) n->rip_metric < rt->rt_metric ||
+			} else if ((unsigned) n->rip_metric < (unsigned)rt->rt_metric ||
 			    (rt->rt_metric == n->rip_metric &&
 			    rt->rt_timer > (EXPIRE_TIME/2) &&
 			    (unsigned) n->rip_metric < HOPCNT_INFINITY)) {
@@ -319,7 +355,6 @@ rip_input(struct sockaddr *from, struct rip *rip, int size)
 	if (changes && supplier &&
 	   now.tv_sec - lastfullupdate.tv_sec < SUPPLY_INTERVAL-MAX_WAITTIME) {
 		u_long delay;
-		extern long random();
 
 		if (now.tv_sec - lastbcast.tv_sec >= MIN_WAITTIME &&
 		    timercmp(&nextbcast, &now, <)) {
@@ -341,7 +376,7 @@ rip_input(struct sockaddr *from, struct rip *rip, int size)
 			delay = RANDOMDELAY();
 			if (traceactions)
 				fprintf(ftrace,
-				    "inhibit dynamic update for %d usec\n",
+				    "inhibit dynamic update for %ld usec\n",
 				    delay);
 			nextbcast.tv_sec = delay / 1000000;
 			nextbcast.tv_usec = delay % 1000000;

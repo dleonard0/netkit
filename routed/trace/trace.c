@@ -1,6 +1,8 @@
+/*	$NetBSD: trace.c,v 1.8 1995/05/21 14:22:27 mycroft Exp $	*/
+
 /*-
- * Copyright (c) 1983, 1988 The Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1983, 1988, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,14 +34,17 @@
  */
 
 #ifndef lint
-char copyright[] =
-"@(#) Copyright (c) 1983, 1988 The Regents of the University of California.\n\
- All rights reserved.\n";
+static char copyright[] =
+"@(#) Copyright (c) 1983, 1988, 1993\n\
+	The Regents of the University of California.  All rights reserved.\n";
 #endif /* not lint */
 
 #ifndef lint
-/*static char sccsid[] = "from: @(#)trace.c	5.9 (Berkeley) 4/16/91";*/
-static char rcsid[] = "$Id: trace.c,v 1.4 1993/08/01 18:24:39 mycroft Exp $";
+#if 0
+static char sccsid[] = "@(#)trace.c	8.1 (Berkeley) 6/5/93";
+#else
+static char rcsid[] = "$NetBSD: trace.c,v 1.8 1995/05/21 14:22:27 mycroft Exp $";
+#endif
 #endif /* not lint */
 
 #include <sys/param.h>
@@ -98,7 +103,7 @@ usage:
 	}
 	if (argc == 0)
 		goto usage;
-	bzero((char *)&router, sizeof (router));
+	memset(&router, 0, sizeof (router));
 	router.sin_family = AF_INET;
 	sp = getservbyname("router", "udp");
 	if (sp == 0) {
@@ -108,15 +113,14 @@ usage:
 	router.sin_port = sp->s_port;
 	while (argc > 0) {
 		router.sin_family = AF_INET;
-		router.sin_addr.s_addr = inet_addr(*argv);
-		if (router.sin_addr.s_addr == -1) {
+		if (inet_aton(*argv, &router.sin_addr) == 0) {
 			hp = gethostbyname(*argv);
 			if (hp == NULL) {
 				fprintf(stderr, "trace: %s: ", *argv);
 				herror((char *)NULL);
 				continue;
 			}
-			bcopy(hp->h_addr, &router.sin_addr, hp->h_length);
+			memcpy(&router.sin_addr, hp->h_addr, hp->h_length);
 		}
 		if (sendto(s, packet, size, 0,
 		    (struct sockaddr *)&router, sizeof(router)) < 0)

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 1983 Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1983, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,32 +31,13 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)af.h	5.7 (Berkeley) 6/1/90
- *	$Id: af.h,v 1.2 1996/07/15 16:49:21 dholland Exp $
+ *	from: @(#)af.h	8.1 (Berkeley) 6/5/93
+ *	$Id: af.h,v 1.3 1996/11/25 16:36:17 dholland Exp $
  */
 
 /*
  * Routing table management daemon.
  */
-
-#ifndef AF_MAX
-#define AF_MAX 3	/* AF_UNIX + AF_INET */
-#endif
-
-/*
- * Per address family routines.
- */
-struct afswitch {
-	int	(*af_hash)();		/* returns keys based on address */
-	int	(*af_netmatch)();	/* verifies net # matching */
-	int	(*af_output)();		/* interprets address for sending */
-	int	(*af_portmatch)();	/* packet from some other router? */
-	int	(*af_portcheck)();	/* packet from privileged peer? */
-	int	(*af_checkhost)();	/* tells if address is valid */
-	int	(*af_rtflags)();	/* get flags for route (host or net) */
-	int	(*af_sendroute)();	/* check bounds of subnet broadcast */
-	int	(*af_canon)();		/* canonicalize address for compares */
-	char	*(*af_format)();	/* convert address to string */
-};
 
 /*
  * Structure returned by af_hash routines.
@@ -66,5 +47,24 @@ struct afhash {
 	u_int	afh_nethash;		/* network based hash */
 };
 
-extern struct	afswitch afswitch[AF_MAX];	/* table proper */
+/*
+ * Per address family routines.
+ */
+struct afswitch {
+	void	(*af_hash)(struct sockaddr *, struct afhash *);			/* returns keys based on address */
+	int	(*af_netmatch)(struct sockaddr *, struct sockaddr *);		/* verifies net # matching */
+	void	(*af_output)(int, int, struct sockaddr *, int);			/* interprets address for sending */
+	int	(*af_portmatch)(struct sockaddr *);				/* packet from some other router? */
+	int	(*af_portcheck)(struct sockaddr *);				/* packet from privileged peer? */
+	int	(*af_checkhost)(struct sockaddr *);				/* tells if address is valid */
+	int	(*af_rtflags)(struct sockaddr *);				/* get flags for route (host or net) */
+	int	(*af_sendroute)(struct rt_entry *, struct sockaddr *);		/* check bounds of subnet broadcast */
+	void	(*af_canon)(struct sockaddr *);					/* canonicalize address for compares */
+	char	*(*af_format)(struct sockaddr *, char *, size_t);		/* convert address to string */
+};
+
+
+extern struct	afswitch afswitch[];	/* table proper */
 extern int	af_max;			/* number of entries in table */
+
+

@@ -1,0 +1,16 @@
+From: "Peter Tobias" <tobias@server.et-inf.fho-emden.de>
+To: dholland@hcs.harvard.edu (David Holland)
+Date: Fri, 13 Sep 1996 18:00:05 +0200 (MET DST)
+Subject: Re: NetKit-B-0.08 and Debian ...
+
+[...]
+
+BTW: I received another bug report concerning telnetd. If you
+say "telnet localhost", type "cat >/dev/null" and then type 256 times
+the a character the telnet session will freeze. It hangs in a select
+call (around line 975 in telnetd.c).
+
+[I can duplicate this, but I can't figure out what's wrong, so if
+anyone has any ideas let me know. I'm not going to hold up the netkit
+release for it...]
+

@@ -30,7 +30,7 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)fingerd.8	6.4 (Berkeley) 3/16/91
-.\"	$Id: fingerd.8,v 1.5 1996/08/16 19:25:08 dholland Exp $
+.\"	$Id: fingerd.8,v 1.6 1996/08/29 20:29:05 dholland Exp $
 .\"
 .Dd March 16, 1991
 .Dt FINGERD 8
@@ -41,23 +41,23 @@
 .Sh SYNOPSIS
 .Nm fingerd
 .Op Fl wul
-.Op Fl L Ar path
+.Op Fl pL Ar path
 .Sh DESCRIPTION
 .Nm Fingerd
-is a simple protocol based on
-.%T RFC742
+is a simple daemon based on
+.%T RFC1196
 that provides an interface to the
-.Dq name
-and
 .Dq finger
-programs at most network sites.
+program at most network sites.
 The program is supposed to return a friendly,
 human-oriented status report on either the system at the moment
 or a particular person in depth. 
 .Pp
 If the
 .Fl w
-option is given, remote users will get an additional "Welcome to ..." banner
+option is given, remote users will get an additional 
+.Dq Welcome to ...
+banner
 which also shows some informations (e.g. uptime, operating system name and
 release) about the system the
 .Nm fingerd
@@ -77,36 +77,45 @@ option probably violates users' privacy and should not be used on
 multiuser boxes.
 .Pp
 The 
-.Fl L
+.Fl p
 option allows specification of an alternate location for fingerd to find
 the 
 .Dq finger
-program.
+program. The
+.Fl L
+option is equivalent.
 .Pp
-There is no required format and the
-protocol consists mostly of specifying a single
-.Dq command line .
+Options to fingerd should be specified in 
+.Pa /etc/inetd.conf .
 .Pp
-.Nm Fingerd
-accepts
+The finger protocol consists mostly of specifying command arguments.
+The 
+.Xr inetd 8
+.Dq super-server
+runs
+.Nm fingerd
+for 
 .Tn TCP
-requests at port 79.
-Once connected it reads a single command line
+requests received on port 79.
+Once connected 
+.Nm fingerd
+reads a single command line
 terminated by a
 .Aq Tn CRLF
 which is passed to
 .Xr finger 1 .
-.Nm Fingerd
-closes its connections as soon as the output is finished.
+It closes its connections as soon as all output is finished.
 .Pp
-If the line is null (i.e. just a
+If the line is empty (i.e. just a
 .Aq Tn CRLF
 is sent) then 
 .Xr finger
 returns a
 .Dq default
 report that lists all people logged into
-the system at that moment.
+the system at that moment. This feature is blocked by the 
+.Fl u
+option.
 .Pp
 If a user name is specified (e.g.
 .Pf eric Aq Tn CRLF )
@@ -121,7 +130,8 @@ and
 .Dq user names .
 If a name is ambiguous, all possible derivations are returned.
 .Sh SEE ALSO
-.Xr finger 1
+.Xr finger 1 ,
+.Xr inetd 8
 .Sh RESTRICTIONS
 Connecting directly to the server from a
 .Tn TIP
@@ -131,7 +141,5 @@ user program can result
 in meaningless attempts at option negotiation being sent to the
 server, which will foul up the command line interpretation.
 .Sh HISTORY
-The
-.Nm
-command appeared in
+The finger daemon appeared in
 .Bx 4.3 .

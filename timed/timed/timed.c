@@ -39,10 +39,10 @@ char copyright[] =
  * From: @(#)timed.c	5.1 (Berkeley) 5/11/93
  */
 char timed_rcsid[] = 
-  "$Id: timed.c,v 1.6 1996/08/16 20:42:03 dholland Exp $";
+  "$Id: timed.c,v 1.7 1996/08/29 19:53:10 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.6 $"
+#ident "$Revision: 1.7 $"
 #endif /* sgi */
 
 #define TSPTYPES
@@ -314,6 +314,7 @@ main(int argc, char **argv)
 		exit(1);
 	}
 	port = srvp->s_port;
+	memset(&server, 0, sizeof(server));
 	server.sin_port = srvp->s_port;
 	server.sin_family = AF_INET;
 	server.sin_addr.s_addr = INADDR_ANY;

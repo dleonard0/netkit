@@ -22,7 +22,7 @@
  */
 
 
-#ident "$Revision: 1.1 $"
+#ident "$Revision: 1.3 $"
 
 #include <stdio.h>
 #include <math.h>
@@ -1331,15 +1331,17 @@ get_masname(char *port,
 
     bzero((char *)&masaddr, sizeof(masaddr));
     masaddr.sin_family = AF_INET;
-    masaddr.sin_addr.s_addr = inet_addr(masname);
-    if (masaddr.sin_addr.s_addr == -1) {
+    if (!inet_aton(masname, &masaddr.sin_addr)) {
 	struct hostent *hp;
 	hp = gethostbyname(masname);
 	if (hp) {
 	    masaddr.sin_family = hp->h_addrtype;
-	    bcopy(hp->h_addr, (caddr_t)&masaddr.sin_addr,
-		  hp->h_length);
-	} else {
+	    if (hp->h_length > (int)sizeof(masaddr.sin_addr)) {
+		hp->h_length = sizeof(masaddr.sin_addr);
+	    }
+	    memcpy(&masaddr.sin_addr, hp->h_addr, hp->h_length);
+	} 
+	else {
 	    (void)fprintf(stderr, "%s: unknown host name %s\n",
 			  pgmname, masname);
 

@@ -1,4 +1,57 @@
-New in 0.08: (?-Aug-1996)
+New in 0.09: (29-Dec-1996)
+- Removed bsdslattach from the package, as the net-tools slattach works fine.
+- Removed arp from the package, as the net-tools arp works better.
+- Removed ftpd from the package as it was nonfunctional.
+- Removed rarpd from the package as it was nonfunctional.
+- Added network aware write and writed (a la netwrite-0.9).
+- Added functioning routed. (Debian project and Alan Cox)
+- Added rpc.bootparamd. (Pekka Pietik{inen, pp@netppl.fi)
+- Reconciliation of timed with NetBSD version.
+- Fix doc bugs in fingerd.
+- Fingerd accepts -p as equivalent to -L for compatibility with
+  "fingerd-extlog.tar.gz".
+- Assorted alpha/glibc patches. (Erik Troan, ewt@redhat.com)
+- Ping exits with code 1 if it got no response. (Donnie Barnes, djb@redhat.com)
+- Assorted bug fixes from Debian. (Peter Tobias, tobias@et-inf.fho-emden.de)
+- Telnetd supports -L option for alternate login program. (Peter Tobias)
+- Hardened programs against DNS h_length spoofing attacks.
+- Use inet_aton() everywhere instead of inet_addr().
+- Fixed bug in finger's processing of &'s in full names that probably has
+  security implications.
+- Finger doesn't follow symlinks now.
+- Fixed crash in ftp if you did "lcd" with no args.
+- Fixed bug in ftp where you couldn't abort an mget.
+- Fixed /tmp security problem in ftp.
+- inetd now supports a -q option to set the socket listen queue length.
+- Rudimentary shadow support in rexecd.
+- Moved opening of stderr in rexecd after authentication so you can't do
+  port scans with it. 
+- rlogind no longer gets mixed up when NIS or PAM does resolver operations.
+- rlogind now supports a -h option to permit root rhosts files (which are
+  not honored by default) and a -L option to disable all rhosts and
+  hosts.equiv processing.
+- rshd now supports the -h option also. To achieve the equivalent of 
+  rlogind's -L option, disable rshd entirely.
+- Fix select problems in rsh. (Felix Egli, fegli@goldnet.ch)
+- rlogin (and consequently rsh) doesn't dump core on high baudrates. (Alan Cox)
+- Minor hacks to rpcgen to cause it to generate code that compiles more 
+  cleanly.
+- Fix bug in -N rpcgen output. (Frank Heldt, heldt.mahr@t-online.de)
+- Fixes to rpc.rwalld. (Pavel Krauz, kra@fsid.cvut.cz, and Basile 
+  STARYNKEVITCH, Basile.Starynkevitch@cea.fr)
+- 8-bit fixes to talk. (Christer Weinigel, wingel@dumburk.signum.se)
+- Assorted fixes to talk. (Florian La Roche)
+- Fix to ping to avoid an endless sleep problem on links that can corrupt
+  packets. (Yury Shevchuk, sizif@botik.ru)
+- ping understands new RFC1812 ICMP dest unreachable codes. (Alan Cox)
+- ping drops root after startup, but (theoretically) only when it's known
+  to be safe to do so. (Alan Cox)
+- Talk handles ^Z correctly now.
+- Fixed crash in telnet caused by ^C or ^Z or ^\ under certain circumstances.
+- Rewrote telnet and telnetd man pages.
+- Fixes to tftpd. (Pekka Pietik{inen, pp@netppl.fi)
+
+New in 0.08: (22-Aug-1996)
 - fixed some minor makefile bugs in the .07A release
 - no longer distribute the broken lpr sources, or old rpcgen or slattach.
 - massive hacking on telnet

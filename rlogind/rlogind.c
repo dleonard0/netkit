@@ -49,7 +49,7 @@ char copyright[] =
  * From: @(#)rlogind.c	5.53 (Berkeley) 4/20/91
  */
 char rcsid[] = 
-  "$Id: rlogind.c,v 1.16 1996/08/16 22:28:27 dholland Exp $";
+  "$Id: rlogind.c,v 1.20 1996/12/29 17:26:11 dholland Exp $";
 
 /*
  * remote login server:
@@ -70,6 +70,7 @@ char rcsid[] =
 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/ip.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 
@@ -92,11 +93,13 @@ char rcsid[] =
 pid_t forkpty(int *, char *, struct termios *, struct winsize *);
 int logout(const char *);
 
+#ifdef GNU_LIBC
+#define _check_rhosts_file  __check_rhosts_file
+#endif
+
 #ifndef TIOCPKT_WINDOW
 #define TIOCPKT_WINDOW 0x80
 #endif
-
-#define		ARGSTR			"aln"
 
 #define	ENVSIZE	(sizeof("TERM=")-1)	/* skip null for concatenation */
 #define	NMAX 30
@@ -107,6 +110,8 @@ static char term[64] = "TERM=";
 static int keepalive = 1;
 static int check_all = 0;
 static struct passwd *pwd;
+static int allow_root_rhosts = 0;
+static int deny_all_rhosts_hequiv = 0;
 
 #ifdef USE_PAM
 static pam_handle_t *pamh;
@@ -131,17 +136,24 @@ int
 main(int argc, char **argv)
 {
 	int ch;
-	int on = 1, fromlen;
+	int on = 1;
+	size_t fromlen;
 	struct sockaddr_in from;
 	_check_rhosts_file = 1;     /* default */
 
 	openlog("rlogind", LOG_PID | LOG_CONS, LOG_AUTH);
 
 	opterr = 0;
-	while ((ch = getopt(argc, argv, ARGSTR)) != EOF) {
+	while ((ch = getopt(argc, argv, "ahLln")) != EOF) {
 		switch (ch) {
 		case 'a':
 			check_all = 1;
+			break;
+		case 'h':
+			allow_root_rhosts = 1;
+			break;
+		case 'L':
+			deny_all_rhosts_hequiv = 1;
 			break;
 		case 'l':
 			_check_rhosts_file = 0;
@@ -159,8 +171,8 @@ main(int argc, char **argv)
 	argv += optind;
 
 #ifdef USE_PAM
-        if (_check_rhosts_file == 0)
-            syslog(LOG_ERR, "-l functionality has been moved to "
+        if (_check_rhosts_file==0 || deny_all_hosts_equiv || allow_root_rhosts)
+            syslog(LOG_ERR, "-l, -L, and -h functionality has been moved to "
                             "pam_rhosts_auth in /etc/pam.conf");
 #endif
 
@@ -194,9 +206,9 @@ doit(int f, struct sockaddr_in *fromp)
 {
 	int master, pid, on = 1;
 	int authenticated = 0, hostok = 0;
-	register struct hostent *hp;
+	struct hostent *hop;
+	char *hname;
 	char remotehost[2 * MAXHOSTNAMELEN + 1];
-	struct hostent hostent;
 	char c;
 
 	alarm(60);
@@ -207,35 +219,36 @@ doit(int f, struct sockaddr_in *fromp)
 
 	alarm(0);
 	fromp->sin_port = ntohs((u_short)fromp->sin_port);
-	hp = gethostbyaddr((char *)&fromp->sin_addr, sizeof(struct in_addr),
-		fromp->sin_family);
-	if (hp == 0) {
+	hop = gethostbyaddr((char *)&fromp->sin_addr, sizeof(struct in_addr),
+			    fromp->sin_family);
+	if (hop == 0) {
 		/*
 		 * Only the name is used below.
 		 */
-		hp = &hostent;
-		hp->h_name = inet_ntoa(fromp->sin_addr);
+		hname = strdup(inet_ntoa(fromp->sin_addr));
 		hostok++;
 	} 
-	else if (check_all || local_domain(hp->h_name)) {
+	else if (check_all || local_domain(hop->h_name)) {
 		/*
 		 * If name returned by gethostbyaddr is in our domain,
 		 * attempt to verify that we haven't been fooled by someone
 		 * in a remote net; look up the name and check that this
 		 * address corresponds to the name.
 		 */
-		strncpy(remotehost, hp->h_name, sizeof(remotehost) - 1);
+		strncpy(remotehost, hop->h_name, sizeof(remotehost) - 1);
 		remotehost[sizeof(remotehost) - 1] = 0;
-		hp = gethostbyname(remotehost);
-		if (hp)
-		    for (; hp->h_addr_list[0]; hp->h_addr_list++)
-			if (!memcmp(hp->h_addr_list[0], &fromp->sin_addr,
+		hop = gethostbyname(remotehost);
+		if (hop)
+		    for (; hop->h_addr_list[0]; hop->h_addr_list++)
+			if (!memcmp(hop->h_addr_list[0], &fromp->sin_addr,
 				    sizeof(fromp->sin_addr))) {
 				hostok++;
 				break;
 			}
 	} else
 		hostok++;
+	hname = strdup(hop->h_name);
+	hop = NULL;  /* we shouldn't use this after this point */
 
 	{
 	    if (fromp->sin_family != AF_INET ||
@@ -249,7 +262,8 @@ doit(int f, struct sockaddr_in *fromp)
 	    {
 	    u_char optbuf[BUFSIZ/3], *cp;
 	    char lbuf[BUFSIZ], *lp;
-	    int optsize = sizeof(optbuf), ipproto;
+	    size_t optsize = sizeof(optbuf);
+	    int ipproto;
 	    struct protoent *ip;
 
 	    if ((ip = getprotobyname("ip")) != NULL)
@@ -272,7 +286,7 @@ doit(int f, struct sockaddr_in *fromp)
 	        }
 	    }
 #endif
-	    if (do_rlogin(hp->h_name) == 0 && hostok)
+	    if (do_rlogin(hname) == 0 && hostok)
 		    authenticated++;
 	}
 	if (confirmed == 0) {
@@ -301,7 +315,7 @@ doit(int f, struct sockaddr_in *fromp)
                        pam_end(pamh, PAM_SUCCESS);
 #endif
 		       execl(_PATH_LOGIN, "login", "-p",
-			     "-h", hp->h_name, "-f", lusername, 0);
+			     "-h", hname, "-f", lusername, 0);
                        /* should not return... */
 		} 
 		else {
@@ -313,7 +327,7 @@ doit(int f, struct sockaddr_in *fromp)
 			pam_end(pamh, PAM_SUCCESS);
 #endif
 			execl(_PATH_LOGIN, "login", "-p",
-			      "-h", hp->h_name, lusername, 0);
+			      "-h", hname, lusername, 0);
 			/* should not return... */
 		}
 		fatal(STDERR_FILENO, _PATH_LOGIN, 1);
@@ -638,8 +652,12 @@ do_rlogin(const char *host)
 
 #else /* !USE_PAM */
 
-	if (pwd->pw_uid == 0)
-		return(-1);
+	if (deny_all_rhosts_hequiv) {
+		return -1;
+	}
+	if (!allow_root_rhosts && pwd->pw_uid == 0) {
+		return -1;
+	}
 	return(ruserok(host, 0, rusername, lusername));
 #endif /* PAM */
 }

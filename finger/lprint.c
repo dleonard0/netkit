@@ -38,11 +38,13 @@
  * from: @(#)lprint.c	5.13 (Berkeley) 10/31/90
  */
 char lprint_rcsid[] = 
-  "$Id: lprint.c,v 1.4 1996/07/13 22:32:43 dholland Exp $";
+  "$Id: lprint.c,v 1.6 1996/11/23 16:58:42 dholland Exp $";
 
 #include <stdio.h>
 #include <ctype.h>
 #include <paths.h>
+#include <string.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/file.h>
 #include <sys/stat.h>
@@ -175,7 +177,7 @@ lprint(PERSON *pn)
 				if (*w->host)
 				    putchar('\n');
 				cpr += printf("%-*s",
-				    maxlen - strlen(w->tty) + 3, "");
+				    (int) (maxlen - strlen(w->tty) + 3), "");
 				if (delta->tm_yday > 0) {
 					cpr += printf("%d day%s ",
 					   delta->tm_yday,
@@ -300,12 +302,23 @@ demi_print(char *str, int oddfield)
 static int
 show_text(const char *directory, const char *file_name, const char *header)
 {
-	int ch, lastc = 0;
+	int ch, lastc = 0, fd;
 	FILE *fp;
+	struct stat sbuf1, sbuf2;
 
 	snprintf(tbuf, TBUFLEN, "%s/%s", directory, file_name);
-	fp = fopen(tbuf, "r");
-	if (fp == NULL) return 0;
+
+	if (lstat(tbuf, &sbuf1)) return 0;
+	fd = open(tbuf, O_RDONLY);
+	if (fd<0) return 0;
+	if (fstat(fd, &sbuf2)) { close(fd); return 0; }
+	/* if we didn't get the same file both times, bail */
+	if (sbuf1.st_dev!=sbuf2.st_dev || sbuf1.st_ino!=sbuf2.st_ino) {
+		close(fd);
+		return 0;
+	}
+	fp = fdopen(fd, "r");
+	if (fp == NULL) { close(fd); return 0; }
 
 	printf("%s", header);
 	while ((ch = getc(fp)) != EOF) {

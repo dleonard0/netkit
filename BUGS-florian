@@ -15,26 +15,15 @@ seems necessary to me.
   messages when I attempt to retrieve a file. "sendport" is useful when
   talking to overloaded FTP servers since port commands sometimes fail.
 
-* After a while of running the machine, the rpc.portmapper begins to fork
-  constantly. This only seems to happen when I have the rpc.ugidd also
-  running.
-  I have run the portmapper in debug mode and when it does go wild I get
-  a pile of debug saying that it is about to enter the main switch in the
-  portmapper source code.
-  The problem does not happen on the two machines that I have at home networked.
-  This only happens at work on a network with DEC 5000/240/260 and PC's etc.
-
-  Joe Ceklosky <jceklosk@grctechs.grci.com> 
-
-  (Could someone please mail me, where I can find the newest version of
-  rpc.ugidd? I want to include it into my net source collection on funet.fi)
-
 * rpc.rwalld prints two messages instead of one. (fixed??)
 
 * Do "telnet localhost chargen" and then hit Ctrl-C. The process will hang.
   You will have to go to another console and kill it with a HANGUP signal.
   There have been some Linux specific changes to signal handling, maybe
   we should convert back?
+
+  [This problem is due to telnet attempting bogus protocol negotiations.
+  Affects almost everyone's telnet...  - dholland]
 
 * "rsh" is known to have a problem: A stopped rsh command will block the
   port, so that other rsh commands will hang. Alan Cox has promised to fix

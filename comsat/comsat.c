@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)comsat.c	5.24 (Berkeley) 2/25/91
  */
 char rcsid[] = 
-  "$Id: comsat.c,v 1.5 1996/08/14 18:31:11 dholland Exp $";
+  "$Id: comsat.c,v 1.6 1996/08/29 22:21:05 dholland Exp $";
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -81,7 +81,7 @@ static void onalrm(int);
 int main(void) {
 	char msgbuf[100];
 	struct sockaddr_in from;
-	int fromlen;
+	size_t fromlen;
 
 	/* verify proper invocation */
 	fromlen = sizeof(from);

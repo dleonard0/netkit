@@ -35,13 +35,14 @@
  * From: @(#)terminal.c	5.3 (Berkeley) 3/22/91
  */
 char terminal_rcsid[] = 
-  "$Id: terminal.cc,v 1.19 1996/08/14 03:25:47 dholland Exp $";
+  "$Id: terminal.cc,v 1.21 1996/11/24 15:46:55 dholland Exp $";
 
 #include <arpa/telnet.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <termios.h>
 #include <unistd.h>
+#include <signal.h>
 #include <errno.h>
 #include <stdio.h>
 
@@ -279,13 +280,20 @@ int tlink_getofd(void) {
 }
 
 static int TerminalWrite(const char *buf, int n) {
-    int r = write(tout, buf, n);
+    int r;
+    do {
+	r = write(tout, buf, n);
+    } while (r<0 && errno==EINTR);
     if (r<0 && (errno==ENOBUFS || errno==EWOULDBLOCK)) r = 0;
     return r;
 }
 
 static int TerminalRead(char *buf, int n) {
-    return read(tin, buf, n);
+    int r;
+    do {
+	r = read(tin, buf, n);
+    } while (r<0 && errno==EINTR);
+    return r;
 }
 
 #ifdef	SIGTSTP

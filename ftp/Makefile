@@ -16,9 +16,10 @@ cmds.o cmdtab.o: ftp_var.h pathnames.h cmds.h
 cmds.o glob.o: glob.h
 
 install: ftp
-	install -s ftp /usr/bin
-	install -m644 ftp.1 /usr/man/man1
-	ln -sf ftp /usr/bin/pftp
+	install -s -m$(BINMODE) ftp $(BINDIR)
+	ln -sf ftp $(BINDIR)/pftp
+	install -m$(MANMODE) ftp.1 $(MANDIR)/man1
+	ln -sf ftp.1 $(MANDIR)/man1/pftp.1
 
 clean:
 	rm -f *.o ftp

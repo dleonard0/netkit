@@ -1,14 +1,32 @@
 # Configuration makefile
 #
 
+# Destination directories
+ROOTBINDIR=/bin
+BINDIR=/usr/bin
+SBINDIR=/usr/sbin
+MANDIR=/usr/man
+
+# Install permissions
+BINMODE=755
+DAEMONMODE=744
+SUIDMODE=4755
+ROOTMODE=700
+MANMODE=644
+
+#
+# Are you using GNU libc? (eg, Alpha Linux or libc 6.x)
+# (Failure to set this if you are will result in things not building.)
+#USE_GLIBC=1
+
 # Do you want to have GNU readline and history support in 'ftp'. Use
 # cursor keys to get your last commands.
 # There are a number of versions of GNU readline floating around. 
 # The recommended one at the moment is readline-2.0, which is
 # available separately on GNU ftp sites. 
 #
-# *** You will need to apply the enclosed patch to get correct ^C 
-# handling from ftp. 
+# *** You will need to apply the enclosed patch to readline-2.0 to get 
+# correct ^C handling from ftp. 
 #
 # The ftp makefile assumes the headers are installed in 
 # /usr/include/readline (or /usr/local/include/readline) and the 
@@ -27,14 +45,11 @@ USE_GNU_READLINE=1
 # in the current release.
 #USE_PAM=1
 
-
 #
-# This is a broken flag to enable libwrap.a support in rexecd. For the 
-# time being, leave this off and install rexecd wrapped in inetd.conf. 
-# Or, better yet, don't install rexecd, as it's not very useful and not
-# a very secure protocol.
-# HAVE_TCP_WRAPPER_LIBRARY=true
-
+# Do you want support for shadow passwords? This may or may not work,
+# and may or may not be necessary depending on your system configuration.
+# It is meaningless if USE_PAM is on.
+#USE_SHADOW=1
 
 #
 # If you don't want to see the exact options being passed to the compiler,
@@ -50,32 +65,27 @@ QUIET=0
 #
 # On the PowerPC, you probably want to add -fsigned-char to CFLAGS.
 #
-# Note: if talk breaks because it can't find "unctrl.h", your ncurses 
-# package is not installed correctly. Either link /usr/include/unctrl.h
-# to /usr/include/ncurses/unctrl.h, fix /usr/include/ncurses/curses.h to
-# include <ncurses/unctrl.h> instead of <unctrl.h>, or hack around the 
-# problem by putting -I/usr/include/ncurses in the CFLAGS.
-#
-# Note: if talk breaks on "ospeed", chances are your /usr/include/curses.h
-# is BSD curses. Try adding -I/usr/include/ncurses to CFLAGS. This seems
-# to apply to recent Slackware.
 
+# On alphas you may want to take out -Wcast-align for now.
 WARNINGS=-Wall -W -Wpointer-arith -Wbad-function-cast -Wcast-qual \
 	 -Wstrict-prototypes -Wmissing-prototypes \
 	 -Wmissing-declarations -Wnested-externs -Winline -Wcast-align
 
-# /usr/include isn't clean with these.
+# Linux libc's /usr/include isn't clean with these.
 # -Wredundant-decls      (there are a number of such in /usr/include)
 # -Wshadow               (this, C++, stat(), and struct stat don't get along)
 # -Wwrite-strings        (arpa/telnet.h and protocols/timed.h fail)
 
 CC=gcc
-CFLAGS=-O2 $(WARNINGS) -D__USE_BSD_SIGNAL
+CFLAGS=-O2 -pipe $(WARNINGS) -D__USE_BSD_SIGNAL
 LDFLAGS=
 LIBS=
 # You could also use "YACC=yacc", if you have BSD yacc.
 YACC=bison -y
 
+ifeq ($(USE_GLIBC),1)
+CFLAGS += -DGNU_LIBC -D_GNU_SOURCE
+endif
 
 # 
 # Choose which curses and termcap libraries to use. The makefiles in

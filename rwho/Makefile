@@ -9,8 +9,8 @@ rwho: rwho.o
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 install: rwho
-	install -s rwho /usr/bin
-	install -m644 rwho.1 /usr/man/man1/
+	install -s -m$(BINMODE) rwho $(BINDIR)
+	install -m$(MANMODE) rwho.1 $(MANDIR)/man1/
 
 clean:
 	rm -f *.o rwho

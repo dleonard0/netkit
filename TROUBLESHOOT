@@ -1,0 +1,49 @@
+Troubleshooting Guide
+
+          ----------
+
+Problem: telnetd dies mysteriously, especially when logging in from
+terminal servers or DOS telnet clients or other places with strange
+terminal type definitions. This is what it looks like in strace:
+
+    open("/usr/lib/terminfo/0/01", O_RDONLY) = -1 ENOENT (No such file or 
+    directory)
+    access("/usr/lib/terminfo/0", R_OK)      = 0
+    access("/etc/termcap", R_OK)             = 0
+    --- SIGSEGV (Segmentation fault) ---
+    +++ killed by SIGSEGV +++
+
+This is caused by a bug in ncurses. Update ncurses, problem will go
+away. Explicitly setting a terminal type that's known (or listing the
+unknown terminal type that's causing problems as an alias for "dumb"
+in /etc/termcap) should serve to work around the problem.
+
+          ----------
+
+Problem: talk won't compile, because it can't find "unctrl.h".
+
+This is due to your ncurses package not being installed correctly.
+Either link /usr/include/unctrl.h to /usr/include/ncurses/unctrl.h,
+edit /usr/include/ncurses/curses.h to include <ncurses/unctrl.h>
+instead of <unctrl.h>, or hack around the problem by putting
+-I/usr/include/ncurses in the CFLAGS. And complain to your
+distribution maintainer.
+
+          ----------
+
+Problem: talk won't compile, and breaks on "ospeed".
+
+This is usually because your /usr/include/curses.h is BSD curses and
+not ncurses. Try adding -I/usr/include/ncurses to CFLAGS. This seems
+to apply to recent Slackware releases.
+
+          ----------
+
+Problem: inetd won't compile, and breaks on "getrpcbyname".
+
+You've got a broken /usr/include/netdb.h. This is usually caused by
+installing BIND and replacing libc's netdb.h with BIND's. Reverting to
+the standard netdb.h will solve the problem; it's also a reasonably
+trivial fix to the BIND version.
+
+          ----------

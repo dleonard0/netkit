@@ -35,7 +35,7 @@
  * From: @(#)sys_bsd.c	5.2 (Berkeley) 3/1/91
  */
 char bsd_rcsid[] = 
-  "$Id: sys_bsd.cc,v 1.15 1996/08/05 10:16:07 dholland Exp $";
+  "$Id: sys_bsd.cc,v 1.18 1996/11/24 16:10:23 dholland Exp $";
 
 /*
  * The following routines try to encapsulate what is system dependent
@@ -61,9 +61,6 @@ char bsd_rcsid[] =
 #include "proto.h"
 #include "netlink.h"
 #include "terminal.h"
-
-#define	SIG_FUNC_RET	void
-
 
 static fd_set ibits, obits, xbits;
 
@@ -175,10 +172,8 @@ cc_t *tcval(int func) {
     }
 }
 
-SIG_FUNC_RET ayt_status(int);
-
 #ifdef	SIGINFO
-	static SIG_FUNC_RET ayt(int);
+static void ayt(int);
 #endif	SIGINFO
 
 #if defined(TN3270)
@@ -198,12 +193,12 @@ void NetSetPgrp(int fd) {
  * Various signal handling routines.
  */
 
-static SIG_FUNC_RET deadpeer(int /*sig*/) {
+static void deadpeer(int /*sig*/) {
     setcommandmode();
     siglongjmp(peerdied, -1);
 }
 
-static SIG_FUNC_RET intr(int /*sig*/) {
+static void intr(int /*sig*/) {
     if (localchars) {
 	intp();
     }
@@ -213,7 +208,7 @@ static SIG_FUNC_RET intr(int /*sig*/) {
     }
 }
 
-static SIG_FUNC_RET intr2(int /*sig*/) {
+static void intr2(int /*sig*/) {
     if (localchars) {
 #ifdef	KLUDGELINEMODE
 	if (kludgelinemode)
@@ -226,7 +221,7 @@ static SIG_FUNC_RET intr2(int /*sig*/) {
 }
 
 #ifdef	SIGWINCH
-static SIG_FUNC_RET sendwin(int /*sig*/) {
+static void sendwin(int /*sig*/) {
     if (connected) {
 	sendnaws();
     }
@@ -234,11 +229,11 @@ static SIG_FUNC_RET sendwin(int /*sig*/) {
 #endif
 
 #ifdef	SIGINFO
-static SIG_FUNC_RET ayt(int sig) {
+static void ayt(int sig) {
     if (connected)
 	sendayt();
     else
-	ayt_status();
+	ayt_status(0);
 }
 #endif
 
@@ -281,7 +276,7 @@ void sys_telnet_init(void) {
 int process_rings(int netin, int netout, int netex, int ttyin, int ttyout, 
 		  int poll /* If 0, then block until something to do */)
 {
-    register int c;
+    register int c, maxfd;
 		/* One wants to be a bit careful about setting returnValue
 		 * to one, since a one implies we did some useful work,
 		 * and therefore probably won't be called to block next
@@ -309,7 +304,12 @@ int process_rings(int netin, int netout, int netex, int ttyin, int ttyout,
     if (netex) {
 	FD_SET(net, &xbits);
     }
-    if ((c = select(16, &ibits, &obits, &xbits,
+
+    maxfd = net;
+    if (maxfd < tin) maxfd=tin;
+    if (maxfd < tout) maxfd=tout;
+
+    if ((c = select(maxfd+1, &ibits, &obits, &xbits,
 			(poll == 0)? (struct timeval *)0 : &TimeValue)) < 0) {
 	if (c == -1) {
 		    /*
@@ -373,7 +373,8 @@ int process_rings(int netin, int netout, int netex, int ttyin, int ttyout,
     if (FD_ISSET(tin, &ibits)) {
 	FD_CLR(tin, &ibits);
 	c = ttyiring.read_source();
-	if (c <= 0) {
+	/* This test was '<=', but should be just '<'... I think. -dholland */
+	if (c < 0) {
 	    return -1;
 	}
 	returnValue = 1;		/* did something useful */

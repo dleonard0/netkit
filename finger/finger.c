@@ -46,7 +46,7 @@ char copyright[] =
  * from: @(#)finger.c	5.22 (Berkeley) 6/29/90 
  */
 char finger_rcsid[] = \
-  "$Id: finger.c,v 1.5 1996/08/14 18:56:40 dholland Exp $";
+  "$Id: finger.c,v 1.7 1996/08/29 23:32:27 dholland Exp $";
 
 /*
  * Finger prints out information about users.  It is not portable since
@@ -66,14 +66,12 @@ char finger_rcsid[] = \
 #include <string.h>
 #include <stdlib.h>
 #include <getopt.h>
+#include <sys/types.h>
 /*
 #include <sys/param.h>
 #include <sys/file.h>
 */
 #include "finger.h"
-
-/* from libbsd.a */
-void setpassent(int);
 
 static void loginlist(void);
 static void userlist(int argc, char *argv[]);
@@ -115,8 +113,7 @@ int main(int argc, char *argv[]) {
 
 	time(&now);
 
-	/* Replace with setpwent() if no -lbsd desired */
-	setpassent(1);
+	setpwent();
 
 	if (!*argv) {
 		/*

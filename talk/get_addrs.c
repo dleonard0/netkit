@@ -35,13 +35,12 @@
  * From: @(#)get_addrs.c	5.7 (Berkeley) 3/1/91
  */
 char ga_rcsid[] = 
-  "$Id: get_addrs.c,v 1.4 1996/07/20 20:59:41 dholland Exp $";
+  "$Id: get_addrs.c,v 1.6 1996/12/29 17:07:41 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <net/if.h>
 #include <netinet/in.h>
-#include <protocols/talkd.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -62,6 +61,9 @@ get_addrs(char *my_machine_name, char *his_machine_name)
 		herror((char *)NULL);
 		exit(-1);
 	}
+	if (hp->h_length > (int)sizeof(my_machine_addr)) {
+		hp->h_length = sizeof(my_machine_addr);
+	}
 	memcpy(&my_machine_addr, hp->h_addr, hp->h_length);
 	/*
 	 * If the callee is on-machine, just copy the
@@ -73,6 +75,9 @@ get_addrs(char *my_machine_name, char *his_machine_name)
 			fprintf(stderr, "talk: %s: ", his_machine_name);
 			herror((char *)NULL);
 			exit(-1);
+		}
+		if (hp->h_length > (int)sizeof(his_machine_addr)) {
+			hp->h_length = sizeof(his_machine_addr);
 		}
 		memcpy(&his_machine_addr, hp->h_addr, hp->h_length);
 	} else

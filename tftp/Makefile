@@ -11,8 +11,8 @@ tftp: $(OBJS)
 $(OBJS): tftpsubs.h
 
 install: tftp
-	install -s tftp /usr/bin
-	install -m644 tftp.1 /usr/man/man1
+	install -s -m$(BINMODE) tftp $(BINDIR)
+	install -m$(MANMODE) tftp.1 $(MANDIR)/man1
 
 clean:
 	rm -f *.o tftp

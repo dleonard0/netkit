@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 1983, 1988 Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1983, 1988, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,8 +30,9 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	from: @(#)trace.h	5.8 (Berkeley) 6/1/90
- *	$Id: trace.h,v 1.2 1996/07/15 17:45:59 dholland Exp $
+ *	From: @(#)trace.h	5.8 (Berkeley) 6/1/90
+ *	From: @(#)trace.h	8.1 (Berkeley) 6/5/93
+ *	$Id: trace.h,v 1.5 1996/11/25 17:28:24 dholland Exp $
  */
 
 /*
@@ -65,11 +66,10 @@ struct	ifdebug {
 /*
  * Packet tracing stuff.
  */
-int	tracepackets;		/* watch packets as they go by */
-int	tracecontents;		/* watch packet contents as they go by */
-int	traceactions;		/* on/off */
-int	tracehistory;		/* on/off */
-FILE	*ftrace;		/* output trace file */
+extern int tracepackets;	/* watch packets as they go by */
+extern int traceactions;	/* on/off */
+extern int tracehistory;	/* on/off */
+extern FILE *ftrace;		/* output trace file */
 
 #define	TRACE_ACTION(action, route) { \
 	  if (traceactions) \
@@ -84,21 +84,16 @@ FILE	*ftrace;		/* output trace file */
 		ifp = if_iflookup(src); \
 		if (ifp) \
 			trace(&ifp->int_input, src, pack, size, \
-				ntohl(ifp->int_metric)); \
+			    ntohl(ifp->int_metric)); \
 	  } \
 	  if (tracepackets) \
-		dumppacket(ftrace, "from", src, pack, size, &now); \
+		dumppacket(ftrace, "from", (struct sockaddr *)src, pack, \
+		    size, &now); \
 	}
 #define	TRACE_OUTPUT(ifp, dst, size) { \
 	  if (tracehistory && ifp) \
 		trace(&ifp->int_output, dst, packet, size, ifp->int_metric); \
 	  if (tracepackets) \
-		dumppacket(ftrace, "to", dst, packet, size, &now); \
+		dumppacket(ftrace, "to", (struct sockaddr *)dst, packet, \
+		    size, &now); \
 	}
-
-
-void trace(struct ifdebug *ifd, struct sockaddr *who, char *p, int len, int m);
-void dumppacket(FILE *fd, int dir, struct sockaddr_in *who, char *cp, 
-		int size, struct timeval *stamp);
-void traceon(char *);
-void traceoff(void);

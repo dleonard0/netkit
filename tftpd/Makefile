@@ -16,8 +16,9 @@ tftpsubs.h:
 $(OBJS): tftpsubs.h
 
 install: tftpd
-	install -s -m744 tftpd /usr/sbin/in.tftpd
-	install -m644 tftpd.8 /usr/man/man8/in.tftpd.8
+	install -s -m$(DAEMONMODE) tftpd $(SBINDIR)/in.tftpd
+	install -m$(MANMODE) tftpd.8 $(MANDIR)/man8/in.tftpd.8
+	ln -sf in.tftpd.8 $(MANDIR)/man8/tftpd.8
 
 clean:
 	rm -f *.o tftpd tftpsubs.c tftpsubs.h

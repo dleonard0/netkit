@@ -35,7 +35,7 @@
  * From: @(#)commands.c	5.5 (Berkeley) 3/22/91
  */
 char cmd_rcsid[] = 
-  "$Id: commands.cc,v 1.24 1996/08/16 21:34:53 dholland Exp $";
+  "$Id: commands.cc,v 1.27 1996/11/25 18:42:46 dholland Exp $";
 
 #include <string.h>
 
@@ -87,7 +87,7 @@ char cmd_rcsid[] =
 #endif /* vax */
 #endif /* CRAY */
 
-#define HELPINDENT (sizeof ("connect"))
+#define HELPINDENT ((int) sizeof ("connect"))
 
 #ifndef       MAXHOSTNAMELEN
 #define       MAXHOSTNAMELEN 64
@@ -1621,7 +1621,6 @@ int tn(int argc, const char *argv[]) {
     register struct hostent *host = 0;
     struct sockaddr_in sn;
     struct servent *sp = 0;
-    int temp;
     char *srp = NULL;
     int srlen;
 
@@ -1688,7 +1687,7 @@ int tn(int argc, const char *argv[]) {
 	    hostname = strrchr(hostp, '@');
 	hostname++;
 	srp = 0;
-	temp = sourceroute(hostp, &srp, &srlen);
+	int temp = sourceroute(hostp, &srp, &srlen);
 	if (temp == 0) {
 	    herror(srp);
 	    setuid(getuid());
@@ -1704,9 +1703,7 @@ int tn(int argc, const char *argv[]) {
     } 
     else {
 #endif
-	temp = inet_addr(hostp);
-	if (temp != -1) {
-	    sn.sin_addr.s_addr = temp;
+	if (inet_aton(hostp, &sn.sin_addr)) {
 	    sn.sin_family = AF_INET;
 	    strcpy(_hostname, hostp);
 	    hostname = _hostname;
@@ -1715,6 +1712,9 @@ int tn(int argc, const char *argv[]) {
 	    host = gethostbyname(hostp);
 	    if (host) {
 		sn.sin_family = host->h_addrtype;
+		if (host->h_length > (int)sizeof(sn.sin_addr)) {
+		    host->h_length = sizeof(sn.sin_addr);
+		}
 #if	defined(h_addr)		/* In 4.3, this is a #define */
 		memcpy((caddr_t)&sn.sin_addr,
 				host->h_addr_list[0], host->h_length);
@@ -2123,7 +2123,6 @@ void cmdrc(const char *m1, const char *m2) {
 static unsigned long sourceroute(char *arg, char **cpp, int *lenp) {
 	static char lsr[44];
 	char *cp, *cp2, *lsrp, *lsrep;
-	register int tmp;
 	struct in_addr sin_addr;
 	register struct hostent *host = 0;
 	register char c;
@@ -2191,15 +2190,15 @@ static unsigned long sourceroute(char *arg, char **cpp, int *lenp) {
 		if (!c)
 			cp2 = 0;
 
-		if ((tmp = inet_addr(cp)) != -1) {
-			sin_addr.s_addr = tmp;
-		} 
+		if (inet_aton(cp, &sin_addr)) ;  /* nothing */
 		else if ((host = gethostbyname(cp))!=NULL) {
+		    if (host->h_length > (int)sizeof(sin_addr)) {
+			host->h_length = sizeof(sin_addr);
+		    }
 #if defined(h_addr)
-			memcpy((caddr_t)&sin_addr,
-				host->h_addr_list[0], host->h_length);
+		    memcpy(&sin_addr, host->h_addr_list[0], host->h_length);
 #else
-			memcpy((caddr_t)&sin_addr, host->h_addr, host->h_length);
+		    memcpy(&sin_addr, host->h_addr, host->h_length);
 #endif
 		} else {
 			*cpp = cp;

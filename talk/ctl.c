@@ -35,7 +35,7 @@
  * From: @(#)ctl.c	5.7 (Berkeley) 3/1/91
  */
 char ctl_rcsid[] = 
-  "$Id: ctl.c,v 1.5 1996/08/15 03:40:50 dholland Exp $";
+  "$Id: ctl.c,v 1.7 1996/12/29 17:07:41 dholland Exp $";
 
 /*
  * This file handles haggling with the various talk daemons to
@@ -45,7 +45,6 @@ char ctl_rcsid[] =
 
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <protocols/talkd.h>
 #include <netinet/in.h>
 #include "talk.h"
 #include "talk_ctl.h"
@@ -77,6 +76,7 @@ open_sockt(void)
 {
 	int length;
 
+	my_addr.sin_family = AF_INET;
 	my_addr.sin_addr = my_machine_addr;
 	my_addr.sin_port = 0;
 	sockt = socket(AF_INET, SOCK_STREAM, 0);
@@ -95,6 +95,7 @@ open_ctl(void)
 {
 	int length;
 
+	ctl_addr.sin_family = AF_INET;
 	ctl_addr.sin_port = 0;
 	ctl_addr.sin_addr = my_machine_addr;
 	ctl_sockt = socket(AF_INET, SOCK_DGRAM, 0);

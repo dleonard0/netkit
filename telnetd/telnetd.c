@@ -39,10 +39,12 @@ char copyright[] =
  * From: @(#)telnetd.c	5.48 (Berkeley) 3/1/91
  */
 char telnetd_rcsid[] = 
-  "$Id: telnetd.c,v 1.6 1996/08/16 18:49:26 dholland Exp $";
+  "$Id: telnetd.c,v 1.9 1996/12/29 18:16:33 dholland Exp $";
 
 #include <netdb.h>
 #include <termcap.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
 #include <arpa/inet.h>
 #include "telnetd.h"
 #include "pathnames.h"
@@ -76,6 +78,7 @@ int	lowpty = 0, highpty;	/* low, high pty numbers */
 
 int debug = 0;
 int keepalive = 1;
+char *loginprg = _PATH_LOGIN;
 char *progname;
 
 extern void usage(void);
@@ -84,7 +87,8 @@ int
 main(int argc, char *argv[])
 {
 	struct sockaddr_in from;
-	int on = 1, fromlen;
+	int on = 1;
+	size_t fromlen;
 	register int ch;
 
 #if	defined(IPPROTO_IP) && defined(IP_TOS)
@@ -108,7 +112,7 @@ main(int argc, char *argv[])
 	highpty = getnpty();
 #endif /* CRAY */
 
-	while ((ch = getopt(argc, argv, "d:a:e:lhnr:I:D:B:sS:a:X:")) != EOF) {
+	while ((ch = getopt(argc, argv, "d:a:e:lhnr:I:D:B:sS:a:X:L:")) != EOF) {
 		switch(ch) {
 
 #ifdef	AUTHENTICATE
@@ -207,6 +211,10 @@ main(int argc, char *argv[])
 			break;
 #endif	/* LINEMODE */
 
+		case 'L':
+			loginprg = optarg;
+			break;
+
 		case 'n':
 			keepalive = 0;
 			break;
@@ -279,7 +287,8 @@ main(int argc, char *argv[])
 	argv += optind;
 
 	if (debug) {
-	    int s, ns, foo;
+	    int s, ns;
+	    size_t foo;
 	    struct servent *sp;
 	    static struct sockaddr_in sn = { AF_INET };
 
@@ -397,6 +406,7 @@ usage(void)
 #ifdef LINEMODE
 	fprintf(stderr, " [-l]");
 #endif
+	fprintf(stderr, " [-L login_program]");
 	fprintf(stderr, " [-n]");
 #ifdef	CRAY
 	fprintf(stderr, " [-r[lowpty]-[highpty]]");
@@ -924,7 +934,7 @@ void telnet(int f, int p, char *host)
 
     for (;;) {
 	fd_set ibits, obits, xbits;
-	register int c;
+	int c, hifd;
 	
 	if (ncc < 0 && pcc < 0)
 	    break;
@@ -935,26 +945,32 @@ void telnet(int f, int p, char *host)
 	FD_ZERO(&ibits);
 	FD_ZERO(&obits);
 	FD_ZERO(&xbits);
+	hifd=0;
 	/*
 	 * Never look for input if there's still
 	 * stuff in the corresponding output buffer
 	 */
 	if (nfrontp - nbackp || pcc > 0) {
 	    FD_SET(f, &obits);
+	    if (f >= hifd) hifd = f+1;
 	} 
 	else {
 	    FD_SET(p, &ibits);
+	    if (p >= hifd) hifd = p+1;
 	}
 	if (pfrontp - pbackp || ncc > 0) {
 	    FD_SET(p, &obits);
+	    if (p >= hifd) hifd = p+1;
 	} 
 	else {
 	    FD_SET(f, &ibits);
+	    if (f >= hifd) hifd = f+1;
 	}
 	if (!SYNCHing) {
 	    FD_SET(f, &xbits);
+	    if (f >= hifd) hifd = f+1;
 	}
-	if ((c = select(16, &ibits, &obits, &xbits,
+	if ((c = select(hifd, &ibits, &obits, &xbits,
 			(struct timeval *)0)) < 1) {
 	    if (c == -1) {
 		if (errno == EINTR) {
