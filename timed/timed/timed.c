@@ -39,10 +39,10 @@ char copyright[] =
  * From: @(#)timed.c	5.1 (Berkeley) 5/11/93
  */
 char timed_rcsid[] = 
-  "$Id: timed.c,v 1.4 1996/07/20 21:07:26 dholland Exp $";
+  "$Id: timed.c,v 1.6 1996/08/16 20:42:03 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.4 $"
+#ident "$Revision: 1.6 $"
 #endif /* sgi */
 
 #define TSPTYPES
@@ -91,7 +91,7 @@ int debug;
 
 static struct nets {
 	char	*name;
-	long	net;
+	unsigned long net;
 	struct nets *next;
 } *nets = 0;
 
@@ -154,8 +154,6 @@ main(int argc, char **argv)
 	struct sockaddr_in server;
 	u_short port;
 	char c;
-	extern char *optarg;
-	extern int optind, opterr;
 #ifdef sgi
 	FILE *timetrim_st;
 #endif
@@ -381,12 +379,17 @@ main(int argc, char **argv)
 				nt->name);
 		}
 
+		/* WTF? */
+		/*
 		if (0 == (nt->net & 0xff000000))
 		    nt->net <<= 8;
 		if (0 == (nt->net & 0xff000000))
 		    nt->net <<= 8;
 		if (0 == (nt->net & 0xff000000))
 		    nt->net <<= 8;
+		*/
+		nt->net = htonl(nt->net);
+
 	}
 	ifc.ifc_len = sizeof(buf);
 	ifc.ifc_buf = buf;

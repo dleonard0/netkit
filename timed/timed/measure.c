@@ -35,10 +35,10 @@
  * From: @(#)measure.c	5.1 (Berkeley) 5/11/93
  */
 char measure_rcsid[] =
-  "$Id: measure.c,v 1.3 1996/07/20 19:45:38 dholland Exp $";
+  "$Id: measure.c,v 1.5 1996/08/16 20:42:03 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.3 $"
+#ident "$Revision: 1.5 $"
 #endif
 
 #include "globals.h"
@@ -69,7 +69,7 @@ measure(u_long maxmsec,			/* wait this many msec at most */
 	u_long wmsec,			/* msec to wait for an answer */
 	char *hname,
 	struct sockaddr_in *addr,
-	int print)			/* print complaints on stderr */
+	int doprint)			/* print complaints on stderr */
 {
 	int length;
 	int measure_status;
@@ -82,10 +82,16 @@ measure(u_long maxmsec,			/* wait this many msec at most */
 	struct timeval tdone, tcur, ttrans, twait, tout;
 	u_char packet[PACKET_IN], opacket[64];
 	register struct icmphdr *icp = (struct icmphdr *) packet;
-	unsigned long *icp_time = (unsigned long *)(icp + 1);
+	time_t *icp_time = (time_t *)(icp + 1);
 	register struct icmphdr *oicp = (struct icmphdr *) opacket;
-	unsigned long *oicp_time = (unsigned long *)(oicp + 1);
+	time_t *oicp_time = (time_t *)(oicp + 1);
 	struct iphdr *ip = (struct iphdr *) packet;
+
+#ifdef __linux__
+#define ICPSIZE ((int)(sizeof(struct icmphdr)+3*sizeof(time_t)))
+#else
+#define ICPSIZE ((int)(sizeof(struct icmphdr)))
+#endif
 
 	min_idelta = min_odelta = 0x7fffffff;
 	measure_status = HOSTDOWN;
@@ -162,13 +168,13 @@ measure(u_long maxmsec,			/* wait this many msec at most */
 		 */
 		if (trials < TRIALS) {
 			trials++;
-			oicp_time[0] = ((tcur.tv_sec % SECDAY) * 1000
-					    + tcur.tv_usec / 1000);
+			oicp_time[0] = htonl(((tcur.tv_sec % SECDAY) * 1000
+					      + tcur.tv_usec / 1000));
 			oicp->icmp_cksum = 0;
 			oicp->icmp_cksum = in_cksum((u_short*)oicp,
-						    sizeof(*oicp));
+						    ICPSIZE);
 
-			count = sendto(sock_raw, opacket, sizeof(*oicp), 0,
+			count = sendto(sock_raw, opacket, ICPSIZE, 0,
 				       (struct sockaddr*)addr,
 				       sizeof(struct sockaddr));
 			if (count < 0) {
@@ -206,7 +212,7 @@ measure(u_long maxmsec,			/* wait this many msec at most */
 			 * got something.  See if it is ours
 			 */
 			icp = (struct icmphdr *)(packet + (ip->ihl << 2));
-			if (cc < sizeof(*ip)
+			if (cc < ICPSIZE
 			    || icp->icmp_type != ICMP_TSTAMPREPLY
 			    || icp->icmp_id != oicp->icmp_id
 			    || icp->icmp_seq < seqno
@@ -283,7 +289,7 @@ quit:
 			   	measure_delta, trials,
 				inet_ntoa(addr->sin_addr), hname);
 		}
-	} else if (print) {
+	} else if (doprint) {
 		if (errno != 0)
 			fprintf(stderr, "measure %s: %s\n", hname,
 				strerror(errno));

@@ -35,7 +35,7 @@
  * from: @(#)cmds.c	5.26 (Berkeley) 3/5/91
  */
 char cmds_rcsid[] = 
-   "$Id: cmds.c,v 1.7 1996/07/21 09:28:46 dholland Exp $";
+   "$Id: cmds.c,v 1.10 1996/08/18 21:19:42 dholland Exp $";
 
 /*
  * FTP User Program -- Command Routines.
@@ -53,6 +53,7 @@ char cmds_rcsid[] =
 #include <errno.h>
 #include <netdb.h>
 #include <ctype.h>
+#include <limits.h>
 #include <time.h>
 #include <string.h>
 #include <unistd.h>
@@ -61,28 +62,27 @@ char cmds_rcsid[] =
 #include "ftp_var.h"
 #include "pathnames.h"
 #include "cmds.h"
+#include "glob.h"
 
-extern	char *globerr;
-extern	char **ftpglob();
-extern	char *home;
-extern	char *remglob();
-extern	char *getenv();
-extern	char *index();
-extern	char *rindex();
-extern	char *strerror();
-extern	int  errno;
+void intr(int);
+
+extern FILE *cout;
+extern int data;
+extern const char *home;
 extern off_t restart_point;
 extern char reply_string[];
 
-char *mname;
-sigjmp_buf jabort;
-char *dotrans(), *domap();
-void intr(int);
+static char *mname;
+static sigjmp_buf jabort;
+static sigjmp_buf abortprox;
 
-static int globulize(char **cpp);
-static int confirm(char *cmd, char *file);
-static int getit(int argc, char *argv[], int restartit, char *mode);
-static void quote1(char *initial, int argc, char **argv);
+static char *remglob(char *argv[], int doswitch);
+static char *dotrans(char *name);
+static char *domap(char *name);
+static char *globulize(char *str);
+static int confirm(const char *cmd, const char *file);
+static int getit(int argc, char *argv[], int restartit, const char *modestr);
+static void quote1(const char *initial, int argc, char **argv);
 
 
 /*
@@ -94,7 +94,11 @@ static void quote1(char *initial, int argc, char **argv);
 int
 another(int *pargc, char ***pargv, const char *prompt)
 {
-	int len = strlen(line), ret;
+	int margc;
+	char **margv;
+
+	unsigned len = strlen(line);
+	int ret;
 
 	if (len >= sizeof(line) - 3) {
 		printf("sorry, arguments too long\n");
@@ -107,7 +111,7 @@ another(int *pargc, char ***pargv, const char *prompt)
 	len += strlen(&line[len]);
 	if (len > 0 && line[len - 1] == '\n')
 		line[len - 1] = '\0';
-	makeargv();
+	margv = makeargv(&margc, NULL);
 	ret = margc > *pargc;
 	*pargc = margc;
 	*pargv = margv;
@@ -121,7 +125,7 @@ another(int *pargc, char ***pargv, const char *prompt)
 void
 setpeer(int argc, char *argv[])
 {
-	char *host, *hookup();
+	char *host;
 	short port;
 
 	if (connected) {
@@ -150,7 +154,7 @@ setpeer(int argc, char *argv[])
 	}
 	host = hookup(argv[1], port);
 	if (host) {
-/*		int overbose; */
+		int overbose;
 
 		connected = 1;
 		/*
@@ -165,7 +169,7 @@ setpeer(int argc, char *argv[])
 		if (autologin)
 			(void) login(argv[1]);
 
-#if defined(unix) && NBBY == 8
+#if defined(unix) && CHAR_BIT == 8
 /*
  * this ifdef is to keep someone form "porting" this to an incompatible
  * system and not checking this out. This way they have to think about it.
@@ -217,35 +221,60 @@ setpeer(int argc, char *argv[])
 "Remember to set tenex mode when transfering binary files from this machine.\n");
 		}
 		verbose = overbose;
+#else
+#warn "Unix auto-mode code skipped"
 #endif /* unix */
 	}
 }
 
 struct	types {
-	char	*t_name;
-	char	*t_mode;
-	int	t_type;
-	char	*t_arg;
+	const char *t_name;
+	const char *t_mode;
+	int t_type;
+	const char *t_arg;
 } types[] = {
-	{ "ascii",	"A",	TYPE_A,	0 },
-	{ "binary",	"I",	TYPE_I,	0 },
-	{ "image",	"I",	TYPE_I,	0 },
-	{ "ebcdic",	"E",	TYPE_E,	0 },
+	{ "ascii",	"A",	TYPE_A,	NULL },
+	{ "binary",	"I",	TYPE_I,	NULL },
+	{ "image",	"I",	TYPE_I,	NULL },
+	{ "ebcdic",	"E",	TYPE_E,	NULL },
 	{ "tenex",	"L",	TYPE_L,	bytename },
-	{ NULL, NULL, 0, 0 }
+	{ NULL, NULL, 0, NULL }
 };
 
 /*
  * Set transfer type.
  */
+static 
+void
+do_settype(const char *thetype) 
+{
+	struct types *p;
+	int comret;
+
+	for (p = types; p->t_name; p++)
+		if (strcmp(thetype, p->t_name) == 0)
+			break;
+	if (p->t_name == 0) {
+		printf("%s: unknown mode\n", thetype);
+		code = -1;
+		return;
+	}
+	if ((p->t_arg != NULL) && (*(p->t_arg) != '\0'))
+		comret = command("TYPE %s %s", p->t_mode, p->t_arg);
+	else
+		comret = command("TYPE %s", p->t_mode);
+	if (comret == COMPLETE) {
+		(void) strcpy(typename, p->t_name);
+		curtype = type = p->t_type;
+	}
+}
+
 void
 settype(int argc, char *argv[])
 {
-	register struct types *p;
-	int comret;
-
+	struct types *p;
 	if (argc > 2) {
-		char *sep;
+		const char *sep;
 
 		printf("usage: %s [", argv[0]);
 		sep = " ";
@@ -262,22 +291,7 @@ settype(int argc, char *argv[])
 		code = 0;
 		return;
 	}
-	for (p = types; p->t_name; p++)
-		if (strcmp(argv[1], p->t_name) == 0)
-			break;
-	if (p->t_name == 0) {
-		printf("%s: unknown mode\n", argv[1]);
-		code = -1;
-		return;
-	}
-	if ((p->t_arg != NULL) && (*(p->t_arg) != '\0'))
-		comret = command("TYPE %s %s", p->t_mode, p->t_arg);
-	else
-		comret = command("TYPE %s", p->t_mode);
-	if (comret == COMPLETE) {
-		(void) strcpy(typename, p->t_name);
-		curtype = type = p->t_type;
-	}
+	do_settype(argv[1]);
 }
 
 /*
@@ -316,21 +330,14 @@ changetype(int newtype, int show)
 	tick = oldtick;
 }
 
-char *stype[] = {
-	"type",
-	"",
-	0
-};
-
 /*
  * Set binary transfer type.
  */
 /*VARARGS*/
 void
-setbinary(int argc, char *argv[])
+setbinary(void)
 {
-	stype[1] = "binary";
-	settype(2, stype);
+	do_settype("binary");
 }
 
 /*
@@ -338,10 +345,9 @@ setbinary(int argc, char *argv[])
  */
 /*VARARGS*/
 void
-setascii(int argc, char *argv[])
+setascii(void)
 {
-	stype[1] = "ascii";
-	settype(2, stype);
+	do_settype("ascii");
 }
 
 /*
@@ -349,10 +355,9 @@ setascii(int argc, char *argv[])
  */
 /*VARARGS*/
 void
-settenex(int argc, char *argv[])
+settenex(void)
 {
-	stype[1] = "tenex";
-	settype(2, stype);
+	do_settype("tenex");
 }
 
 /*
@@ -360,11 +365,8 @@ settenex(int argc, char *argv[])
  */
 /*ARGSUSED*/
 void
-setmode(argc, argv)
-	int argc;
-	char *argv[];
+setmode(void)
 {
-
 	printf("We only support %s mode, sorry.\n", modename);
 	code = -1;
 }
@@ -374,9 +376,8 @@ setmode(argc, argv)
  */
 /*ARGSUSED*/
 void
-setform(int argc, char *argv[])
+setform(void)
 {
-
 	printf("We only support %s format, sorry.\n", formname);
 	code = -1;
 }
@@ -384,9 +385,8 @@ setform(int argc, char *argv[])
 /*
  * Set file transfer structure.
  */
-/*ARGSUSED*/
 void
-setstruct(int argc, char *argv[])
+setstruct(void)
 {
 	printf("We only support %s structure, sorry.\n", structname);
 	code = -1;
@@ -396,11 +396,9 @@ setstruct(int argc, char *argv[])
  * Send a single file.
  */
 void
-put(argc, argv)
-	int argc;
-	char *argv[];
+put(int argc, char *argv[])
 {
-	char *cmd;
+	const char *cmd;
 	int loc = 0;
 	char *oldargv1, *oldargv2;
 
@@ -419,7 +417,8 @@ usage:
 	}
 	oldargv1 = argv[1];
 	oldargv2 = argv[2];
-	if (!globulize(&argv[1])) {
+	argv[1] = globulize(argv[1]);
+	if (!argv[1]) {
 		code = -1;
 		return;
 	}
@@ -447,11 +446,8 @@ void mabort(int);
  * Send multiple files.
  */
 void
-mput(argc, argv)
-	int argc;
-	char **argv;
+mput(int argc, char *argv[])
 {
-	extern sigjmp_buf jabort;
 	register int i;
 	void (*oldintr)(int);
 	int ointer;
@@ -570,9 +566,7 @@ mput(argc, argv)
 }
 
 void
-reget(argc, argv)
-	int argc;
-	char *argv[];
+reget(int argc, char *argv[])
 {
 	(void) getit(argc, argv, 1, "r+w");
 }
@@ -589,7 +583,7 @@ get(argc, argv)
  * Receive one file.
  */
 static int
-getit(int argc, char *argv[], int restartit, char *mode)
+getit(int argc, char *argv[], int restartit, const char *modestr)
 {
 	int loc = 0;
 	char *oldargv1, *oldargv2;
@@ -609,7 +603,8 @@ usage:
 	}
 	oldargv1 = argv[1];
 	oldargv2 = argv[2];
-	if (!globulize(&argv[2])) {
+	argv[2] = globulize(argv[2]);
+	if (!argv[2]) {
 		code = -1;
 		return (0);
 	}
@@ -691,8 +686,8 @@ usage:
 		}
 	}
 
-	recvrequest("RETR", argv[2], argv[1], mode,
-	    argv[1] != oldargv1 || argv[2] != oldargv2);
+	recvrequest("RETR", argv[2], argv[1], modestr,
+		    argv[1] != oldargv1 || argv[2] != oldargv2);
 	restart_point = 0;
 	return (0);
 }
@@ -701,7 +696,8 @@ void
 mabort(int ignore)
 {
 	int ointer;
-	extern sigjmp_buf jabort;
+
+	(void)ignore;
 
 	printf("\n");
 	(void) fflush(stdout);
@@ -726,7 +722,6 @@ mget(argc, argv)
 	int argc;
 	char **argv;
 {
-	extern sigjmp_buf jabort;
 	void (*oldintr)(int);
 	int ointer;
 	char *cp, *tp, *tp2, tmpbuf[MAXPATHLEN];
@@ -787,16 +782,15 @@ mget(argc, argv)
 }
 
 char *
-remglob(argv,doswitch)
-	char *argv[];
-	int doswitch;
+remglob(char *argv[], int doswitch)
 {
 	char temp[16];
 	static char buf[MAXPATHLEN];
 	static FILE *ftemp = NULL;
 	static char **args;
 	int oldverbose, oldhash;
-	char *cp, *mode;
+	char *cp;
+	const char *modestr;
 
 	if (!mflag) {
 		if (!doglob) {
@@ -825,8 +819,8 @@ remglob(argv,doswitch)
 		if (doswitch) {
 			pswitch(!proxy);
 		}
-		for (mode = "w"; *++argv != NULL; mode = "a")
-			recvrequest ("NLST", temp, *argv, mode, 0);
+		for (modestr = "w"; *++argv != NULL; modestr = "a")
+			recvrequest ("NLST", temp, *argv, modestr, 0);
 		if (doswitch) {
 			pswitch(!proxy);
 		}
@@ -847,11 +841,9 @@ remglob(argv,doswitch)
 	return (buf);
 }
 
-char *
-onoff(bool)
-	int bool;
+static const char *
+onoff(int bool)
 {
-
 	return (bool ? "on" : "off");
 }
 
@@ -860,9 +852,7 @@ onoff(bool)
  */
 /*ARGSUSED*/
 void
-status(argc, argv)
-	int argc;
-	char *argv[];
+status(void)
 {
 	int i;
 
@@ -917,7 +907,7 @@ status(argc, argv)
  */
 /*VARARGS*/
 void
-setbell(int argc, char *argv[])
+setbell(void)
 {
 
 	bell = !bell;
@@ -930,7 +920,7 @@ setbell(int argc, char *argv[])
  */
 /*VARARGS*/
 void
-settrace(int argc, char *argv[])
+settrace(void)
 {
 
 	trace = !trace;
@@ -943,12 +933,12 @@ settrace(int argc, char *argv[])
  */
 /*VARARGS*/
 void
-sethash(int argc, char *argv[])
+sethash(void)
 {
 
 	hash = !hash;
 	if (hash && tick)
-		settick(0, NULL);
+		settick();
  
 	printf("Hash mark printing %s", onoff(hash));
 	code = hash;
@@ -962,11 +952,11 @@ sethash(int argc, char *argv[])
  */
 /*VARARGS*/
 void
-settick(int argc, char *argv[])
+settick(void)
 {
 	tick = !tick;
 	if (hash && tick)
-		sethash(0, NULL);
+		sethash();
 	printf("Tick counter printing %s", onoff(tick));
 	code = tick;
 	if (tick)
@@ -979,7 +969,7 @@ settick(int argc, char *argv[])
  */
 /*VARARGS*/
 void
-setverbose(int argc, char *argv[])
+setverbose(void)
 {
 
 	verbose = !verbose;
@@ -990,9 +980,8 @@ setverbose(int argc, char *argv[])
 /*
  * Toggle PORT cmd use before each data connection.
  */
-/*VARARGS*/
 void
-setport(int argc, char *argv[])
+setport(void)
 {
 
 	sendport = !sendport;
@@ -1004,9 +993,8 @@ setport(int argc, char *argv[])
  * Turn on interactive prompting
  * during mget, mput, and mdelete.
  */
-/*VARARGS*/
 void
-setprompt(int argc, char *argv[])
+setprompt(void)
 {
 
 	interactive = !interactive;
@@ -1018,9 +1006,8 @@ setprompt(int argc, char *argv[])
  * Toggle metacharacter interpretation
  * on local file names.
  */
-/*VARARGS*/
 void
-setglob(int argc, char *argv[])
+setglob(void)
 {
 	
 	doglob = !doglob;
@@ -1085,26 +1072,24 @@ cd(argc, argv)
  * on local machine.
  */
 void
-lcd(argc, argv)
-	int argc;
-	char *argv[];
+lcd(int argc, char *argv[])
 {
 	char buf[MAXPATHLEN];
-	extern char *getwd();
+	const char *dir = NULL;
 
-	if (argc < 2)
-		argc++, argv[1] = home;
-	if (argc != 2) {
+	if (argc == 1) dir = home;
+	else if (argc != 2) {
 		printf("usage: %s local-directory\n", argv[0]);
 		code = -1;
 		return;
 	}
-	if (!globulize(&argv[1])) {
+	dir = globulize(argv[1]);
+	if (!dir) {
 		code = -1;
 		return;
 	}
-	if (chdir(argv[1]) < 0) {
-		fprintf(stderr, "local: %s: %s\n", argv[1], strerror(errno));
+	if (chdir(dir) < 0) {
+		fprintf(stderr, "local: %s: %s\n", dir, strerror(errno));
 		code = -1;
 		return;
 	}
@@ -1133,11 +1118,8 @@ delete_cmd(argc, argv)
  * Delete multiple files.
  */
 void
-mdelete(argc, argv)
-	int argc;
-	char **argv;
+mdelete(int argc, char *argv[])
 {
-	extern sigjmp_buf jabort;
 	void (*oldintr)(int);
 	int ointer;
 	char *cp;
@@ -1198,28 +1180,30 @@ usage:
  * of remote files.
  */
 void
-ls(argc, argv)
-	int argc;
-	char *argv[];
+ls(int argc, char *argv[])
 {
-	char *cmd;
+	static char foo[2] = "-";
+	const char *cmd;
 
-	if (argc < 2)
+	if (argc < 2) {
 		argc++, argv[1] = NULL;
-	if (argc < 3)
-		argc++, argv[2] = "-";
+	}
+	if (argc < 3) {
+		argc++, argv[2] = foo;
+	}
 	if (argc > 3) {
 		printf("usage: %s remote-directory local-file\n", argv[0]);
 		code = -1;
 		return;
 	}
 	cmd = argv[0][0] == 'n' ? "NLST" : "LIST";
-	if (strcmp(argv[2], "-") && !globulize(&argv[2])) {
+	if (strcmp(argv[2], "-") && (argv[2] = globulize(argv[2]))==NULL) {
 		code = -1;
 		return;
 	}
 	if (strcmp(argv[2], "-") && *argv[2] != '|')
-		if (!globulize(&argv[2]) || !confirm("output to local-file:", argv[2])) {
+		if ((argv[2] = globulize(argv[2]))==NULL || 
+		    !confirm("output to local-file:", argv[2])) {
 			code = -1;
 			return;
 	}
@@ -1231,15 +1215,13 @@ ls(argc, argv)
  * of multiple remote files.
  */
 void
-mls(argc, argv)
-	int argc;
-	char **argv;
+mls(int argc, char *argv[])
 {
-	extern sigjmp_buf jabort;
 	void (*oldintr)(int);
 	int ointer, i;
-	char *volatile cmd;
-	char mode[1], *dest;
+	const char *volatile cmd;
+	char *volatile dest;
+	const char *modestr;
 
 	if (argc < 2 && !another(&argc, &argv, "remote-files"))
 		goto usage;
@@ -1252,7 +1234,7 @@ usage:
 	dest = argv[argc - 1];
 	argv[argc - 1] = NULL;
 	if (strcmp(dest, "-") && *dest != '|')
-		if (!globulize(&dest) ||
+		if ((dest = globulize(dest))==NULL ||
 		    !confirm("output to local-file:", dest)) {
 			code = -1;
 			return;
@@ -1268,8 +1250,8 @@ usage:
 	(void) sigsetjmp(jabort, 1);
 
 	for (i = 1; mflag && i < argc-1; ++i) {
-		*mode = (i == 1) ? 'w' : 'a';
-		recvrequest(cmd, dest, argv[i], mode, 0);
+		modestr = (i == 1) ? "w" : "a";
+		recvrequest(cmd, dest, argv[i], modestr, 0);
 		if (!mflag && fromatty) {
 			ointer = interactive;
 			interactive = 1;
@@ -1286,15 +1268,14 @@ usage:
 /*
  * Do a shell escape
  */
-/*ARGSUSED*/
 void
-shell(int argc, char *argv[])
+shell(const char *arg)
 {
 	int pid;
 	void (*old1)(int);
 	void (*old2)(int);
-	char shellnam[40], *shell, *namep; 
-	union wait status;
+	char shellnam[40];
+	const char *theshell, *namep; 
 
 	old1 = signal (SIGINT, SIG_IGN);
 	old2 = signal (SIGQUIT, SIG_IGN);
@@ -1303,33 +1284,32 @@ shell(int argc, char *argv[])
 			(void) close(pid);
 		(void) signal(SIGINT, SIG_DFL);
 		(void) signal(SIGQUIT, SIG_DFL);
-		shell = getenv("SHELL");
-		if (shell == NULL)
-			shell = _PATH_BSHELL;
-		namep = rindex(shell,'/');
+		theshell = getenv("SHELL");
+		if (theshell == NULL)
+			theshell = _PATH_BSHELL;
+		namep = strrchr(theshell, '/');
 		if (namep == NULL)
-			namep = shell;
+			namep = theshell;
 		(void) strcpy(shellnam,"-");
 		(void) strcat(shellnam, ++namep);
 		if (strcmp(namep, "sh") != 0)
 			shellnam[0] = '+';
 		if (debug) {
-			printf ("%s\n", shell);
+			printf("%s\n", theshell);
 			(void) fflush (stdout);
 		}
-		if (argc > 1) {
-			execl(shell,shellnam,"-c",altarg,(char *)0);
+		if (arg) {
+			execl(theshell, shellnam, "-c", arg, NULL);
 		}
 		else {
-			execl(shell,shellnam,(char *)0);
+			execl(theshell, shellnam, NULL);
 		}
-		perror(shell);
+		perror(theshell);
 		code = -1;
 		exit(1);
 		}
-	if (pid > 0)
-		while (wait((int *)&status) != pid)
-			;
+	if (pid > 0) while (wait(NULL) != pid);
+
 	(void) signal(SIGINT, old1);
 	(void) signal(SIGQUIT, old2);
 	if (pid == -1) {
@@ -1347,7 +1327,7 @@ shell(int argc, char *argv[])
 void
 user(int argc, char *argv[])
 {
-	char acct[80], *getpass();
+	char theacct[80];
 	int n, aflag = 0;
 
 	if (argc < 2)
@@ -1366,9 +1346,8 @@ user(int argc, char *argv[])
 	if (n == CONTINUE) {
 		if (argc < 4) {
 			printf("Account: "); (void) fflush(stdout);
-			(void) fgets(acct, sizeof(acct) - 1, stdin);
-			acct[strlen(acct) - 1] = '\0';
-			argv[3] = acct; argc++;
+			fgets(theacct, sizeof(theacct), stdin);
+			argv[3] = theacct; argc++;
 		}
 		n = command("ACCT %s", argv[3]);
 		aflag++;
@@ -1385,9 +1364,8 @@ user(int argc, char *argv[])
 /*
  * Print working directory.
  */
-/*VARARGS*/
 void
-pwd(int argc, char *argv[])
+pwd(void)
 {
 	int oldverbose = verbose;
 
@@ -1485,7 +1463,7 @@ site(argc, argv)
  * Send the result as a one-line command and get response.
  */
 static void
-quote1(char *initial, int argc, char **argv)
+quote1(const char *initial, int argc, char **argv)
 {
 	register int i, len;
 	char buf[BUFSIZ];		/* must be >= sizeof(line) */
@@ -1505,9 +1483,7 @@ quote1(char *initial, int argc, char **argv)
 }
 
 void
-do_chmod(argc, argv)
-	int argc;
-	char *argv[];
+do_chmod(int argc, char *argv[])
 {
 
 	if (argc < 2 && !another(&argc, &argv, "mode"))
@@ -1563,16 +1539,15 @@ rmthelp(argc, argv)
 /*
  * Terminate session and exit.
  */
-/*VARARGS*/
 void
-quit(int argc, char *argv[])
+quit(void)
 {
 
 	if (connected)
-		disconnect(0, NULL);
+		disconnect();
 	pswitch(1);
 	if (connected) {
-		disconnect(0, NULL);
+		disconnect();
 	}
 	exit(0);
 }
@@ -1581,11 +1556,8 @@ quit(int argc, char *argv[])
  * Terminate session, but don't exit.
  */
 void
-disconnect(int argc, char *argv[])
+disconnect(void)
 {
-	extern FILE *cout;
-	extern int data;
-
 	if (!connected)
 		return;
 	(void) command("QUIT");
@@ -1601,17 +1573,17 @@ disconnect(int argc, char *argv[])
 }
 
 static int
-confirm(char *cmd, char *file)
+confirm(const char *cmd, const char *file)
 {
-	char line[BUFSIZ];
+	char lyne[BUFSIZ];
 
 	if (!interactive)
 		return (1);
 	printf("%s %s? ", cmd, file);
 	(void) fflush(stdout);
-	if (fgets(line, sizeof line, stdin) == NULL)
+	if (fgets(lyne, sizeof(lyne), stdin) == NULL)
 		return (0);
-	return (*line != 'n' && *line != 'N');
+	return (*lyne != 'n' && *lyne != 'N');
 }
 
 void
@@ -1628,64 +1600,61 @@ fatal(const char *msg)
  * Can't control multiple values being expanded
  * from the expression, we return only the first.
  */
-static int
-globulize(char **cpp)
+static 
+char *
+globulize(char *cpp)
 {
 	char **globbed;
+	char *rv = cpp;
 
-	if (!doglob)
-		return (1);
-	globbed = ftpglob(*cpp);
+	if (!doglob) return cpp;
+
+	globbed = ftpglob(cpp);
 	if (globerr != NULL) {
-		printf("%s: %s\n", *cpp, globerr);
+		printf("%s: %s\n", cpp, globerr);
 		if (globbed) {
 			blkfree(globbed);
-			free((char *)globbed);
+			free(globbed);
 		}
-		return (0);
+		return NULL;
 	}
 	if (globbed) {
-		*cpp = *globbed++;
+		rv = globbed[0];
 		/* don't waste too much memory */
-		if (*globbed) {
-			blkfree(globbed);
-			free((char *)globbed);
+		if (globbed[1]) {
+			blkfree(globbed+1);
+			free(globbed);
 		}
 	}
-	return (1);
+	return rv;
 }
 
 void
-account(argc,argv)
-	int argc;
-	char **argv;
+account(int argc, char *argv[])
 {
-	char acct[50], *getpass(), *ap;
+	char buf[128], *ap;
 
 	if (argc > 1) {
-		++argv;
-		--argc;
-		(void) strncpy(acct,*argv,49);
-		acct[49] = '\0';
+		*buf = 0;
 		while (argc > 1) {
 			--argc;
 			++argv;
-			(void) strncat(acct,*argv, 49-strlen(acct));
+			strncat(buf, *argv, sizeof(buf)-strlen(buf));
+			buf[sizeof(buf)-1] = 0;
 		}
-		ap = acct;
+		ap = buf;
 	}
 	else {
 		ap = getpass("Account:");
 	}
-	(void) command("ACCT %s", ap);
+	command("ACCT %s", ap);
 }
 
-sigjmp_buf abortprox;
-
+static 
 void
-proxabort(int argc, char *argv[])
+proxabort(int ignore)
 {
-	extern int proxy;
+	(void)ignore;
 
 	if (!proxy) {
 		pswitch(1);
@@ -1700,21 +1669,11 @@ proxabort(int argc, char *argv[])
 	siglongjmp(abortprox,1);
 }
 
-static void sigproxabort(int ignore) 
-{
-	proxabort(0, NULL);
-}
-
 void
-doproxy(argc,argv)
-	int argc;
-	char *argv[];
+doproxy(int argc, char *argv[])
 {
-	extern sigjmp_buf abortprox;
 	register struct cmd *c;
-	struct cmd *getcmd();
 	void (*oldintr)(int);
-	void proxabort();
 
 	if (argc < 2 && !another(&argc, &argv, "command")) {
 		printf("usage: %s command\n", argv[0]);
@@ -1744,7 +1703,7 @@ doproxy(argc,argv)
 		code = -1;
 		return;
 	}
-	oldintr = signal(SIGINT, sigproxabort);
+	oldintr = signal(SIGINT, proxabort);
 	pswitch(1);
 	if (c->c_conn && !connected) {
 		printf("Not connected\n");
@@ -1754,7 +1713,11 @@ doproxy(argc,argv)
 		code = -1;
 		return;
 	}
-	(*c->c_handler)(argc-1, argv+1);
+
+	if (c->c_handler_v) c->c_handler_v(argc-1, argv+1);
+	else if (c->c_handler_0) c->c_handler_0();
+	else c->c_handler_1(NULL);  /* should not reach this */
+
 	if (connected) {
 		proxflag = 1;
 	}
@@ -1766,7 +1729,7 @@ doproxy(argc,argv)
 }
 
 void
-setcase(int argc, char *argv[])
+setcase(void)
 {
 	mcase = !mcase;
 	printf("Case mapping %s.\n", onoff(mcase));
@@ -1774,7 +1737,7 @@ setcase(int argc, char *argv[])
 }
 
 void
-setcr(int argc, char *argv[])
+setcr(void)
 {
 	crflag = !crflag;
 	printf("Carriage Return stripping %s.\n", onoff(crflag));
@@ -1804,9 +1767,8 @@ setntrans(argc,argv)
 	ntout[16] = '\0';
 }
 
-char *
-dotrans(name)
-	char *name;
+static char *
+dotrans(char *name)
 {
 	static char new[MAXPATHLEN];
 	char *cp1, *cp2 = new;
@@ -1864,9 +1826,9 @@ setnmap(argc, argv)
 	(void) strncpy(mapout, cp, MAXPATHLEN - 1);
 }
 
+static
 char *
-domap(name)
-	char *name;
+domap(char *name)
 {
 	static char new[MAXPATHLEN];
 	register char *cp1 = name, *cp2 = mapin;
@@ -2035,7 +1997,7 @@ LOOP:
 }
 
 void
-setsunique(int argc, char *argv[])
+setsunique(void)
 {
 	sunique = !sunique;
 	printf("Store unique %s.\n", onoff(sunique));
@@ -2043,7 +2005,7 @@ setsunique(int argc, char *argv[])
 }
 
 void
-setrunique(int argc, char *argv[])
+setrunique(void)
 {
 	runique = !runique;
 	printf("Receive unique %s.\n", onoff(runique));
@@ -2052,7 +2014,7 @@ setrunique(int argc, char *argv[])
 
 /* change directory to parent directory */
 void
-cdup(int argc, char *argv[])
+cdup(void)
 {
 	if (command("CDUP") == ERROR && code == 500) {
 		if (verbose)
@@ -2063,11 +2025,8 @@ cdup(int argc, char *argv[])
 
 /* restart transfer at specific point */
 void
-restart(argc, argv)
-	int argc;
-	char *argv[];
+restart(int argc, char *argv[])
 {
-	extern long atol();
 	if (argc != 2)
 		printf("restart: offset not specified\n");
 	else {
@@ -2079,7 +2038,7 @@ restart(argc, argv)
 
 /* show remote system type */
 void
-syst(int argc, char *argv[])
+syst(void)
 {
 	command("SYST");
 }
@@ -2149,7 +2108,7 @@ macdef(argc, argv)
  * Start up passive mode interaction
  */
 void
-setpassive(int argc, char *argv[])
+setpassive(void)
 {
         passivemode = !passivemode;
         printf("Passive mode %s.\n", onoff(passivemode));
@@ -2218,9 +2177,7 @@ rmtstatus(argc, argv)
  * get file if modtime is more recent than current file
  */
 void
-newer(argc, argv)
-	int argc;
-	char *argv[];
+newer(int argc, char *argv[])
 {
 	if (getit(argc, argv, -1, "w"))
 		printf("Local file \"%s\" is newer than remote file \"%s\"\n",

@@ -13,7 +13,7 @@ endif
 rlogind: $(OBJS)
 	$(CC) $(LDFLAGS) $^ $(LIBS) -lbsd -o $@
 
-rlogind.o logwtmp.o: pathnames.h
+$(OBJS): pathnames.h logwtmp.h
 
 install: rlogind
 	install -s -m744 rlogind /usr/sbin/in.rlogind

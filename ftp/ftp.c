@@ -35,7 +35,7 @@
  * From: @(#)ftp.c	5.38 (Berkeley) 4/22/91
  */
 char ftp_rcsid[] = 
-  "$Id: ftp.c,v 1.7 1996/07/21 09:28:33 dholland Exp $";
+  "$Id: ftp.c,v 1.9 1996/08/15 07:54:48 dholland Exp $";
 
 
 #include <sys/param.h>
@@ -63,46 +63,52 @@ char ftp_rcsid[] =
 #include <stdarg.h>
 
 #include "ftp_var.h"
+#include "cmds.h"
 
-struct	sockaddr_in hisctladdr;
-struct	sockaddr_in data_addr;
-int	data = -1;
-int	abrtflag = 0;
-int	ptflag = 0;
-struct	sockaddr_in myctladdr;
-uid_t	getuid();
-off_t	restart_point = 0;
+int data = -1;
+off_t restart_point = 0;
+
+static struct sockaddr_in hisctladdr;
+static struct sockaddr_in data_addr;
+static struct sockaddr_in myctladdr;
+static int ptflag = 0;
+static sigjmp_buf recvabort;
+static sigjmp_buf sendabort;
+static sigjmp_buf ptabort;
+static int ptabflg = 0;
+static int abrtflag = 0;
 
 void lostpeer(int);
 extern int connected;
 
-static void proxtrans(char *cmd, char *local, char *remote);
+static char *gunique(char *);
+static void proxtrans(const char *cmd, char *local, char *remote);
 static int initconn(void);
-static void ptransfer(char *direction, long bytes, 
-		      struct timeval *t0, struct timeval *t1);
+static void ptransfer(const char *direction, long bytes, 
+		      const struct timeval *t0, 
+		      const struct timeval *t1);
 static void tvsub(struct timeval *tdiff, 
 		  const struct timeval *t1, 
 		  const struct timeval *t0);
 static void abort_remote(FILE *din);
 
-FILE	*cin, *cout;
-FILE	*dataconn();
+FILE *cin, *cout;
+static FILE *dataconn(const char *);
 
 char *
-hookup(host, port)
-	char *host;
-	int port;
+hookup(char *host, int port)
 {
 	register struct hostent *hp = 0;
 	int s, len, tos;
-	static char hostnamebuf[80];
+	static char hostnamebuf[256];
 
-	memset((char *)&hisctladdr, 0, sizeof(hisctladdr));
+	memset(&hisctladdr, 0, sizeof(hisctladdr));
 	hisctladdr.sin_addr.s_addr = inet_addr(host);
-	if (hisctladdr.sin_addr.s_addr != -1) {
+	if (hisctladdr.sin_addr.s_addr != (unsigned long)-1) {
 		hisctladdr.sin_family = AF_INET;
 		(void) strncpy(hostnamebuf, host, sizeof(hostnamebuf));
-	} else {
+	} 
+	else {
 		hp = gethostbyname(host);
 		if (hp == NULL) {
 			fprintf(stderr, "ftp: %s: ", host);
@@ -114,6 +120,7 @@ hookup(host, port)
 		bcopy(hp->h_addr_list[0],
 		    (caddr_t)&hisctladdr.sin_addr, hp->h_length);
 		(void) strncpy(hostnamebuf, hp->h_name, sizeof(hostnamebuf));
+		hostnamebuf[sizeof(hostnamebuf)-1] = 0;
 	}
 	hostname = hostnamebuf;
 	s = socket(hisctladdr.sin_family, SOCK_STREAM, 0);
@@ -126,7 +133,6 @@ hookup(host, port)
 	while (connect(s, (struct sockaddr *)&hisctladdr, sizeof (hisctladdr)) < 0) {
 		if (hp && hp->h_addr_list[1]) {
 			int oerrno = errno;
-			extern char *inet_ntoa();
 
 			fprintf(stderr, "ftp: connect to address %s: ",
 				inet_ntoa(hisctladdr.sin_addr));
@@ -203,15 +209,15 @@ int
 login(const char *host)
 {
 	char tmp[80];
-	char *user, *pass, *acct, *getlogin(), *getpass();
+	char *luser, *pass, *zacct;
 	int n, aflag = 0;
 
-	user = pass = acct = 0;
-	if (xruserpass(host, &user, &pass, &acct) < 0) {
+	luser = pass = zacct = 0;
+	if (xruserpass(host, &luser, &pass, &zacct) < 0) {
 		code = -1;
 		return(0);
 	}
-	while (user == NULL) {
+	while (luser == NULL) {
 		char *myname = getlogin();
 
 		if (myname == NULL) {
@@ -227,11 +233,11 @@ login(const char *host)
 		(void) fgets(tmp, sizeof(tmp) - 1, stdin);
 		tmp[strlen(tmp) - 1] = '\0';
 		if (*tmp == '\0')
-			user = myname;
+			luser = myname;
 		else
-			user = tmp;
+			luser = tmp;
 	}
-	n = command("USER %s", user);
+	n = command("USER %s", luser);
 	if (n == CONTINUE) {
 		if (pass == NULL) {
 			/* fflush(stdout); */
@@ -242,21 +248,23 @@ login(const char *host)
 	if (n == CONTINUE) {
 		aflag++;
 		/* fflush(stdout); */
-		acct = getpass("Account:");
-		n = command("ACCT %s", acct);
+		zacct = getpass("Account:");
+		n = command("ACCT %s", zacct);
 	}
 	if (n != COMPLETE) {
 		fprintf(stderr, "Login failed.\n");
 		return (0);
 	}
-	if (!aflag && acct != NULL)
-		(void) command("ACCT %s", acct);
+	if (!aflag && zacct != NULL)
+		(void) command("ACCT %s", zacct);
 	if (proxy)
 		return(1);
 	for (n = 0; n < macnum; ++n) {
 		if (!strcmp("init", macros[n].mac_name)) {
-			(void) strcpy(line, "$init");
-			makeargv();
+			int margc;
+			char **margv;
+			strcpy(line, "$init");
+			margv = makeargv(&margc, NULL);
 			domacro(margc, margv);
 			break;
 		}
@@ -264,16 +272,16 @@ login(const char *host)
 	return (1);
 }
 
-void
+
+static void
 cmdabort(int ignore)
 {
-	extern sigjmp_buf ptabort;
+	(void)ignore;
 
 	printf("\n");
-	(void) fflush(stdout);
+	fflush(stdout);
 	abrtflag++;
-	if (ptflag)
-		siglongjmp(ptabort,1);
+	if (ptflag) siglongjmp(ptabort,1);
 }
 
 int
@@ -420,7 +428,7 @@ getreply(int expecteof)
 	}
 }
 
-int
+static int
 empty(fd_set *mask, int sec)
 {
 	struct timeval t;
@@ -430,11 +438,10 @@ empty(fd_set *mask, int sec)
 	return(select(32, mask, (fd_set *) 0, (fd_set *) 0, &t));
 }
 
-sigjmp_buf	sendabort;
-
-void
+static void
 abortsend(int ignore)
 {
+	(void)ignore;
 
 	mflag = 0;
 	abrtflag = 0;
@@ -446,17 +453,18 @@ abortsend(int ignore)
 #define HASHBYTES 1024
 
 void
-sendrequest(char *cmd, char *local, char *remote, int printnames)
+sendrequest(const char *cmd, char *local, char *remote, int printnames)
 {
 	struct stat st;
 	struct timeval start, stop;
 	register int c, d;
 	FILE *volatile fin, *volatile dout = 0;
-	int (*volatile closefunc)();
+	int (*volatile closefunc)(FILE *);
 	void (*volatile oldintr)(int);
 	void (*volatile oldintp)(int);
 	volatile long bytes = 0, hashbytes = HASHBYTES;
-	char *volatile lmode, buf[BUFSIZ], *bufp;
+	char buf[BUFSIZ], *bufp;
+	const char *volatile lmode;
 
 	if (verbose && printnames) {
 		if (local && *local != '-')
@@ -702,11 +710,10 @@ abort:
 		ptransfer("sent", bytes, &start, &stop);
 }
 
-sigjmp_buf	recvabort;
-
-void
+static void
 abortrecv(int ignore)
 {
+	(void)ignore;
 
 	mflag = 0;
 	abrtflag = 0;
@@ -716,15 +723,16 @@ abortrecv(int ignore)
 }
 
 void
-recvrequest(char *cmd, char *volatile local, char *remote, char *lmode, int printnames)
+recvrequest(const char *cmd, 
+	    char *volatile local, char *remote, 
+	    const char *lmode, int printnames)
 {
 	FILE *volatile fout, *volatile din = 0;
-	int (*volatile closefunc)();
+	int (*volatile closefunc)(FILE *);
 	void (*volatile oldintp)(int);
 	void (*volatile oldintr)(int);
 	volatile int is_retr, tcrflag, bare_lfs = 0;
-	char *gunique();
-	static int bufsize;
+	static unsigned bufsize;
 	static char *buf;
 	volatile long bytes = 0, hashbytes = HASHBYTES;
 	register int c, d;
@@ -808,8 +816,10 @@ recvrequest(char *cmd, char *volatile local, char *remote, char *lmode, int prin
 	if (!is_retr) {
 		if (curtype != TYPE_A)
 			changetype(TYPE_A, 0);
-	} else if (curtype != type)
+	} 
+	else if (curtype != type) {
 		changetype(type, 0);
+	}
 	if (initconn()) {
 		(void) signal(SIGINT, oldintr);
 		code = -1;
@@ -825,7 +835,8 @@ recvrequest(char *cmd, char *volatile local, char *remote, char *lmode, int prin
 			(void) signal(SIGINT, oldintr);
 			return;
 		}
-	} else {
+	} 
+	else {
 		if (command("%s", cmd) != PRELIM) {
 			(void) signal(SIGINT, oldintr);
 			return;
@@ -844,7 +855,8 @@ recvrequest(char *cmd, char *volatile local, char *remote, char *lmode, int prin
 			goto abort;
 		}
 		closefunc = pclose;
-	} else {
+	} 
+	else {
 		fout = fopen(local, lmode);
 		if (fout == NULL) {
 			fprintf(stderr, "local: %s: %s\n", local,
@@ -1168,9 +1180,8 @@ bad:
 	return (1);
 }
 
-FILE *
-dataconn(lmode)
-	char *lmode;
+static FILE *
+dataconn(const char *lmode)
 {
 	struct sockaddr_in from;
 	int s, fromlen = sizeof (from), tos;
@@ -1195,7 +1206,9 @@ dataconn(lmode)
 }
 
 static void
-ptransfer(char *direction, long bytes, struct timeval *t0, struct timeval *t1)
+ptransfer(const char *direction, long bytes, 
+	  const struct timeval *t0, 
+	  const struct timeval *t1)
 {
 	struct timeval td;
 	float s, bs;
@@ -1234,18 +1247,17 @@ tvsub(struct timeval *tdiff,
 		tdiff->tv_sec--, tdiff->tv_usec += 1000000;
 }
 
+static 
 void
 psabort(int ignore)
 {
-	extern int abrtflag;
-
+	(void)ignore;
 	abrtflag++;
 }
 
 void
 pswitch(int flag)
 {
-	extern int proxy, abrtflag;
 	void (*oldintr)(int);
 	static struct comvars {
 		int connect;
@@ -1277,7 +1289,8 @@ pswitch(int flag)
 		ip = &tmpstruct;
 		op = &proxstruct;
 		proxy++;
-	} else {
+	} 
+	else {
 		if (!proxy)
 			return;
 		ip = &proxstruct;
@@ -1289,8 +1302,10 @@ pswitch(int flag)
 	if (hostname) {
 		(void) strncpy(ip->name, hostname, sizeof(ip->name) - 1);
 		ip->name[strlen(ip->name)] = '\0';
-	} else
+	} 
+	else {
 		ip->name[0] = 0;
+	}
 	hostname = op->name;
 	ip->hctl = hisctladdr;
 	hisctladdr = op->hctl;
@@ -1335,14 +1350,13 @@ pswitch(int flag)
 	}
 }
 
-sigjmp_buf ptabort;
-int ptabflg;
-
+static
 void
 abortpt(int ignore)
 {
+	(void)ignore;
 	printf("\n");
-	(void) fflush(stdout);
+	fflush(stdout);
 	ptabflg++;
 	mflag = 0;
 	abrtflag = 0;
@@ -1350,12 +1364,11 @@ abortpt(int ignore)
 }
 
 static void
-proxtrans(char *cmd, char *local, char *remote)
+proxtrans(const char *cmd, char *local, char *remote)
 {
 	void (*volatile oldintr)(int);
 	volatile int secndflag = 0, prox_type, nfnd;
-	extern sigjmp_buf ptabort;
-	char *volatile cmd2;
+	const char *volatile cmd2;
 	fd_set mask;
 
 	if (strcmp(cmd, "RETR"))
@@ -1488,7 +1501,7 @@ reset(void)
 	}
 }
 
-char *
+static char *
 gunique(char *local)
 {
 	static char new[MAXPATHLEN];

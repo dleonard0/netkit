@@ -35,7 +35,7 @@
  * From: @(#)ctl.c	5.7 (Berkeley) 3/1/91
  */
 char ctl_rcsid[] = 
-  "$Id: ctl.c,v 1.4 1996/07/20 20:59:41 dholland Exp $";
+  "$Id: ctl.c,v 1.5 1996/08/15 03:40:50 dholland Exp $";
 
 /*
  * This file handles haggling with the various talk daemons to
@@ -109,6 +109,7 @@ open_ctl(void)
 		p_error("Bad address for ctl socket");
 }
 
+#if 0
 /* print_addr is a debug print routine */
 void
 print_addr(struct sockaddr_in addr)
@@ -121,3 +122,4 @@ print_addr(struct sockaddr_in addr)
 	printf("%o ", (int)addr.sin_zero[i]);
 	putchar('\n');
 }
+#endif /* 0 */

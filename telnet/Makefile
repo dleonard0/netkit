@@ -4,21 +4,23 @@ include ../MCONFIG
 include ../MRULES
 
 # -DAUTHENTICATE
+CFLAGS += -DUSE_TERMIO -DKLUDGELINEMODE
+LIBS += $(LIBTERMCAP)
 
-CFLAGS += '-DISSUE_FILE="/etc/issue.net"' -I.. \
-	-DTERMCAP -DUSE_TERMIO -DKLUDGELINEMODE -DDIAGNOSTICS
-LIBS += -L../libtelnet -ltelnet -ltermcap 
+SRCS = commands.cc main.cc network.cc ring.cc sys_bsd.cc telnet.cc \
+	terminal.cc tn3270.cc utilities.cc genget.cc environ.cc netlink.cc
 
-OBJS = authenc.o commands.o main.o network.o ring.o sys_bsd.o telnet.o \
-	terminal.o tn3270.o utilities.o
-
-# Warning. If you link it with ncurses instead of libtermcap it will crash.
-# This will be fixed in a future release.
+OBJS = $(patsubst %.cc, %.o, $(SRCS))
 
 telnet: $(OBJS)
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
-$(OBJS): defines.h externs.h fdset.h general.h proto.h ring.h types.h
+include .depend
+.depend: 
+	touch .depend
+	$(MAKE) depend
+depend:
+	$(CC) $(CFLAGS) -MM $(SRCS) >.depend
 
 install: telnet
 	install -s telnet /usr/bin

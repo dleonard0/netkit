@@ -49,7 +49,7 @@ char copyright[] =
  * From: @(#)rlogind.c	5.53 (Berkeley) 4/20/91
  */
 char rcsid[] = 
-  "$Id: rlogind.c,v 1.13 1996/07/26 05:08:18 dholland Exp $";
+  "$Id: rlogind.c,v 1.16 1996/08/16 22:28:27 dholland Exp $";
 
 /*
  * remote login server:
@@ -81,6 +81,7 @@ char rcsid[] =
 #include <stdlib.h>
 #include <string.h>
 #include "pathnames.h"
+#include "logwtmp.h"
 
 #ifdef USE_PAM
 #include <sys/types.h>
@@ -90,7 +91,6 @@ char rcsid[] =
 
 pid_t forkpty(int *, char *, struct termios *, struct winsize *);
 int logout(const char *);
-void logwtmp(const char *line, const char *name, const char *host);
 
 #ifndef TIOCPKT_WINDOW
 #define TIOCPKT_WINDOW 0x80
@@ -125,13 +125,11 @@ static void usage(void);
 static int local_domain(const char *h);
 static const char *topdomain(const char *h);
 
-
+extern int _check_rhosts_file;
 
 int
 main(int argc, char **argv)
 {
-	extern int opterr, optind;
-	extern int _check_rhosts_file;
 	int ch;
 	int on = 1, fromlen;
 	struct sockaddr_in from;
@@ -188,7 +186,6 @@ main(int argc, char **argv)
 int	netf;
 char	line[MAXPATHLEN];
 int	confirmed;
-extern	char	*inet_ntoa();
 
 struct winsize win = { 0, 0, 0, 0 };
 
@@ -344,8 +341,9 @@ control(int pty, char *cp, int n)
 {
 	struct winsize w;
 
-	if (n < 4+sizeof (w) || cp[2] != 's' || cp[3] != 's')
-		return (0);
+	if (n < 4+(int)sizeof(w) || cp[2] != 's' || cp[3] != 's') {
+		return 0;
+	}
 	oobdata[0] &= ~TIOCPKT_WINDOW;	/* we know he heard */
 	memcpy(&w, cp+4, sizeof(w));
 	w.ws_row = ntohs(w.ws_row);
@@ -364,7 +362,7 @@ protocol(int f, int p)
 {
 	char pibuf[1024+1], fibuf[1024], *pbp = NULL, *fbp = NULL;
 	register pcc = 0, fcc = 0;
-	int cc, nfd, n;
+	int cc, nfd, m;
 	char cntl;
 
 	/*
@@ -401,12 +399,12 @@ protocol(int f, int p)
 			} else
 				FD_SET(p, &ibits);
 		FD_SET(p, &ebits);
-		if ((n = select(nfd, &ibits, omask, &ebits, 0)) < 0) {
+		if ((m = select(nfd, &ibits, omask, &ebits, 0)) < 0) {
 			if (errno == EINTR)
 				continue;
 			fatal(f, "select", 1);
 		}
-		if (n == 0) {
+		if (m == 0) {
 			/* shouldn't happen... */
 			sleep(5);
 			continue;
@@ -429,7 +427,7 @@ protocol(int f, int p)
 				fcc = 0;
 			else {
 				register char *cp;
-				int left, n;
+				int left, nn;
 
 				if (fcc <= 0)
 					break;
@@ -440,12 +438,12 @@ protocol(int f, int p)
 					if (cp[0] == magic[0] &&
 					    cp[1] == magic[1]) {
 						left = fcc - (cp-fibuf);
-						n = control(p, cp, left);
-						if (n) {
-							left -= n;
+						nn = control(p, cp, left);
+						if (nn) {
+							left -= nn;
 							if (left > 0)
-								bcopy(cp+n, cp, left);
-							fcc -= n;
+								bcopy(cp+nn, cp, left);
+							fcc -= nn;
 							goto top; /* n^2 */
 						}
 					}
@@ -503,6 +501,7 @@ static void
 cleanup(int ignore)
 {
 	char *p;
+	(void)ignore;
 
 	p = line + sizeof(_PATH_DEV) - 1;
 	if (logout(p))
@@ -589,7 +588,7 @@ do_rlogin(const char *host)
        (void) pam_set_item (pamh, PAM_USER,  lusername);
        (void) pam_set_item (pamh, PAM_RUSER, rusername);
        (void) pam_set_item (pamh, PAM_RHOST, host);
-       (void) pam_set_item (pamh, PAM_TTY,   "/dev/tty");
+       (void) pam_set_item (pamh, PAM_TTY, "tty");
 
        c = 0;
        write (0, &c, 1);

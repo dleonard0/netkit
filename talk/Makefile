@@ -7,7 +7,7 @@ OBJS = ctl.o ctl_transact.o display.o get_addrs.o get_names.o \
 	init_disp.o invite.o io.o look_up.o msgs.o talk.o
 
 CFLAGS += -DMSG_EOR -Dosockaddr=sockaddr  # -DBAD_LINUX_HACK
-LIBS += -lncurses
+LIBS += $(LIBCURSES)
 
 talk: $(OBJS)
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@

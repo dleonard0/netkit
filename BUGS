@@ -1,0 +1,52 @@
+finger: 
+	- prints nonsense timezone stuff
+	- add option to issue CRs so fingerd doesn't need to fork
+	- Some nameservers hose on "", patch finger to work around it
+
+fingerd: 
+	- rejection of finger forwarding should be optional
+
+inetd:
+	- will shut down services respawning too fast. Should bring them 
+	  up again after a few minutes.
+
+ping:
+	- should drop uid 0 when appropriate
+
+rcp:
+	- should call rsh instead of using root
+	- pukes on files in /proc
+
+rlogin: 
+	- should use sigaction
+
+rlogind:
+	- should take flag to ignore root .rhosts
+
+rshd:
+	- should take flag to ignore root .rhosts
+
+rusers/rusersd:
+	- doesn't compile cleanly 
+
+rwall/rwalld:
+	- does not appear to work properly.
+
+talk:
+	- long-standing curses bugs associated with going off right side of
+	  screen.
+	- support word-wrap.
+	- handle backspacing intelligently.
+	- should be 8-bit clean.
+
+talkd:
+	- talk request messages should check for 8 bit tty and not 
+	  clear to 7 bits.
+	- doesn't log flash attempts. 
+
+telnetd:
+	- passes login the -p flag
+	- should accept -L for alternate login prog
+
+overall:
+	- stop using -lbsd

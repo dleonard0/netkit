@@ -1,5 +1,21 @@
 # Standard compilation rules (don't use make builtins)
 
+ifeq ($(QUIET),1)
+
+%.o: %.c
+	@echo $(CC) '[...]' $< -c
+	@$(CC) $(CFLAGS) $< -c
+
+%.o: %.cc
+	@echo $(CC) '[...]' $< -c
+	@$(CC) $(CFLAGS) $< -c
+
+else
+
 %.o: %.c
 	$(CC) $(CFLAGS) $< -c
 
+%.o: %.cc
+	$(CC) $(CFLAGS) $< -c
+
+endif

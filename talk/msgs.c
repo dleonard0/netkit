@@ -35,7 +35,7 @@
  * From: @(#)msgs.c	5.6 (Berkeley) 3/1/91
  */
 char msgs_rcsid[] = 
-  "$Id: msgs.c,v 1.3 1996/07/20 20:59:41 dholland Exp $";
+  "$Id: msgs.c,v 1.4 1996/08/15 03:40:50 dholland Exp $";
 
 /* 
  * A package to display what is happening every MSG_INTERVAL seconds
@@ -49,12 +49,14 @@ char msgs_rcsid[] =
 
 #define MSG_INTERVAL 4
 
-char	*current_state;
-int	current_line = 0;
+const char *current_state;
+int current_line = 0;
 
+static
 void
 disp_msg(int ignore)
 {
+	(void)ignore;
 	message(current_state);
 }
 

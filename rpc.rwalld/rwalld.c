@@ -28,7 +28,7 @@
  */
 
 char rcsid[] = 
-  "$Id: rwalld.c,v 1.5 1996/07/20 20:54:10 dholland Exp $";
+  "$Id: rwalld.c,v 1.7 1996/08/15 07:02:31 dholland Exp $";
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -39,9 +39,14 @@ char rcsid[] =
 #include <sys/socket.h>
 #include <signal.h>
 #include <sys/wait.h>
+
+/* work around bogus warning from linux includes */
+#define __wait __wait_foo
 #include <rpc/rpc.h>
 #include <rpc/pmap_clnt.h>
-#include <rpcsvc/rwall.h>
+#undef __wait
+
+#include "rwall.h"
 
 /* from libbsd.a */
 int daemon(int, int);
@@ -150,14 +155,14 @@ void possess(void)
 
 void killkids(int ignore)
 {
-	while(wait4(-1, NULL, WNOHANG, NULL) > 0)
-		;
+	(void)ignore;
+	while(wait4(-1, NULL, WNOHANG, NULL) > 0);
 }
 
-void *wallproc_wall_1(s, tmp1)
-	char **s;
-	CLIENT *tmp1;
+void *wallproc_wall_1(char **s, CLIENT *tmp1)
 {
+	(void)tmp1;
+
 	/* fork, popen wall with special option, and send the message */
 	if (fork() == 0) {
 		FILE *pfp;
@@ -179,8 +184,9 @@ wallprog_1(struct svc_req *rqstp, SVCXPRT *transp)
 		char *wallproc_wall_1_arg;
 	} argument;
 	char *result;
-	bool_t (*xdr_argument)(), (*xdr_result)();
-	char *(*local)();
+	bool_t (*xdr_argument)(XDR *, char **);
+	xdrproc_t xdr_result;
+	void *(*local)(char **, CLIENT *);
 
 	switch (rqstp->rq_proc) {
 	case NULLPROC:
@@ -189,21 +195,21 @@ wallprog_1(struct svc_req *rqstp, SVCXPRT *transp)
 
 	case WALLPROC_WALL:
 		xdr_argument = xdr_wrapstring;
-		xdr_result = xdr_void;
-		local = (char *(*)()) wallproc_wall_1;
+		xdr_result = (xdrproc_t) xdr_void;
+		local = wallproc_wall_1;
 		break;
 
 	default:
 		svcerr_noproc(transp);
 		goto leave;
 	}
-	bzero((char *)&argument, sizeof(argument));
+	memset(&argument, 0, sizeof(argument));
 	if (!svc_getargs(transp, xdr_argument, &argument)) {
 		svcerr_decode(transp);
 		goto leave;
 	}
-	result = (*local)(&argument, rqstp);
-	if (result != NULL && !svc_sendreply(transp, (xdrproc_t) xdr_result, result)) {
+	result = (*local)((char **)&argument, (CLIENT *)rqstp);
+	if (result != NULL && !svc_sendreply(transp, xdr_result, result)) {
 		svcerr_systemerr(transp);
 	}
 	if (!svc_freeargs(transp, xdr_argument, &argument)) {

@@ -3,12 +3,16 @@ all: rusers
 include ../MCONFIG
 include ../MRULES
 
-/* Doesn't compile cleanly with -Wall */
-CFLAGS = -O2 -I ../include
+RPCGEN = ../rpcgen/rpcgen
 
-RPCGEN = ../rpcgen.new/rpcgen
+# Warning, do NOT put this in the current directory without updating
+# the clean target.
+RUSERSX = /usr/include/rpcsvc/rusers.x
 
-rusers: rusers.o rusers_xdr.o rnusers_xdr.o
+# The rusers.h file in /usr/include/rpcsvc (at least on my system) appears
+# to have been built with an ancient rpcgen. Therefore, make it anew.
+
+rusers: rusers.o rusers_xdr.o 
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 install: rusers
@@ -16,21 +20,21 @@ install: rusers
 	install -m644 rusers.1 /usr/man/man1
 
 clean:
-	rm -f *.o rusers rusers.h rusers_xdr.c rnusers.h rnusers_xdr.c
+	rm -f *.o rusers rusers.h rusers_xdr.c rusers.x
 
+rusers.o: rusers.h
 rusers_xdr.o: rusers_xdr.c rusers.h
 
-rusers.h: ../include/rpcsvc/rusers.x
-	$(RPCGEN) -h -o rusers.h ../include/rpcsvc/rusers.x
+# rpcgen includes the pathname you specify for the .x file as the
+# pathname of the .h file when it builds the .c file. Therefore,
+# do it in the current directory. 
 
-rusers_xdr.c: ../include/rpcsvc/rusers.x
-	$(RPCGEN) -c -C -o rusers_xdr.c ../include/rpcsvc/rusers.x
+rusers.x:
+	ln -s $(RUSERSX) rusers.x
 
-rnusers_xdr.o: rnusers_xdr.c rnusers.h
+rusers.h:  $(RUSERSX) rusers.x
+	$(RPCGEN) -h -o rusers.h rusers.x
 
-rnusers.h: ../include/rpcsvc/rnusers.x
-	$(RPCGEN) -h -o rnusers.h ../include/rpcsvc/rnusers.x
-
-rnusers_xdr.c: ../include/rpcsvc/rnusers.x
-	$(RPCGEN) -c -C -o rnusers_xdr.c ../include/rpcsvc/rnusers.x
+rusers_xdr.c: $(RUSERSX) rusers.x
+	$(RPCGEN) -c -C -o rusers_xdr.c rusers.x
 

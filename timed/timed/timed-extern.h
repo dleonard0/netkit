@@ -83,6 +83,6 @@ void	 suppress(struct sockaddr_in *, char *, struct netinfo *);
 void	 synch(long);
 void	 timevaladd(struct timeval *, struct timeval *);
 void	 timevalsub(struct timeval *, struct timeval *, struct timeval *);
-void	 traceoff(char *);
+void	 traceoff(const char *);
 void	 traceon(void);
 void	 xmit(int, u_short, struct sockaddr_in *);

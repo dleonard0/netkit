@@ -40,7 +40,7 @@ char copyright[] =
  * From: @(#)wall.c	5.14 (Berkeley) 3/2/91
  */
 char rcsid[] = 
-  "$Id: rwall.c,v 1.3 1996/07/21 06:43:18 dholland Exp $";
+  "$Id: rwall.c,v 1.5 1996/08/15 03:23:56 dholland Exp $";
 
 /*
  * This program is not related to David Wall, whose Stanford Ph.D. thesis
@@ -59,11 +59,11 @@ char rcsid[] =
 #include <paths.h>
 
 #include <rpc/rpc.h>
-#include <rpcsvc/rwall.h>
+#include "rwall.h"
 
 struct timeval timeout = { 25, 0 };
-int mbufsize;
-char *mbuf;
+static unsigned mbufsize;
+static char *mbuf;
 
 static void makemsg(const char *);
 
@@ -112,7 +112,7 @@ main(int argc, char *argv[])
 	exit(0);
 }
 
-void
+static void
 makemsg(const char *fname)
 {
 	struct tm *lt;
@@ -121,7 +121,8 @@ makemsg(const char *fname)
 	time_t now;
 	FILE *fp;
 	int fd;
-	char *whom, hostname[MAXHOSTNAMELEN], lbuf[100], tmpname[32];
+	const char *whom;
+	char hostname[MAXHOSTNAMELEN], lbuf[100], tmpname[32];
 
 	(void)strcpy(tmpname, _PATH_TMP);
 	(void)strcat(tmpname, "/wall.XXXXXX");
@@ -164,7 +165,7 @@ makemsg(const char *fname)
 		exit(1);
 	}
 	mbufsize = sbuf.st_size;
-	if (!(mbuf = malloc((u_int)mbufsize))) {
+	if (!(mbuf = malloc(mbufsize))) {
 		(void)fprintf(stderr, "wall: out of memory.\n");
 		exit(1);
 	}

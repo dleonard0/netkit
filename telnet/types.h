@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)types.h	5.1 (Berkeley) 9/14/90
- *	$Id: types.h,v 1.1 1996/07/16 05:17:22 dholland Exp $
+ *	$Id: types.h,v 1.2 1996/07/27 00:45:54 dholland Exp $
  */
 
 typedef struct {
@@ -42,12 +42,11 @@ typedef struct {
 extern Modelist modelist[];
 
 typedef struct {
-    int
-	system,			/* what the current time is */
-	echotoggle,		/* last time user entered echo character */
-	modenegotiated,		/* last time operating mode negotiated */
-	didnetreceive,		/* last time we read data from network */
-	gotDM;			/* when did we last see a data mark */
+    int system;			/* what the current time is */
+    int echotoggle;		/* last time user entered echo character */
+    int modenegotiated;		/* last time operating mode negotiated */
+    int didnetreceive;		/* last time we read data from network */
+    int gotDM;			/* when did we last see a data mark */
 } Clocks;
 
 extern Clocks clocks;

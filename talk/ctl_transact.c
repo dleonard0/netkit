@@ -35,7 +35,7 @@
  * From: @(#)ctl_transact.c	5.8 (Berkeley) 3/1/91
  */
 char ctlt_rcsid[] = 
-  "$Id: ctl_transact.c,v 1.4 1996/07/20 20:59:41 dholland Exp $";
+  "$Id: ctl_transact.c,v 1.5 1996/08/15 03:40:50 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -54,12 +54,12 @@ char ctlt_rcsid[] =
  * of time
  */
 void
-ctl_transact(struct in_addr target, CTL_MSG msg, int type, CTL_RESPONSE *rp)
+ctl_transact(struct in_addr target, CTL_MSG mesg, int type, CTL_RESPONSE *rp)
 {
 	int read_mask, ctl_mask, nready=0, cc;
 	struct timeval wait;
 
-	msg.type = type;
+	mesg.type = type;
 	daemon_addr.sin_addr = target;
 	daemon_addr.sin_port = daemon_port;
 	ctl_mask = 1 << ctl_sockt;
@@ -71,10 +71,10 @@ ctl_transact(struct in_addr target, CTL_MSG msg, int type, CTL_RESPONSE *rp)
 	do {
 		/* resend message until a response is obtained */
 		do {
-			cc = sendto(ctl_sockt, (char *)&msg, sizeof (msg), 0,
+			cc = sendto(ctl_sockt, (char *)&mesg, sizeof(mesg), 0,
 			    (struct sockaddr *)&daemon_addr,
 			    sizeof (daemon_addr));
-			if (cc != sizeof (msg)) {
+			if (cc != sizeof(mesg)) {
 				if (errno == EINTR)
 					continue;
 				p_error("Error on write to talk daemon");

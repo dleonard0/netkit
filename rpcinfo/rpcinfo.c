@@ -41,12 +41,13 @@
  * From: @(#)rpcinfo.c	2.2 88/08/11 4.0 RPCSRC
  */
 char rcsid[] = 
-  "$Id: rpcinfo.c,v 1.3 1996/07/15 19:57:23 dholland Exp $";
+  "$Id: rpcinfo.c,v 1.4 1996/08/15 03:04:48 dholland Exp $";
 
-#include <rpc/rpc.h>
 #include <stdio.h>
-#include <sys/socket.h>
 #include <netdb.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <rpc/rpc.h>
 #include <rpc/pmap_prot.h>
 #include <rpc/pmap_clnt.h>
 #include <signal.h>
@@ -57,19 +58,17 @@ char rcsid[] =
 #define	MIN_VERS	((u_long) 0)
 #define	MAX_VERS	((u_long) 4294967295UL)
 
-static void	udpping(/*u_short portflag, int argc, char **argv*/);
-static void	tcpping(/*u_short portflag, int argc, char **argv*/);
-static int	pstatus(/*CLIENT *client, u_long prognum, u_long vers*/);
-static void	pmapdump(/*int argc, char **argv*/);
-static bool_t	reply_proc(/*void *res, struct sockaddr_in *who*/);
-static void	brdcst(/*int argc, char **argv*/);
-static void	deletereg(/* int argc, char **argv */) ;
-static void	usage(/*void*/);
-static u_long	getprognum(/*char *arg*/);
-static u_long	getvers(/*char *arg*/);
-static void	get_inet_address(/*struct sockaddr_in *addr, char *host*/);
-extern u_long inet_addr();  /* in 4.2BSD, arpa/inet.h called that a in_addr */
-extern char *inet_ntoa();
+static void	udpping(u_short portflag, int argc, char **argv);
+static void	tcpping(u_short portflag, int argc, char **argv);
+static int	pstatus(CLIENT *client, u_long prognum, u_long vers);
+static void	pmapdump(int argc, char **argv);
+static bool_t	reply_proc(void *res, struct sockaddr_in *who);
+static void	brdcst(int argc, char **argv);
+static void	deletereg(int argc, char **argv);
+static void	usage(void);
+static u_long	getprognum(char *arg);
+static u_long	getvers(char *arg);
+static void	get_inet_address(struct sockaddr_in *addr, char *host);
 
 /*
  * Functions to be performed.
@@ -82,13 +81,9 @@ extern char *inet_ntoa();
 #define DELETES		5	/* delete registration for the service */
 
 int
-main(argc, argv)
-	int argc;
-	char **argv;
+main(int argc, char **argv)
 {
 	register int c;
-	extern char *optarg;
-	extern int optind;
 	int errflg;
 	int function;
 	u_short portnum;
@@ -128,7 +123,8 @@ main(argc, argv)
 			break;
 
 		case 'n':
-			portnum = (u_short) atoi(optarg);   /* hope we don't get bogus # */
+			/* hope we don't get bogus # */
+			portnum = (u_short) atoi(optarg);   
 			break;
 
 		case 'd':
@@ -183,10 +179,7 @@ main(argc, argv)
 }
 		
 static void
-udpping(portnum, argc, argv)
-	u_short portnum;
-	int argc;
-	char **argv;
+udpping(u_short portnum, int argc, char **argv)
 {
 	struct timeval to;
 	struct sockaddr_in addr;
@@ -323,10 +316,7 @@ udpping(portnum, argc, argv)
 }
 
 static void
-tcpping(portnum, argc, argv)
-	u_short portnum;
-	int argc;
-	char **argv;
+tcpping(u_short portnum, int argc, char **argv)
 {
 	struct timeval to;
 	struct sockaddr_in addr;
@@ -459,10 +449,7 @@ tcpping(portnum, argc, argv)
  * a good error message.
  */
 static int
-pstatus(client, prognum, vers)
-	register CLIENT *client;
-	u_long prognum;
-	u_long vers;
+pstatus(CLIENT *client, u_long prognum, u_long vers)
 {
 	struct rpc_err rpcerr;
 
@@ -480,16 +467,11 @@ pstatus(client, prognum, vers)
 }
 
 static void
-pmapdump(argc, argv)
-	int argc;
-	char **argv;
+pmapdump(int argc, char **argv)
 {
 	struct sockaddr_in server_addr;
-#ifndef linux
-	register struct hostent *hp;
-#endif
 	struct pmaplist *head = NULL;
-	int socket = RPC_ANYSOCK;
+	int sockett = RPC_ANYSOCK;
 	struct timeval minutetimeout;
 	register CLIENT *client;
 	struct rpcent *rpc;
@@ -503,21 +485,14 @@ pmapdump(argc, argv)
 	else {
 		bzero((char *)&server_addr, sizeof server_addr);
 		server_addr.sin_family = AF_INET;
-#ifdef linux
 		server_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-#else
-		if ((hp = gethostbyname("localhost")) != NULL)
-			bcopy(hp->h_addr, (caddr_t)&server_addr.sin_addr,
-			    hp->h_length);
-		else
-			server_addr.sin_addr.s_addr = inet_addr("0.0.0.0");
-#endif
 	}
 	minutetimeout.tv_sec = 60;
 	minutetimeout.tv_usec = 0;
 	server_addr.sin_port = htons(PMAPPORT);
 	if ((client = clnttcp_create(&server_addr, PMAPPROG,
-	    PMAPVERS, &socket, 50, 500)) == NULL) {
+				     PMAPVERS, &sockett, 50, 500)) == NULL) 
+        {
 		clnt_pcreateerror("rpcinfo: can't contact portmapper");
 		exit(1);
 	}
@@ -560,25 +535,23 @@ pmapdump(argc, argv)
  * be piped through sort(1) and then uniq(1).
  */
 
-/*ARGSUSED*/
+/* res: Nothing comes back */
+/* who: Who sent us the reply */
 static bool_t
-reply_proc(res, who)
-	void *res;		/* Nothing comes back */
-	struct sockaddr_in *who; /* Who sent us the reply */
+reply_proc(void *res, struct sockaddr_in *who)
 {
 	register struct hostent *hp;
+	(void)res;
 
-	hp = gethostbyaddr((char *) &who->sin_addr, sizeof who->sin_addr,
-	    AF_INET);
+	hp = gethostbyaddr((char *) &who->sin_addr, sizeof(who->sin_addr),
+			   AF_INET);
 	printf("%s %s\n", inet_ntoa(who->sin_addr),
-	    (hp == NULL) ? "(unknown)" : hp->h_name);
-	return(FALSE);
+	       (hp == NULL) ? "(unknown)" : hp->h_name);
+	return FALSE;
 }
 
 static void
-brdcst(argc, argv)
-	int argc;
-	char **argv;
+brdcst(int argc, char **argv)
 {
 	enum clnt_stat rpc_stat;
 	u_long prognum, vers;
@@ -591,7 +564,8 @@ brdcst(argc, argv)
 	vers = getvers(argv[1]);
 	rpc_stat = clnt_broadcast(prognum, vers, NULLPROC, 
 				  (xdrproc_t) xdr_void, NULL, 
-				  (xdrproc_t) xdr_void, NULL, reply_proc);
+				  (xdrproc_t) xdr_void, NULL, 
+				  (resultproc_t) reply_proc);
 	if ((rpc_stat != RPC_SUCCESS) && (rpc_stat != RPC_TIMEDOUT)) {
 		fprintf(stderr, "rpcinfo: broadcast failed: %s\n",
 		    clnt_sperrno(rpc_stat));
@@ -601,10 +575,9 @@ brdcst(argc, argv)
 }
 
 static void
-deletereg(argc, argv)
-	int argc;
-	char **argv;
-{	u_long prog_num, version_num ;
+deletereg(int argc, char **argv)
+{	
+	u_long prog_num, version_num;
 
 	if (argc != 2) {
 		usage() ;
@@ -624,7 +597,7 @@ deletereg(argc, argv)
 }
 
 static void
-usage()
+usage(void)
 {
 	fprintf(stderr, "Usage: rpcinfo [ -n portnum ] -u host prognum [ versnum ]\n");
 	fprintf(stderr, "       rpcinfo [ -n portnum ] -t host prognum [ versnum ]\n");
@@ -634,8 +607,7 @@ usage()
 }
 
 static u_long
-getprognum(arg)
-	char *arg;
+getprognum(char *arg)
 {
 	register struct rpcent *rpc;
 	register u_long prognum;
@@ -656,8 +628,7 @@ getprognum(arg)
 }
 
 static u_long
-getvers(arg)
-	char *arg;
+getvers(char *arg)
 {
 	register u_long vers;
 
@@ -666,15 +637,15 @@ getvers(arg)
 }
 
 static void
-get_inet_address(addr, host)
-	struct sockaddr_in *addr;
-	char *host;
+get_inet_address(struct sockaddr_in *addr, char *host)
 {
 	register struct hostent *hp;
 
 	bzero((char *)addr, sizeof *addr);
 	addr->sin_addr.s_addr = (u_long) inet_addr(host);
-	if (addr->sin_addr.s_addr == -1 || addr->sin_addr.s_addr == 0) {
+	if (addr->sin_addr.s_addr == (unsigned long)-1 || 
+	    addr->sin_addr.s_addr == 0) 
+	{
 		if ((hp = gethostbyname(host)) == NULL) {
 			fprintf(stderr, "rpcinfo: %s is unknown host\n", host);
 			exit(1);

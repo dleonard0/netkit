@@ -35,7 +35,7 @@
  * From: @(#)announce.c	5.9 (Berkeley) 2/26/91
  */
 char ann_rcsid[] = 
-  "$Id: announce.c,v 1.2 1996/07/16 05:01:32 dholland Exp $";
+  "$Id: announce.c,v 1.3 1996/08/15 03:44:13 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -148,9 +148,8 @@ static int safechar(int ch) {
 static void
 print_mesg(FILE *tf, CTL_MSG *request, const char *remote_machine)
 {
-	struct timeval clock;
+	struct timeval clocc;
 	struct timezone zone;
-	struct tm *localtime();
 	struct tm *localclock;
 	char line_buf[N_LINES][N_CHARS];
 	int sizes[N_LINES];
@@ -161,8 +160,8 @@ print_mesg(FILE *tf, CTL_MSG *request, const char *remote_machine)
 
 	i = 0;
 	max_size = 0;
-	gettimeofday(&clock, &zone);
-	footime = clock.tv_sec;
+	gettimeofday(&clocc, &zone);
+	footime = clocc.tv_sec;
 	localclock = localtime(&footime);
 	snprintf(line_buf[i], N_CHARS, " ");
 	sizes[i] = strlen(line_buf[i]);

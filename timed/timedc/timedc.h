@@ -57,9 +57,9 @@ extern int errno;
 #define HOSTDOWN 	0x7fffffff
 
 struct	cmd {
-	char	*c_name;		/* command name */
-	char	*c_help;		/* help message */
-	void	(*c_handler)();		/* routine to do the work */
+	const char *c_name;		/* command name */
+	const char *c_help;		/* help message */
+	void	(*c_handler)(int, char **); /* routine to do the work */
 	int	c_priv;			/* privileged command */
 };
 

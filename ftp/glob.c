@@ -35,7 +35,7 @@
  * From: @(#)glob.c	5.9 (Berkeley) 2/25/91
  */
 char glob_rcsid[] = 
-  "$Id: glob.c,v 1.4 1996/07/20 20:43:13 dholland Exp $";
+  "$Id: glob.c,v 1.5 1996/08/14 23:27:28 dholland Exp $";
 
 /*
  * C-shell glob for random programs.
@@ -52,6 +52,7 @@ char glob_rcsid[] =
 #include <string.h>
 
 #include "ftp_var.h"  /* for protos only */
+#include "glob.h"
 
 #define	QUOTE 0200
 #define	TRIM 0177
@@ -59,87 +60,122 @@ char glob_rcsid[] =
 #define	GAVSIZ		(ARG_MAX/6)
 #define	isdir(d)	((d.st_mode & S_IFMT) == S_IFDIR)
 
-static	char **gargv;		/* Pointer to the (stack) arglist */
-static	int gargc;		/* Number args in gargv */
-static	int gnleft;
-static	short gflag;
-static	int tglob();
-char	**ftpglob();
-char	*globerr;
-char	*home;
-extern	int errno;
-static	char *strspl(), *strend();
-char	**copyblk();
+const char *globerr;
+extern const char *home;
 
-static void acollect(), addpath(), collect(), expand(), Gcat();
-static void ginit(), matchdir(), rscan(), sort();
-static int amatch(), execbrc(), match();
+typedef struct {
+    const char *text;
+} centry;
 
-static int gethdir(char *home);
+typedef struct {
+    char *text;
+} entry;
+
+static entry *gargv;	/* Pointer to the (stack) arglist */
+static entry *sortbas;
+static int gargc;	/* Number args in gargv */
+static int gnleft;      /* space left before we hit max args length */
+
+static short gflag;
+
+static int globcnt;
+static const char *globchars = "`{[*?";
+
+static char *gpath;
+static char *gpathp, *lastgpathp;
+static int globbed;
+static const char *entp;
+
+static int tglob(char c);
+static char *strspl(const char *, const char *);
+static char *strend(char *);
+static char **copyblk(entry *);
+static char **cloneblk(const centry *);
+
+static void addpath(char c);
+static void acollect(const char *);
+static void collect(const char *);
+static void expand(const char *);
+static void Gcat(const char *, const char *);
+static void ginit(entry *);
+static void matchdir(const char *);
+static void rscan(centry *, int (*f)(char));
+static void sort(void);
+static void efree(entry *);
+static int amatch(const char *, const char *);
+static int execbrc(const char *, const char *);
+static int match(const char *, const char *);
+
+static int gethdir(char *homedir);
 static int letter(char c);
 static int digit(char c);
-static int any(int c, char *s);
-
-static	int globcnt;
-
-static char	*globchars = "`{[*?";
-
-static	char *gpath, *gpathp, *lastgpathp;
-static	int globbed;
-static	char *entp;
-static	char **sortbas;
+static int any(int c, const char *s);
 
 char **
-ftpglob(v)
-	register char *v;
+ftpglob(const char *v)
 {
 	char agpath[BUFSIZ];
-	char *agargv[GAVSIZ];
-	char *vv[2];
-	vv[0] = v;
-	vv[1] = 0;
+	entry agargv[GAVSIZ];
+	centry vv[2];
+	vv[0].text = v;
+	vv[1].text = NULL;
 	gflag = 0;
 	rscan(vv, tglob);
-	if (gflag == 0)
-		return (copyblk(vv));
+	if (gflag == 0) {
+		return cloneblk(vv);
+	}
 
 	globerr = 0;
-	gpath = agpath; gpathp = gpath; *gpathp = 0;
-	lastgpathp = &gpath[sizeof agpath - 2];
-	ginit(agargv); globcnt = 0;
+
+	gpath = agpath; 
+	gpathp = gpath; 
+	*gpathp = 0;
+	lastgpathp = agpath + sizeof(agpath) - 2;
+
+	ginit(agargv); 
+	globcnt = 0;
 	collect(v);
 	if (globcnt == 0 && (gflag&1)) {
-		blkfree(gargv), gargv = 0;
-		return (0);
-	} else
-		return (gargv = copyblk(gargv));
+		efree(gargv);
+		gargv = NULL;
+		return NULL;
+	} 
+	else {
+		char **rv = copyblk(gargv);
+		gargv = NULL;
+		return rv;
+	}
 }
 
-static void
-ginit(agargv)
-	char **agargv;
+static 
+void
+ginit(entry *agargv)
 {
-
-	agargv[0] = 0; gargv = agargv; sortbas = agargv; gargc = 0;
+	agargv[0].text = NULL; 
+	gargv = agargv; 
+	sortbas = agargv; 
+	gargc = 0;
 	gnleft = ARG_MAX - 4;
 }
 
-static void
-collect(as)
-	register char *as;
+static 
+void
+collect(const char *as)
 {
 	if (eq(as, "{") || eq(as, "{}")) {
 		Gcat(as, "");
 		sort();
-	} else
+	} 
+	else {
 		acollect(as);
+	}
 }
 
-static void
-acollect(as)
-	register char *as;
+static 
+void
+acollect(const char *as)
 {
-	register int ogargc = gargc;
+	int ogargc = gargc;
 
 	gpathp = gpath; *gpathp = 0; globbed = 0;
 	expand(as);
@@ -147,29 +183,31 @@ acollect(as)
 		sort();
 }
 
-static void
-sort()
+static 
+void
+sort(void)
 {
-	register char **p1, **p2, *c;
-	char **Gvp = &gargv[gargc];
+	entry *p1, *p2, c;
+	entry *Gvp = &gargv[gargc];
 
 	p1 = sortbas;
 	while (p1 < Gvp-1) {
 		p2 = p1;
 		while (++p2 < Gvp)
-			if (strcmp(*p1, *p2) > 0)
+			if (strcmp(p1->text, p2->text) > 0)
 				c = *p1, *p1 = *p2, *p2 = c;
 		p1++;
 	}
 	sortbas = Gvp;
 }
 
-static void
-expand(as)
-	char *as;
+static 
+void
+expand(const char *as)
 {
-	register char *cs;
-	register char *sgpathp, *oldcs;
+	const char *cs;
+	const char *oldcs;
+	char *sgpathp;
 	struct stat stb;
 
 	sgpathp = gpathp;
@@ -184,8 +222,10 @@ expand(as)
 				if (gethdir(gpath + 1))
 					globerr = "Unknown user name after ~";
 				(void) strcpy(gpath, gpath + 1);
-			} else
+			} 
+			else {
 				(void) strcpy(gpath, home);
+			}
 			gpathp = strend(gpath);
 		}
 	}
@@ -217,19 +257,21 @@ endit:
 	*gpathp = 0;
 }
 
-static void
-matchdir(pattern)
-	char *pattern;
+static 
+void
+matchdir(const char *pattern)
 {
 	struct stat stb;
 	register struct dirent *dp;
 	DIR *dirp;
 
+#if 0
 #ifdef	__linux__
 	if (gpath == NULL || *gpath == '\0')
 		gpath = "./";
 #endif
-	dirp = opendir(gpath);
+#endif
+	dirp = opendir((!gpath || !*gpath) ? "./" : gpath);
 	if (dirp == NULL) {
 		if (globbed)
 			return;
@@ -258,14 +300,14 @@ patherr2:
 	globerr = "Bad directory components";
 }
 
-static int
-execbrc(p, s)
-	char *p, *s;
+static 
+int
+execbrc(const char *p, const char *s)
 {
 	char restbuf[BUFSIZ + 2];
-	register char *pe, *pm, *pl;
+	const char *pe, *pm, *pl;
 	int brclev = 0;
-	char *lm, savec, *sgpathp;
+	char *lm, *sgpathp;
 
 	for (lm = restbuf; *p != '{'; *lm++ = *p++)
 		continue;
@@ -308,18 +350,25 @@ pend:
 		if (brclev)
 			continue;
 doit:
+#if 0
 		savec = *pm;
 		*pm = 0;
-		(void) strcpy(lm, pl);
-		(void) strcat(restbuf, pe + 1);
+		strcpy(lm, pl);
 		*pm = savec;
+#else
+		strncpy(lm, pl, pm-pl);
+		lm[pm-pl] = 0;
+#endif
+		(void) strcat(restbuf, pe + 1);
 		if (s == 0) {
 			sgpathp = gpathp;
 			expand(restbuf);
 			gpathp = sgpathp;
 			*gpathp = 0;
-		} else if (amatch(s, restbuf))
+		} 
+		else if (amatch(s, restbuf)) {
 			return (1);
+		}
 		sort();
 		pl = pm + 1;
 		if (brclev)
@@ -338,12 +387,12 @@ doit:
 	return (0);
 }
 
-static int
-match(s, p)
-	char *s, *p;
+static 
+int
+match(const char *s, const char *p)
 {
-	register int c;
-	register char *sentp;
+	int c;
+	const char *sentp;
 	char sglobbed = globbed;
 
 	if (*s == '.' && *p != '.')
@@ -356,9 +405,9 @@ match(s, p)
 	return (c);
 }
 
-static int
-amatch(s, p)
-	register char *s, *p;
+static 
+int
+amatch(const char *s, const char *p)
 {
 	register int scc;
 	int ok, lc;
@@ -446,9 +495,9 @@ slash:
 	}
 }
 
-static int
-Gmatch(s, p)
-	register char *s, *p;
+static 
+int
+Gmatch(const char *s, const char *p)
 {
 	register int scc;
 	int ok, lc;
@@ -506,25 +555,26 @@ Gmatch(s, p)
 	}
 }
 
-static void
-Gcat(s1, s2)
-	register char *s1, *s2;
+static 
+void
+Gcat(const char *s1, const char *s2)
 {
-	register int len = strlen(s1) + strlen(s2) + 1;
+	int len = strlen(s1) + strlen(s2) + 1;
 
-	if (len >= gnleft || gargc >= GAVSIZ - 1)
+	if (len >= gnleft || gargc >= GAVSIZ - 1) {
 		globerr = "Arguments too long";
+	}
 	else {
 		gargc++;
 		gnleft -= len;
-		gargv[gargc] = 0;
-		gargv[gargc - 1] = strspl(s1, s2);
+		gargv[gargc].text = NULL;
+		gargv[gargc - 1].text = strspl(s1, s2);
 	}
 }
 
-static void
-addpath(c)
-	char c;
+static 
+void
+addpath(char c)
 {
 
 	if (gpathp >= lastgpathp)
@@ -536,13 +586,12 @@ addpath(c)
 }
 
 static void
-rscan(t, f)
-	register char **t;
-	int (*f)();
+rscan(centry *t, int (*f)(char))
 {
-	register char *p, c;
+	const char *p;
+	char c;
 
-	while ((p = *t++) != 0) {
+	while ((p = (t++)->text) != NULL) {
 		if (f == tglob)
 			if (*p == '~')
 				gflag |= 2;
@@ -552,125 +601,119 @@ rscan(t, f)
 			(*f)(c);
 	}
 }
-/*
-static
-scan(t, f)
-	register char **t;
-	int (*f)();
-{
-	register char *p, c;
 
-	while (p = *t++)
-		while (c = *p)
-			*p++ = (*f)(c);
-} */
-
-static int
-tglob(c)
-	register char c;
+static 
+int
+tglob(char c)
 {
 
 	if (any(c, globchars))
 		gflag |= c == '{' ? 2 : 1;
 	return (c);
 }
-/*
-static
-trim(c)
-	char c;
-{
-
-	return (c & TRIM);
-} */
 
 static int
 letter(char c)
 {
-
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 }
 
 static int
 digit(char c)
 {
-
 	return (c >= '0' && c <= '9');
 }
 
-static int
-any(int c, char *s)
-{
-
-	while (*s)
-		if (*s++ == c)
-			return(1);
-	return(0);
-}
-
+static 
 int
-blklen(av)
-	register char **av;
+any(int c, const char *s)
 {
-	register int i = 0;
-
-	while (*av++)
-		i++;
-	return (i);
+	while (*s) if (*s++ == c) return 1;
+	return 0;
 }
 
-char **
-blkcpy(oav, bv)
-	char **oav;
-	register char **bv;
+static 
+int
+cblklen(const centry *av)
 {
-	register char **av = oav;
+	int i = 0;
+	while ((av++)->text) i++;
+	return i;
+}
 
-	while ((*av++ = *bv++) != 0)
-		continue;
-	return (oav);
+static 
+int
+blklen(const entry *av)
+{
+	int i = 0;
+	while ((av++)->text) i++;
+	return i;
 }
 
 void
-blkfree(char **av0)
+blkfree(char **av)
 {
-	register char **av = av0;
+	int i;
+	for (i=0; av[i]; i++) free(av[i]);
+}
 
-	while (*av)
-		free(*av++);
+static
+void 
+efree(entry *av) 
+{
+    int i;
+    for (i=0; av[i].text; i++) free(av[i].text);
 }
 
 static
 char *
-strspl(cp, dp)
-	register char *cp, *dp;
+strspl(const char *cp, const char *dp)
 {
-	register char *ep = malloc((unsigned)(strlen(cp) + strlen(dp) + 1));
+	char *ep = malloc(strlen(cp) + strlen(dp) + 1);
+	if (ep == NULL)	fatal("Out of memory");
 
-	if (ep == (char *)0)
-		fatal("Out of memory");
-	(void) strcpy(ep, cp);
-	(void) strcat(ep, dp);
-	return (ep);
+	strcpy(ep, cp);
+	strcat(ep, dp);
+	return ep;
 }
 
+static 
 char **
-copyblk(v)
-	register char **v;
+copyblk(entry *v)
 {
-	register char **nv = (char **)malloc((unsigned)((blklen(v) + 1) *
-						sizeof(char **)));
-	if (nv == (char **)0)
-		fatal("Out of memory");
+	int i;
+	char **nv = malloc((blklen(v) + 1) * sizeof(char **));
+	if (nv == NULL) fatal("Out of memory");
 
-	return (blkcpy(nv, v));
+	for (i=0; v[i].text; i++) {
+	    nv[i] = v[i].text;
+	    v[i].text = NULL;
+	}
+	nv[i] = NULL;
+
+	return nv;
+}
+
+static
+char **
+cloneblk(const centry *v)
+{
+	int i;
+	char **nv = malloc((cblklen(v) + 1) * sizeof(char **));
+	if (nv == NULL) fatal("Out of memory");
+
+	for (i=0; v[i].text; i++) {
+	    nv[i] = strdup(v[i].text);
+	}
+	nv[i] = NULL;
+
+	return nv;
 }
 
 static
 char *
-strend(cp)
-	register char *cp;
+strend(char *cp)
 {
-
 	while (*cp)
 		cp++;
 	return (cp);
@@ -681,13 +724,14 @@ strend(cp)
  * user whose home directory is sought is currently.
  * We write the home directory of the user back there.
  */
-static int
-gethdir(char *home)
+static 
+int
+gethdir(char *homedir)
 {
-	register struct passwd *pp = getpwnam(home);
+	register struct passwd *pp = getpwnam(homedir);
 
-	if (!pp || home + strlen(pp->pw_dir) >= lastgpathp)
-		return (1);
-	(void) strcpy(home, pp->pw_dir);
-	return (0);
+	if (!pp || homedir + strlen(pp->pw_dir) >= lastgpathp)
+		return 1;
+	strcpy(homedir, pp->pw_dir);
+	return 0;
 }

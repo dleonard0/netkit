@@ -1,4 +1,5 @@
-all: ftpd
+all: 
+	@echo "Please don't use this program."
 
 include ../MCONFIG
 include ../MRULES

@@ -35,7 +35,7 @@
  * From: @(#)print.c	5.8 (Berkeley) 2/26/91
  */
 char print_rcsid[] = 
-  "$Id: print.c,v 1.2 1996/07/16 05:01:32 dholland Exp $";
+  "$Id: print.c,v 1.3 1996/08/15 03:44:13 dholland Exp $";
 
 /* debug print routines */
 
@@ -46,7 +46,7 @@ char print_rcsid[] =
 #include <stdio.h>
 #include "proto.h"
 
-static char *types[] = { 
+static const char *types[] = { 
   "leave_invite", 
   "look_up", 
   "delete", 
@@ -54,7 +54,7 @@ static char *types[] = {
 };
 #define	NTYPES	(sizeof (types) / sizeof (types[0]))
 
-static char *answers[] = { 
+static const char *answers[] = { 
   "success", 
   "not_here", 
   "failed", 
@@ -70,7 +70,8 @@ static char *answers[] = {
 void
 print_request(const char *cp, const CTL_MSG *mp)
 {
-	char tbuf[80], *tp;
+	char tbuf[80];
+	const char *tp;
 	
 	if (mp->type > NTYPES) {
 		snprintf(tbuf, sizeof(tbuf), "type %d", mp->type);
@@ -85,7 +86,8 @@ print_request(const char *cp, const CTL_MSG *mp)
 void
 print_response(const char *cp, const CTL_RESPONSE *rp)
 {
-	char tbuf[80], *tp, abuf[80], *ap;
+	char tbuf[80], abuf[80];
+	const char *tp, *ap;
 	
 	if (rp->type > NTYPES) {
 		snprintf(tbuf, sizeof(tbuf), "type %d", rp->type);

@@ -46,7 +46,7 @@ char copyright[] =
  * from: @(#)finger.c	5.22 (Berkeley) 6/29/90 
  */
 char finger_rcsid[] = \
-  "$Id: finger.c,v 1.4 1996/07/13 22:32:43 dholland Exp $";
+  "$Id: finger.c,v 1.5 1996/08/14 18:56:40 dholland Exp $";
 
 /*
  * Finger prints out information about users.  It is not portable since
@@ -86,10 +86,7 @@ PERSON *phead, *ptail;		/* the linked list of all people */
 int entries;			/* number of people */
 
 
-int
-main(int argc, char *argv[])
-{
-	extern int optind;
+int main(int argc, char *argv[]) {
 	int ch;
 
 	while ((ch = getopt(argc, argv, "lmps")) != EOF) {

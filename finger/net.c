@@ -36,30 +36,30 @@
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)net.c	5.5 (Berkeley) 6/1/90";*/
-char net_rcsid[] = "$Id: net.c,v 1.3 1996/07/13 22:27:54 dholland Exp $";
+char net_rcsid[] = "$Id: net.c,v 1.4 1996/08/14 18:56:40 dholland Exp $";
 #endif /* not lint */
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <ctype.h>
 
-extern int lflag;
-u_long inet_addr();
+#include "finger.h"
 
-void
-netfinger(const char *name)
-{
+extern int lflag;
+
+void netfinger(const char *name) {
 	register FILE *fp;
 	struct in_addr defaddr;
 	register int c, lastc = 0;
 	struct hostent *hp, def;
 	struct servent *sp;
-	struct sockaddr_in sin;
+	struct sockaddr_in sn;
 	int s;
 	char *alist[1], *host;
 
@@ -70,7 +70,7 @@ netfinger(const char *name)
 	hp = gethostbyname(host);
 	if (!hp) {
 		defaddr.s_addr = inet_addr(host);
-		if (defaddr.s_addr == -1) {
+		if (defaddr.s_addr == (unsigned long)-1) {
 			fprintf(stderr, "finger: unknown host: %s\n", host);
 			return;
 		}
@@ -87,10 +87,10 @@ netfinger(const char *name)
 		fprintf(stderr, "finger: tcp/finger: unknown service\n");
 		return;
 	}
-	sin.sin_family = hp->h_addrtype;
-	memcpy(&sin.sin_addr, hp->h_addr, hp->h_length);
-	sin.sin_port = sp->s_port;
-	memset(sin.sin_zero, 0, sizeof(sin.sin_zero));
+	sn.sin_family = hp->h_addrtype;
+	memcpy(&sn.sin_addr, hp->h_addr, hp->h_length);
+	sn.sin_port = sp->s_port;
+	memset(sn.sin_zero, 0, sizeof(sn.sin_zero));
 
 	if ((s = socket(hp->h_addrtype, SOCK_STREAM, 0)) < 0) {
 		perror("finger: socket");
@@ -99,7 +99,7 @@ netfinger(const char *name)
 
 	/* have network connection; identify the host connected with */
 	printf("[%s]\n", hp->h_name);
-	if (connect(s, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+	if (connect(s, (struct sockaddr *)&sn, sizeof(sn)) < 0) {
 		perror("finger: connect");
 		close(s);
 		return;

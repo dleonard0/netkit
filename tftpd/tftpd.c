@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)tftpd.c	5.13 (Berkeley) 2/26/91
  */
 char rcsid[] = 
-  "$Id: tftpd.c,v 1.5 1996/07/20 21:05:48 dholland Exp $";
+  "$Id: tftpd.c,v 1.6 1996/08/15 05:40:38 dholland Exp $";
 
 /*
  * Trivial file transfer protocol server.
@@ -66,13 +66,9 @@ char rcsid[] =
 #include <stdlib.h>
 #include <unistd.h>
 
-#define	TIMEOUT		5
+#include "tftpsubs.h"
 
-int synchnet(int);
-int readit(FILE *file, struct tftphdr **dpp, int convert);
-int writeit(FILE *file, struct tftphdr **dpp, int ct, int convert);
-void read_ahead(FILE *file, int convert /* if true, convert to ascii */);
-void write_behind(FILE *file, int convert);
+#define	TIMEOUT		5
 
 struct formats;
 static void tftp(struct tftphdr *tp, int size);
@@ -80,20 +76,21 @@ static void nak(int error);
 static void sendfile(struct formats *pf);
 static void recvfile(struct formats *pf);
 
-extern	int errno;
-struct	sockaddr_in s_in = { AF_INET };
-int	peer;
-int	rexmtval = TIMEOUT;
-int	maxtimeout = 5*TIMEOUT;
+static int validate_access(const char *, int);
+
+static struct	sockaddr_in s_in = { AF_INET };
+static int	peer;
+static int	rexmtval = TIMEOUT;
+static int	maxtimeout = 5*TIMEOUT;
 
 #define	PKTSIZE	SEGSIZE+4
-char	buf[PKTSIZE];
-char	ackbuf[PKTSIZE];
-struct	sockaddr_in from;
-int	fromlen;
+static char	buf[PKTSIZE];
+static char	ackbuf[PKTSIZE];
+static struct	sockaddr_in from;
+static int	fromlen;
 
 #define MAXARG	4
-char	*dirs[MAXARG+1];
+static char	*dirs[MAXARG+1];
 
 int
 main(int ac, char **av)
@@ -191,20 +188,16 @@ main(int ac, char **av)
 	exit(1);
 }
 
-int	validate_access();
-
 struct formats {
-	char	*f_mode;
-	int	(*f_validate)();
-	void	(*f_send)(struct formats *);
-	void	(*f_recv)(struct formats *);
-	int	f_convert;
+	const char *f_mode;
+	int (*f_validate)(const char *, int);
+	void (*f_send)(struct formats *);
+	void (*f_recv)(struct formats *);
+	int f_convert;
 } formats[] = {
-	{ "netascii",	validate_access,	sendfile,	recvfile, 1 },
-	{ "octet",	validate_access,	sendfile,	recvfile, 0 },
-#ifdef notdef
-	{ "mail",	validate_user,		sendmail,	recvmail, 1 },
-#endif
+	{ "netascii",	validate_access,	sendfile, recvfile, 1 },
+	{ "octet",	validate_access,	sendfile, recvfile, 0 },
+     /* { "mail",	validate_user,		sendmail, recvmail, 1 }, */
 	{ 0 }
 };
 
@@ -271,12 +264,14 @@ FILE *file;
  * Note also, full path name must be
  * given as we have no login directory.
  */
+static
 int
-validate_access(char *filename, int mode)
+validate_access(const char *filename, int mode)
 {
 	struct stat stbuf;
 	int	fd;
-	char *cp, **dirp;
+	const char *cp;
+	char **dirp;
 
 	syslog(LOG_ERR, "tftpd: trying to get file: %s\n", filename);
 
@@ -318,9 +313,11 @@ validate_access(char *filename, int mode)
 int	timeout;
 sigjmp_buf	timeoutbuf;
 
+static
 void
-timer()
+timer(int signum)
 {
+	(void)signum;
 
 	timeout += rexmtval;
 	if (timeout >= maxtimeout)
@@ -334,7 +331,7 @@ timer()
 static void
 sendfile(struct formats *pf)
 {
-	struct tftphdr *dp, *r_init();
+	struct tftphdr *dp;
 	register struct tftphdr *ap;    /* ack packet */
 	volatile int block = 1;
 	int size, n;
@@ -391,9 +388,11 @@ abort:
 	(void) fclose(file);
 }
 
+static
 void
-justquit()
+justquit(int signum)
 {
+	(void)signum;
 	exit(0);
 }
 
@@ -404,7 +403,7 @@ justquit()
 static void
 recvfile(struct formats *pf)
 {
-	struct tftphdr *dp, *w_init();
+	struct tftphdr *dp;
 	struct tftphdr *ap;    /* ack buffer */
 	volatile int block = 0;
 	int n, size;
@@ -475,8 +474,8 @@ abort:
 }
 
 struct errmsg {
-	int	e_code;
-	char	*e_msg;
+	int e_code;
+	const char *e_msg;
 } errmsgs[] = {
 	{ EUNDEF,	"Undefined error code" },
 	{ ENOTFOUND,	"File not found" },

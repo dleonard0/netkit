@@ -38,7 +38,7 @@ char copyright[] =
 /*
  * From: @(#)rsh.c	5.24 (Berkeley) 7/1/91
  */
-char rcsid[] = "$Id: rsh.c,v 1.5 1996/07/22 02:04:25 dholland Exp $";
+char rcsid[] = "$Id: rsh.c,v 1.7 1996/08/22 22:45:20 dholland Exp $";
 
 #include <sys/types.h>
 #include <signal.h>
@@ -70,14 +70,15 @@ static void usage(void);
 int
 main(int argc, char *argv[])
 {
-	extern char *optarg;
-	extern int optind;
 	struct passwd *pw;
 	struct servent *sp;
 	long omask;
 	int argoff, asrsh, ch, dflag, nflag, one, pid=0, rem, uid;
-	register char *p;
+	char *p;
 	char *args, *host, *user;
+	char *null = NULL;
+
+	__environ = &null;
 
 	argoff = asrsh = dflag = nflag = 0;
 	one = 1;
@@ -129,7 +130,7 @@ main(int argc, char *argv[])
 	/* if no further arguments, must have been called as rlogin. */
 	if (!argv[optind]) {
 		setuid(getuid());
-		if (asrsh) *argv = "rlogin";
+		if (asrsh) (const char *)(*argv) = "rlogin";
 		execv(_PATH_RLOGIN, argv);
 		fprintf(stderr, "rsh: can't exec %s.\n", _PATH_RLOGIN);
 		exit(1);

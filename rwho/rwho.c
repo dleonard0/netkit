@@ -38,7 +38,7 @@ char copyright[] =
 /*
  * From: @(#)rwho.c	5.5 (Berkeley) 6/1/90
  */
-char rcsid[] = "$Id: rwho.c,v 1.3 1996/07/15 21:53:11 dholland Exp $";
+char rcsid[] = "$Id: rwho.c,v 1.4 1996/08/15 03:25:17 dholland Exp $";
 
 #include <sys/param.h>
 #include <sys/dir.h>
@@ -59,7 +59,7 @@ struct myutmp {
 	struct	outmp myutmp;
 };
 
-#define	WHDRSIZE	(sizeof (wd) - sizeof (wd.wd_we))
+#define	WHDRSIZE	((int)(sizeof (wd) - sizeof (wd.wd_we)))
 /* 
  * this macro should be shared with ruptime.
  */
@@ -71,8 +71,6 @@ main(int argc, char *argv[])
 	static struct myutmp myutmp[NUSERS];
 	int nusers = 0;
 
-	extern char *optarg;
-	extern int optind;
 	int ch;
 	struct direct *dp;
 	int cc, width;
@@ -174,8 +172,8 @@ main(int argc, char *argv[])
 static int
 utmpcmp(const void *v1, const void *v2)
 {
-	struct myutmp *u1 = (struct myutmp *)v1;
-	struct myutmp *u2 = (struct myutmp *)v2;
+	const struct myutmp *u1 = (const struct myutmp *)v1;
+	const struct myutmp *u2 = (const struct myutmp *)v2;
 	int rc;
 
 	rc = strncmp(u1->myutmp.out_name, u2->myutmp.out_name, 8);

@@ -35,129 +35,173 @@
  */
 
 /*
- * Hacked to change from sgtty to POSIX termio style serial line control
- * and added flag to enable cts/rts style flow control.
- *
- * blymn@awadi.com.au (Brett Lymn) 93.04.04
+ *	Linux changes by Alan Cox 5/2/94: Copyright as above
+ *	Additional changes by David A. Holland 15-Jul-1996; copyright as above
  */
-
-#ifndef lint
+ 
 char copyright[] =
-"@(#) Copyright (c) 1988 Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1988 Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)slattach.c	4.6 (Berkeley) 6/1/90";*/
-static char rcsid[] = "$Id: slattach.c,v 1.9 1993/12/10 13:20:12 cgd Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)slattach.c	4.6 (Berkeley) 6/1/90
+ *       Linux Port Alan Cox 1993
+ */
+char rcsid[] =
+  "$Id: slattach.c,v 1.2 1996/07/15 23:06:34 dholland Exp $";
 
-#include <sys/param.h>
-#include <sys/ioctl.h>
-#include <termios.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <net/if.h>
-#include <net/if_slvar.h>
+#include <sys/ioctl.h>
+#include <termios.h>
+#include <signal.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
 #include <netdb.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <paths.h>
 
 #define DEFAULT_BAUD	9600
+static int slipdisc = N_SLIP;
 
-static char usage_str[] = "\
-usage: %s [-h] [-m] [-s <speed>] <device>\n\
-	-h -- turn on CTS/RTS style flow control\n\
-	-m -- maintain DTR after last close (no HUPCL)\n\
-	-s -- baud rate (default 9600)\n";
+static char devname[32];
 
-int main(int argc, char **argv)
+static int findspeed(int speed);
+
+int
+main(int argc, char *argv[])
 {
-	struct termios tty;
-	int option;
-	int fd;
-	char devname[32];
-	char *dev = (char *)0;
-	int slipdisc = SLIPDISC;
-	int speed = DEFAULT_BAUD;
-	int cflags = HUPCL;
-
-	extern char *optarg;
-	extern int optind;
-
-	while ((option = getopt(argc, argv, "achmns:")) != EOF) {
-		switch (option) {
-		case 'h':
-			cflags |= CRTSCTS;
-			break;
-		case 'm':
-			cflags &= ~HUPCL;
-			break;
-		case 's':
-			speed = atoi(optarg);
-			break;
-		case '?':
-		default:
-			fprintf(stderr, usage_str, argv[0]);
-			exit(1);
-		}
+	register int fd;
+	register char *dev;
+	struct	termios tstate;
+	int	speed;
+	int	mode=0;
+	int	hflow=0;
+	char  *cmdname=argv[0];
+			
+	if(argv[1]&&strcmp(argv[1],"-h")==0)
+	{
+		hflow=CRTSCTS;
+		argv++;argc--;
 	}
-
-	if (optind == argc - 1)
-		dev = argv[optind];
-
-	if (dev == (char *)0) {
-		fprintf(stderr, usage_str, argv[0]);
-		exit(2);
+	
+	if(argv[1]&&strcmp(argv[1],"-c")==0)
+	{
+		argv++;argc--;
+		mode=1;
 	}
-
-	if (strncmp(_PATH_DEV, dev, sizeof(_PATH_DEV) - 1)) {
-		strcpy(devname, _PATH_DEV);
-		strcat(devname, "/");
-		strncat(devname, dev, 10);
+	if(argv[1]&&strcmp(argv[1],"-6")==0)
+	{
+		mode=2;
+		argv++;argc--;
+	}
+	if (argc < 2 || argc > 3) {
+		fprintf(stderr, "usage: %s [-h] [-c] [-6] ttyname [baudrate]\n", cmdname);
+		exit(1);
+	}
+	speed = argc == 3 ? findspeed(atoi(argv[2])) : findspeed(DEFAULT_BAUD);
+	if (speed == 0) {
+		fprintf(stderr, "unknown speed %s\n", argv[2]);
+		exit(1);
+	}
+	dev=argv[1];
+	
+	if (strncmp(_PATH_DEV, dev, sizeof(_PATH_DEV) - 1)) { 
+		(void)sprintf(devname, "%s/%s", _PATH_DEV, dev);
 		dev = devname;
 	}
-
 	if ((fd = open(dev, O_RDWR | O_NDELAY)) < 0) {
 		perror(dev);
 		exit(1);
 	}
-
-	if (tcgetattr(fd, &tty) < 0) {
-		perror("tcgetattr");
-		close(fd);
+	tstate.c_iflag=IGNBRK;
+	tstate.c_oflag=0;
+	tstate.c_cflag=speed|CS8|HUPCL|hflow;
+	tstate.c_lflag=0;
+	tstate.c_line=N_SLIP;
+	if (ioctl(fd, TCSETS, &tstate) < 0) {
+		perror("ioctl(TIOCSETP)");
 		exit(1);
 	}
-	tty.c_iflag = 0;
-	tty.c_oflag = 0;
-	tty.c_cflag = CREAD | CS8 | cflags;
-	tty.c_lflag = 0;
-	tty.c_cc[VMIN] = 1; /* wait for one char */
-	tty.c_cc[VTIME] = 0; /* wait forever for a char */
-	cfsetispeed(&tty, speed);
-	cfsetospeed(&tty, speed);
-	if (tcsetattr(fd, TCSADRAIN, &tty) < 0) {
-		perror("tcsetattr");
-		close(fd);
-		exit(1);
-	}
-
-	if (ioctl(fd, TIOCSDTR) < 0) {
-                perror("ioctl(TIOCSDTR)");
-                close(fd);
-                exit(1);
-        }
-
 	if (ioctl(fd, TIOCSETD, &slipdisc) < 0) {
 		perror("ioctl(TIOCSETD)");
-		close(fd);
 		exit(1);
 	}
-
+	if (ioctl(fd, SIOCSIFENCAP, &mode) <0) {
+		perror("ioctl(SIOCSIFENCAP)");
+	}
+		
 	if (fork() > 0)
 		exit(0);
-
 	for (;;)
 		sigpause(0L);
+}
+
+struct sg_spds {
+	int sp_val, sp_name;
+}       spds[] = {
+#ifdef B50
+	{ 50, B50 },
+#endif
+#ifdef B75
+	{ 75, B75 },
+#endif
+#ifdef B110
+	{ 110, B110 },
+#endif
+#ifdef B150
+	{ 150, B150 },
+#endif
+#ifdef B200
+	{ 200, B200 },
+#endif
+#ifdef B300
+	{ 300, B300 },
+#endif
+#ifdef B600
+	{ 600, B600 },
+#endif
+#ifdef B1200
+	{ 1200, B1200 },
+#endif
+#ifdef B1800
+	{ 1800, B1800 },
+#endif
+#ifdef B2000
+	{ 2000, B2000 },
+#endif
+#ifdef B2400
+	{ 2400, B2400 },
+#endif
+#ifdef B3600
+	{ 3600, B3600 },
+#endif
+#ifdef B4800
+	{ 4800, B4800 },
+#endif
+#ifdef B7200
+	{ 7200, B7200 },
+#endif
+#ifdef B9600
+	{ 9600, B9600 },
+#endif
+#ifdef EXTA
+	{ 19200, EXTA },
+#endif
+#ifdef EXTB
+	{ 38400, EXTB },
+#endif
+	{ 0, 0 }
+};
+
+static int findspeed(int speed)
+{
+	register struct sg_spds *sp;
+
+	sp = spds;
+	while (sp->sp_val && sp->sp_val != speed)
+		sp++;
+	return (sp->sp_name);
 }

@@ -1,69 +1,82 @@
-/* @(#)rpc_util.c	2.1 88/08/01 4.0 RPCSRC */
 /*
  * Sun RPC is a product of Sun Microsystems, Inc. and is provided for
  * unrestricted use provided that this legend is included on all tape
  * media and as a part of the software program in whole or part.  Users
  * may copy or modify Sun RPC without charge, but are not authorized
  * to license or distribute it to anyone else except as part of a product or
- * program developed by the user.
- * 
+ * program developed by the user or with the express written consent of
+ * Sun Microsystems, Inc.
+ *
  * SUN RPC IS PROVIDED AS IS WITH NO WARRANTIES OF ANY KIND INCLUDING THE
  * WARRANTIES OF DESIGN, MERCHANTIBILITY AND FITNESS FOR A PARTICULAR
  * PURPOSE, OR ARISING FROM A COURSE OF DEALING, USAGE OR TRADE PRACTICE.
- * 
+ *
  * Sun RPC is provided with no support and without any obligation on the
  * part of Sun Microsystems, Inc. to assist in its use, correction,
  * modification or enhancement.
- * 
+ *
  * SUN MICROSYSTEMS, INC. SHALL HAVE NO LIABILITY WITH RESPECT TO THE
  * INFRINGEMENT OF COPYRIGHTS, TRADE SECRETS OR ANY PATENTS BY SUN RPC
  * OR ANY PART THEREOF.
- * 
+ *
  * In no event will Sun Microsystems, Inc. be liable for any lost revenue
  * or profits or other special, indirect and consequential damages, even if
  * Sun has been advised of the possibility of such damages.
- * 
+ *
  * Sun Microsystems, Inc.
  * 2550 Garcia Avenue
  * Mountain View, California  94043
  */
-#ifndef lint
-/*static char sccsid[] = "from: @(#)rpc_util.c 1.5 87/06/24 (C) 1987 SMI";*/
-static char rcsid[] = "$Id: rpc_util.c,v 1.3 1993/08/01 18:09:15 mycroft Exp $";
-#endif
+
+/* 
+ * From: @(#)rpc_util.c 1.11 89/02/22 (C) 1987 SMI
+ */
+char util_rcsid[] =
+  "$Id: rpc_util.c,v 1.3 1996/08/15 02:53:26 dholland Exp $";
 
 /*
  * rpc_util.c, Utility routines for the RPC protocol compiler 
- * Copyright (C) 1987, Sun Microsystems, Inc. 
  */
 #include <stdio.h>
+#include <ctype.h>
+#include <string.h>
+#include <unistd.h>
 #include "rpc_scan.h"
 #include "rpc_parse.h"
 #include "rpc_util.h"
+#include "proto.h"
+
+#define ARGEXT "argument"
 
 char curline[MAXLINESIZE];	/* current read line */
-char *where = curline;	/* current point in line */
-int linenum = 0;	/* current line number */
+const char *where = curline;	/* current point in line */
+int linenum = 0;		/* current line number */
 
-char *infilename;	/* input filename */
+const char *infilename;		/* input filename */
 
-#define NFILES 4
-char *outfiles[NFILES];	/* output file names */
+#define NFILES 7
+const char *outfiles[NFILES];	/* output file names */
 int nfiles;
 
-FILE *fout;	/* file pointer of current output */
-FILE *fin;	/* file pointer of current input */
+FILE *fout;			/* file pointer of current output */
+FILE *fin;			/* file pointer of current input */
 
-list *defined;	/* list of defined things */
+list *defined;			/* list of defined things */
 
-static int printwhere();
+static int findit(const definition *def, const char *type);
+static const char *fixit(const char *type, const char *orig);
+static int typedefed(const definition *def, const char *type);
+static const char *toktostr(tok_kind kind);
+static void printbuf(void);
+static void printwhere(void);
 
 /*
  * Reinitialize the world 
  */
-reinitialize()
+void
+reinitialize(void)
 {
-	bzero(curline, MAXLINESIZE);
+	memset(curline, 0, MAXLINESIZE);
 	where = curline;
 	linenum = 0;
 	defined = NULL;
@@ -72,9 +85,8 @@ reinitialize()
 /*
  * string equality 
  */
-streq(a, b)
-	char *a;
-	char *b;
+int
+streq(const char *a, const char *b)
 {
 	return (strcmp(a, b) == 0);
 }
@@ -82,32 +94,29 @@ streq(a, b)
 /*
  * find a value in a list 
  */
-char *
-findval(lst, val, cmp)
-	list *lst;
-	char *val;
-	int (*cmp) ();
-
+definition *
+findval(list *lst, const char *val, 
+	int (*cmp)(const definition *, const char *))
 {
+         
 	for (; lst != NULL; lst = lst->next) {
-		if ((*cmp) (lst->val, val)) {
+		if (cmp(lst->val, val)) {
 			return (lst->val);
 		}
 	}
-	return (NULL);
+	return NULL;
 }
 
 /*
  * store a value in a list 
  */
 void
-storeval(lstp, val)
-	list **lstp;
-	char *val;
+storeval(list **lstp, definition *val)
 {
 	list **l;
 	list *lst;
 
+	
 	for (l = lstp; *l != NULL; l = (list **) & (*l)->next);
 	lst = ALLOC(list);
 	lst->val = val;
@@ -115,24 +124,18 @@ storeval(lstp, val)
 	*l = lst;
 }
 
-
-static
-findit(def, type)
-	definition *def;
-	char *type;
+static int
+findit(const definition *def, const char *type)
 {
 	return (streq(def->def_name, type));
 }
 
-
-static char *
-fixit(type, orig)
-	char *type;
-	char *orig;
+static const char *
+fixit(const char *type, const char *orig)
 {
 	definition *def;
 
-	def = (definition *) FINDVAL(defined, type, findit);
+	def = findval(defined, type, findit);
 	if (def == NULL || def->def_kind != DEF_TYPEDEF) {
 		return (orig);
 	}
@@ -146,29 +149,25 @@ fixit(type, orig)
 	}
 }
 
-char *
-fixtype(type)
-	char *type;
+const char *
+fixtype(const char *type)
 {
 	return (fixit(type, type));
 }
 
-char *
-stringfix(type)
-	char *type;
+const char *
+stringfix(const char *type)
 {
 	if (streq(type, "string")) {
-		return ("wrapstring");
-	} else {
-		return (type);
+		return "wrapstring";
+	} 
+	else {
+		return type;
 	}
 }
 
 void
-ptype(prefix, type, follow)
-	char *prefix;
-	char *type;
-	int follow;
+ptype(const char *prefix, const char *type, int follow)
 {
 	if (prefix != NULL) {
 		if (streq(prefix, "enum")) {
@@ -186,11 +185,8 @@ ptype(prefix, type, follow)
 	}
 }
 
-
-static
-typedefed(def, type)
-	definition *def;
-	char *type;
+static int
+typedefed(const definition *def, const char *type)
 {
 	if (def->def_kind != DEF_TYPEDEF || def->def.ty.old_prefix != NULL) {
 		return (0);
@@ -199,9 +195,8 @@ typedefed(def, type)
 	}
 }
 
-isvectordef(type, rel)
-	char *type;
-	relation rel;
+int
+isvectordef(const char *type, relation rel)
 {
 	definition *def;
 
@@ -214,7 +209,7 @@ isvectordef(type, rel)
 		case REL_POINTER:
 			return (0);
 		case REL_ALIAS:
-			def = (definition *) FINDVAL(defined, type, typedefed);
+			def = findval(defined, type, typedefed);
 			if (def == NULL) {
 				return (0);
 			}
@@ -224,38 +219,37 @@ isvectordef(type, rel)
 	}
 }
 
-
-static char *
-locase(str)
-	char *str;
+char *
+locase(const char *str)
 {
 	char c;
 	static char buf[100];
 	char *p = buf;
 
-	while (c = *str++) {
+	while ((c = *str++)!=0) {
 		*p++ = (c >= 'A' && c <= 'Z') ? (c - 'A' + 'a') : c;
 	}
 	*p = 0;
 	return (buf);
 }
 
+void
+pvname_svc(const char *pname, const char *vnum)
+{
+	f_print(fout, "%s_%s_svc", locase(pname), vnum);
+}
 
 void
-pvname(pname, vnum)
-	char *pname;
-	char *vnum;
+pvname(const char *pname, const char *vnum)
 {
 	f_print(fout, "%s_%s", locase(pname), vnum);
 }
-
 
 /*
  * print a useful (?) error message, and then die 
  */
 void
-error(msg)
-	char *msg;
+error(const char *msg)
 {
 	printwhere();
 	f_print(stderr, "%s, line %d: ", infilename, linenum);
@@ -267,7 +261,8 @@ error(msg)
  * Something went wrong, unlink any files that we may have created and then
  * die. 
  */
-crash()
+void
+crash(void)
 {
 	int i;
 
@@ -277,28 +272,25 @@ crash()
 	exit(1);
 }
 
-
 void
-record_open(file)
-	char *file;
+record_open(const char *file)
 {
 	if (nfiles < NFILES) {
 		outfiles[nfiles++] = file;
-	} else {
+	} 
+	else {
 		f_print(stderr, "too many files!\n");
 		crash();
 	}
 }
 
 static char expectbuf[100];
-static char *toktostr();
 
 /*
  * error, token encountered was not the expected one 
  */
 void
-expected1(exp1)
-	tok_kind exp1;
+expected1(tok_kind exp1)
 {
 	s_print(expectbuf, "expected '%s'",
 		toktostr(exp1));
@@ -309,8 +301,7 @@ expected1(exp1)
  * error, token encountered was not one of two expected ones 
  */
 void
-expected2(exp1, exp2)
-	tok_kind exp1, exp2;
+expected2(tok_kind exp1, tok_kind exp2)
 {
 	s_print(expectbuf, "expected '%s' or '%s'",
 		toktostr(exp1),
@@ -322,8 +313,7 @@ expected2(exp1, exp2)
  * error, token encountered was not one of 3 expected ones 
  */
 void
-expected3(exp1, exp2, exp3)
-	tok_kind exp1, exp2, exp3;
+expected3(tok_kind exp1, tok_kind exp2, tok_kind exp3)
 {
 	s_print(expectbuf, "expected '%s', '%s' or '%s'",
 		toktostr(exp1),
@@ -333,15 +323,12 @@ expected3(exp1, exp2, exp3)
 }
 
 void
-tabify(f, tab)
-	FILE *f;
-	int tab;
+tabify(FILE *f, int tab)
 {
 	while (tab--) {
 		(void) fputc('\t', f);
 	}
 }
-
 
 
 static token tokstrings[] = {
@@ -381,9 +368,8 @@ static token tokstrings[] = {
 			     {TOK_EOF, "??????"}
 };
 
-static char *
-toktostr(kind)
-	tok_kind kind;
+static const char *
+toktostr(tok_kind kind)
 {
 	token *sp;
 
@@ -391,10 +377,8 @@ toktostr(kind)
 	return (sp->str);
 }
 
-
-
-static
-printbuf()
+static void
+printbuf(void)
 {
 	char c;
 	int i;
@@ -402,7 +386,7 @@ printbuf()
 
 #	define TABSIZE 4
 
-	for (i = 0; c = curline[i]; i++) {
+	for (i = 0; (c = curline[i])!=0; i++) {
 		if (c == '\t') {
 			cnt = 8 - (i % TABSIZE);
 			c = ' ';
@@ -415,9 +399,8 @@ printbuf()
 	}
 }
 
-
-static
-printwhere()
+static void
+printwhere(void)
 {
 	int i;
 	char c;
@@ -437,3 +420,68 @@ printwhere()
 	}
 	(void) fputc('\n', stderr);
 }
+
+char * 
+make_argname(const char *pname, const char *vname) 
+{
+	char *name;
+	
+	name = malloc(strlen(pname) + strlen(vname) + strlen(ARGEXT) + 3);
+	if (!name) {
+		fprintf(stderr, "failed in malloc");
+		exit(1);
+	}
+	sprintf(name, "%s_%s_%s", locase(pname), vname, ARGEXT);
+	return name;
+}
+
+bas_type *typ_list_h;
+bas_type *typ_list_t;
+
+void
+add_type(int len, const char *type)
+{
+  bas_type *ptr;
+
+
+  if ((ptr = malloc(sizeof(bas_type))) == NULL) {
+      fprintf(stderr, "failed in malloc");
+      exit(1);
+  }
+
+  ptr->name=type;
+  ptr->length=len;
+  ptr->next=NULL;
+  if(typ_list_t == NULL)
+    {
+
+      typ_list_t=ptr;
+      typ_list_h=ptr;
+    }
+  else
+    {
+
+    typ_list_t->next=ptr;
+    typ_list_t=ptr;
+    }
+
+}
+
+
+bas_type *find_type(const char *type)
+{
+  bas_type *ptr;
+
+  ptr=typ_list_h;
+
+
+  while(ptr != NULL)
+    {
+    if(strcmp(ptr->name,type) == 0)
+           return(ptr);
+    else
+      ptr=ptr->next;
+    };
+return(NULL);
+}
+

@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)rexecd.c	5.12 (Berkeley) 2/25/91
  */
 char rcsid[] = 
-  "$Id: rexecd.c,v 1.10 1996/07/26 04:51:44 dholland Exp $";
+  "$Id: rexecd.c,v 1.11 1996/08/15 00:15:55 dholland Exp $";
 
 
 #include <sys/param.h>
@@ -94,6 +94,8 @@ main(int argc, char **argv)
 {
 	struct sockaddr_in from;
 	int fromlen;
+
+	(void)argc;
 
 	fromlen = sizeof(from);
 	if (getpeername(0, (struct sockaddr *)&from, &fromlen) < 0) {
@@ -190,13 +192,16 @@ static struct pam_conv PAM_conversation = {
 static void
 doit(int f, struct sockaddr_in *fromp)
 {
-	char cmdbuf[ARG_MAX+1], *cp, *namep;
+	char cmdbuf[ARG_MAX+1], *namep, *cp;
 	char user[16], pass[16];
 	struct passwd *pwd;
 	int s = -1;
 	u_short port;
-	int pv[2], pid, ready, readfrom, cc;
+	int pv[2], pid, cc;
+	fd_set readfrom1, ready1;
 	char buf[BUFSIZ], sig;
+	const char *theshell;
+	const char *cp2;
 #ifdef RESTRICT_FTP
 	FILE *fp;
 #endif
@@ -324,13 +329,6 @@ doit(int f, struct sockaddr_in *fromp)
 	write(2, "\0", 1);
 	if (port) {
 		if (pipe(pv)) fatal("Try again later.\n");
-		if (s>=CHAR_BIT*sizeof(readfrom) || 
-		    pv[0]>=CHAR_BIT*sizeof(readfrom) || 
-		    pv[1]>=CHAR_BIT*sizeof(readfrom))
-		{
-		  	/* die if we overflow readfrom's size as an fd_set */
-			fatal("Internal error - too many open files?\n");
-		}
 		pid = fork();
 		if (pid == -1)  {
 			fatal("Try again.\n");
@@ -338,32 +336,36 @@ doit(int f, struct sockaddr_in *fromp)
 		if (pid) {
 		        /* parent */
 			int one = 1;
+			int hifd = pv[0]+1;
+			if (s<=hifd) hifd = s+1;
 			close(0);
 			close(1); 
 			close(2);
 			close(f);
 			close(pv[1]);
-			readfrom = (1<<s) | (1<<pv[0]);
+			FD_SET(s, &readfrom1);
+			FD_SET(pv[0], &readfrom1);
 			ioctl(pv[1], FIONBIO, (char *)&one);
 			/* should set s nbio! */
 			do {
-				ready = readfrom;
-				select(16, (fd_set *)&ready, NULL, NULL, NULL);
-				if (ready & (1<<s)) {
+				ready1 = readfrom1;
+				select(hifd, &ready1, NULL, NULL, NULL);
+				if (FD_ISSET(s, &ready1)) {
 					if (read(s, &sig, 1) <= 0)
-						readfrom &= ~(1<<s);
+						FD_CLR(s, &readfrom1);
 					else
 						killpg(pid, sig);
 				}
-				if (ready & (1<<pv[0])) {
+				if (FD_ISSET(pv[0], &ready1)) {
 					cc = read(pv[0], buf, sizeof(buf));
 					if (cc <= 0) {
 						shutdown(s, 1+1);
-						readfrom &= ~(1<<pv[0]);
+						FD_CLR(pv[0], &readfrom1);
 					} 
 					else write(s, buf, cc);
 				}
-			} while (readfrom);
+			} while (FD_ISSET(pv[0], &readfrom1) && 
+				 FD_ISSET(s, &readfrom1));
 			exit(0);
 		}
 		/* child */
@@ -374,8 +376,9 @@ doit(int f, struct sockaddr_in *fromp)
 	}
 	if (*pwd->pw_shell == 0) {
 		/* Shouldn't we deny access? */
-		pwd->pw_shell = _PATH_BSHELL;
+		theshell = _PATH_BSHELL;
 	}
+	else theshell = pwd->pw_shell;
 	/* shouldn't we check /etc/shells? */
 
 	if (f > 2) close(f);
@@ -387,14 +390,14 @@ doit(int f, struct sockaddr_in *fromp)
 	strcat(path, _PATH_DEFPATH);
 	myenviron = envinit;
 	strncat(homedir, pwd->pw_dir, sizeof(homedir)-6);
-	strncat(shell, pwd->pw_shell, sizeof(shell)-7);
+	strncat(shell, theshell, sizeof(shell)-7);
 	strncat(username, pwd->pw_name, sizeof(username)-6);
-	cp = strrchr(pwd->pw_shell, '/');
-	if (cp)	cp++;
-	else cp = pwd->pw_shell;
+	cp2 = strrchr(theshell, '/');
+	if (cp2) cp2++;
+	else cp2 = theshell;
 
-	execle(pwd->pw_shell, cp, "-c", cmdbuf, 0, myenviron);
-	perror(pwd->pw_shell);
+	execle(theshell, cp2, "-c", cmdbuf, 0, myenviron);
+	perror(theshell);
 	exit(1);
 }
 

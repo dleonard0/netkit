@@ -35,7 +35,7 @@
  * from: @(#)domacro.c	1.8 (Berkeley) 9/28/90
  */
 char domacro_rcsid[] = 
-  "$Id: domacro.c,v 1.3 1996/07/20 20:43:13 dholland Exp $";
+  "$Id: domacro.c,v 1.4 1996/08/14 23:27:28 dholland Exp $";
 
 #include <errno.h>
 #include <ctype.h>
@@ -44,16 +44,17 @@ char domacro_rcsid[] =
 
 #include "ftp_var.h"
 
-
 void
 domacro(int argc, char *argv[])
 {
+	int margc;
+	char *marg;
+	char **margv;
 	register int i, j;
 	register char *cp1, *cp2;
 	int count = 2, loopflg = 0;
 	char line2[200];
-	extern char **glob();
-	struct cmd *getcmd(), *c;
+	struct cmd *c;
 
 	if (argc < 2 && !another(&argc, &argv, "macro name")) {
 		printf("Usage: %s macro_name.\n", argv[0]);
@@ -115,13 +116,13 @@ TOP:
 		      }
 		}
 		*cp2 = '\0';
-		makeargv();
+		margv = makeargv(&margc, &marg);
 		c = getcmd(margv[0]);
 		if (c == (struct cmd *)-1) {
 			printf("?Ambiguous command\n");
 			code = -1;
 		}
-		else if (c == 0) {
+		else if (c == NULL) {
 			printf("?Invalid command\n");
 			code = -1;
 		}
@@ -133,12 +134,15 @@ TOP:
 			if (verbose) {
 				printf("%s\n",line);
 			}
-			(*c->c_handler)(margc, margv);
+			if (c->c_handler_v) c->c_handler_v(margc, margv);
+			else if (c->c_handler_0) c->c_handler_0();
+			else c->c_handler_1(marg);
+
 			if (bell && c->c_bell) {
 				(void) putchar('\007');
 			}
 			(void) strcpy(line, line2);
-			makeargv();
+			margv = makeargv(&margc, &marg);
 			argc = margc;
 			argv = margv;
 		}

@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)defs.h	5.10 (Berkeley) 3/1/91
- *	$Id: defs.h,v 1.5 1996/07/20 21:02:16 dholland Exp $
+ *	$Id: defs.h,v 1.6 1996/08/16 18:49:26 dholland Exp $
  */
 
 /*
@@ -40,29 +40,32 @@
 #include <sys/types.h>
 #include <sys/param.h>
 
-#define ENV_VAR NEW_ENV_VAR
-#define ENV_VALUE NEW_ENV_VALUE
-#define TELOPT_ENVIRON TELOPT_NEW_ENVIRON
+#define ENV_VAR		NEW_ENV_VAR
+#define ENV_VALUE	NEW_ENV_VALUE
+#define TELOPT_ENVIRON	TELOPT_NEW_ENVIRON
 
 #ifndef	BSD
-# define	BSD 43
+#define	BSD 43
 #endif
 
-#if	defined(CRAY) && !defined(LINEMODE)
-# define SYSV_TERMIO
-# define LINEMODE
-# define KLUDGELINEMODE
-# define DIAGNOSTICS
-# if defined(UNICOS50) && !defined(UNICOS5)
-#  define UNICOS5
-# endif
-# if !defined(UNICOS5)
-#  define BFTPDAEMON
-#  define HAS_IP_TOS
-# endif
+#if defined(CRAY) && !defined(LINEMODE)
+#define SYSV_TERMIO
+#define LINEMODE
+#define KLUDGELINEMODE
+#define DIAGNOSTICS
+
+#if defined(UNICOS50) && !defined(UNICOS5)
+#define UNICOS5
+#endif
+
+#if !defined(UNICOS5)
+#define BFTPDAEMON
+#define HAS_IP_TOS
+#endif
 #endif /* CRAY */
+
 #if defined(UNICOS5) && !defined(NO_SETSID)
-# define NO_SETSID
+#define NO_SETSID
 #endif
 
 #if defined(PRINTOPTIONS) && defined(DIAGNOSTICS)
@@ -71,8 +74,8 @@
 #define	SLC_NAMES
 #endif
 
-#if	defined(SYSV_TERMIO) && !defined(USE_TERMIO)
-# define	USE_TERMIO
+#if defined(SYSV_TERMIO) && !defined(USE_TERMIO)
+#define USE_TERMIO
 #endif
 
 #include <sys/socket.h>
@@ -83,45 +86,36 @@
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#ifndef	FILIO_H
 #include <sys/ioctl.h>
-#else
-#include <sys/filio.h>
-#endif
-
 #include <netinet/in.h>
-
 #include <arpa/telnet.h>
-
 #include <stdio.h>
-#ifdef	__STDC__
 #include <stdlib.h>
-#endif
 #include <signal.h>
 #include <errno.h>
 #include <netdb.h>
 #include <syslog.h>
+
 #ifndef	LOG_DAEMON
 #define	LOG_DAEMON	0
 #endif
+
 #ifndef	LOG_ODELAY
 #define	LOG_ODELAY	0
 #endif
+
 #include <ctype.h>
-#ifndef NO_STRING_H
 #include <string.h>
-#else
-#include <strings.h>
-#endif
 
 #ifndef	USE_TERMIO
+#error "sgtty is way obsolete"
 #include <sgtty.h>
 #else
-# ifdef	SYSV_TERMIO
-# include <termio.h>
-# else
-# include <termios.h>
-# endif
+#ifdef	SYSV_TERMIO
+#include <termio.h>
+#else
+#include <termios.h>
+#endif
 #endif
 
 #ifdef	__STDC__
@@ -129,27 +123,27 @@
 #endif
 
 #ifndef _POSIX_VDISABLE
-# ifdef VDISABLE
-#  define _POSIX_VDISABLE VDISABLE
-# else
-#  define _POSIX_VDISABLE ((unsigned char)'\377')
-# endif
+#ifdef VDISABLE
+#define _POSIX_VDISABLE VDISABLE
+#else
+#define _POSIX_VDISABLE ((unsigned char)'\377')
+#endif
 #endif
 
 
 #ifdef	CRAY
-# ifdef	CRAY1
-# include <sys/pty.h>
-#  ifndef FD_ZERO
-# include <sys/select.h>
-#  endif /* FD_ZERO */
-# endif	/* CRAY1 */
+#ifdef	CRAY1
+#include <sys/pty.h>
+#ifndef FD_ZERO
+#include <sys/select.h>
+#endif /* FD_ZERO */
+#endif	/* CRAY1 */
 
 #include <memory.h>
 #endif	/* CRAY */
 
-#if	!defined(TIOCSCTTY) && defined(TCSETCTTY)
-# define	TIOCSCTTY TCSETCTTY
+#if !defined(TIOCSCTTY) && defined(TCSETCTTY)
+#define	TIOCSCTTY TCSETCTTY
 #endif
 
 #ifndef	FD_SET
@@ -191,8 +185,8 @@ typedef struct fd_set { int fds_bits[1]; } fd_set;
  * Structures of information for each special character function.
  */
 typedef struct {
-	unsigned char	flag;		/* the flags for this function */
-	cc_t		val;		/* the value of the special character */
+	unsigned char flag;		/* the flags for this function */
+	cc_t val;		/* the value of the special character */
 } slcent, *Slcent;
 
 typedef struct {

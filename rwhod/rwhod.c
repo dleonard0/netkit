@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)rwhod.c	5.20 (Berkeley) 3/2/91
  */
 char rcsid[] = 
-  "$Id: rwhod.c,v 1.4 1996/07/20 20:57:27 dholland Exp $";
+  "$Id: rwhod.c,v 1.7 1996/08/15 08:19:25 dholland Exp $";
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -65,11 +65,9 @@ char rcsid[] =
 #include <string.h>
 #include <arpa/inet.h>
 
-/* from libbsd.a */
-int daemon(int, int);
+#include "daemon.h"
 
 #define ENDIAN	LITTLE_ENDIAN
-#define sin x_sin
 
 /*
  * Alarm interval. Don't forget to change the down time check in ruptime
@@ -77,7 +75,7 @@ int daemon(int, int);
  */
 #define AL_INTERVAL (3 * 60)
 
-struct	sockaddr_in sin;
+static struct sockaddr_in sine;
 
 char	myname[MAXHOSTNAMELEN];
 
@@ -107,18 +105,15 @@ struct	neighbor {
 	int	n_flags;		/* should forward?, interface flags */
 };
 
-struct	neighbor *neighbors;
-struct	whod mywd;
-struct	servent *sp;
-int	s, utmpf, kmemf = -1;
+static struct neighbor *neighbors;
+static struct whod mywd;
+static struct servent *sp;
+static int sk, utmpf;
 
 #define	WHDRSIZE	(sizeof (mywd) - sizeof (mywd.wd_we))
 
-extern int errno;
-char	*strcpy(), *malloc();
-long	lseek();
-void	getkmem(int), onalrm(int);
-struct	in_addr inet_makeaddr();
+static void getkmem(int);
+static void onalrm(int);
 
 int
 main(void)
@@ -164,30 +159,30 @@ main(void)
 		exit(1);
 	}
 	getkmem(0);
-	if ((s = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+	if ((sk = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		syslog(LOG_ERR, "socket: %m");
 		exit(1);
 	}
-	if (setsockopt(s, SOL_SOCKET, SO_BROADCAST, &on, sizeof (on)) < 0) {
+	if (setsockopt(sk, SOL_SOCKET, SO_BROADCAST, &on, sizeof (on)) < 0) {
 		syslog(LOG_ERR, "setsockopt SO_BROADCAST: %m");
 		exit(1);
 	}
-	sin.sin_family = AF_INET;
-	sin.sin_port = sp->s_port;
-	if (bind(s, (struct sockaddr *)&sin, sizeof (sin)) < 0) {
+	sine.sin_family = AF_INET;
+	sine.sin_port = sp->s_port;
+	if (bind(sk, (struct sockaddr *)&sine, sizeof(sine)) < 0) {
 		syslog(LOG_ERR, "bind: %m");
 		exit(1);
 	}
-	if (!configure(s))
+	if (!configure(sk))
 		exit(1);
 	signal(SIGALRM, onalrm);
 	(void) umask(022);
 	onalrm(0);
 	for (;;) {
 		struct whod wd;
-		int cc, whod, len = sizeof (from);
+		int cc, whod, len = sizeof(from);
 
-		cc = recvfrom(s, (char *)&wd, sizeof (struct whod), 0,
+		cc = recvfrom(sk, (char *)&wd, sizeof(struct whod), 0,
 			      (struct sockaddr *)&from, &len);
 		if (cc <= 0) {
 			if (cc < 0 && errno != EINTR)
@@ -203,12 +198,17 @@ main(void)
 			continue;
 		if (wd.wd_type != WHODTYPE_STATUS)
 			continue;
+		/* 
+		 * Ensure null termination of the name within the packet.
+		 * Otherwise we might overflow or read past the end.
+		 */
+		wd.wd_hostname[sizeof(wd.wd_hostname)-1] = 0;
 		if (!verify(wd.wd_hostname)) {
 			syslog(LOG_WARNING, "malformed host name from %x",
 				from.sin_addr);
 			continue;
 		}
-		(void) sprintf(path, "whod.%s", wd.wd_hostname);
+		snprintf(path, sizeof(path), "whod.%s", wd.wd_hostname);
 		/*
 		 * Rather than truncating and growing the file each time,
 		 * use ftruncate if size is less than previous size.
@@ -277,8 +277,9 @@ void onalrm(int dummy)
 	struct stat stb;
 	int cc;
 	double avenrun[3];
-	time_t now = time((time_t *)NULL);
-	char *strerror();
+	time_t now = time(NULL);
+
+	(void)dummy;
 
         signal(SIGALRM, onalrm);
 	if (alarmcount % 10 == 0)
@@ -346,7 +347,7 @@ void onalrm(int dummy)
 	mywd.wd_vers = WHODVERSION;
 	mywd.wd_type = WHODTYPE_STATUS;
 	for (np = neighbors; np != NULL; np = np->n_next) {
-		if (sendto(s, (char *)&mywd, cc, 0,
+		if (sendto(sk, (char *)&mywd, cc, 0,
 			   (struct sockaddr *) np->n_addr, np->n_addrlen) < 0) 
 		  syslog(LOG_ERR, "sendto(%s): %m",
 			 inet_ntoa(((struct sockaddr_in *)np->n_addr)->sin_addr));
@@ -425,6 +426,7 @@ void getkmem(int dummy)
 	fclose(fp);
 	return /* 0 */;
 #else
+	static int kmemf = -1;
 	static ino_t vmunixino;
 	static time_t vmunixctime;
 	struct stat sb;
@@ -456,6 +458,8 @@ loop:
 	    sizeof (mywd.wd_boottime));
 	mywd.wd_boottime = htonl(mywd.wd_boottime);
 #endif
+
+	(void)dummy;
 }
 
 /*
@@ -468,7 +472,7 @@ configure(int s)
 	char buf[BUFSIZ], *cp, *cplim;
 	struct ifconf ifc;
 	struct ifreq ifreq, *ifr;
-	struct sockaddr_in *sin;
+	struct sockaddr_in *sn;
 	register struct neighbor *np;
 
 	ifc.ifc_len = sizeof (buf);
@@ -544,8 +548,8 @@ configure(int s)
 			  np->n_addr, np->n_addrlen);
 		}
 		/* gag, wish we could get rid of Internet dependencies */
-		sin = (struct sockaddr_in *)np->n_addr;
-		sin->sin_port = sp->s_port;
+		sn = (struct sockaddr_in *)np->n_addr;
+		sn->sin_port = sp->s_port;
 		np->n_next = neighbors;
 		neighbors = np;
 	}
@@ -570,10 +574,10 @@ sendto(s, buf, cc, flags, to, tolen)
 {
 	register struct whod *w = (struct whod *)buf;
 	register struct whoent *we;
-	struct sockaddr_in *sin = (struct sockaddr_in *)to;
+	struct sockaddr_in *sn = (struct sockaddr_in *)to;
 	char *interval();
 
-	printf("sendto %x.%d\n", ntohl(sin->sin_addr.s_addr), ntohs(sin->sin_port));
+	printf("sendto %x.%d\n", ntohl(sn->sin_addr.s_addr), ntohs(sn->sin_port));
 	printf("hostname %s %s\n", w->wd_hostname,
 	   interval(ntohl(w->wd_sendtime) - ntohl(w->wd_boottime), "  up"));
 	printf("load %4.2f, %4.2f, %4.2f\n",

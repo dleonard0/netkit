@@ -35,7 +35,7 @@
  * From: @(#)tftp.c	5.10 (Berkeley) 3/1/91
  */
 char tftp_rcsid[] = 
-  "$Id: tftp.c,v 1.4 1996/07/20 21:04:16 dholland Exp $";
+  "$Id: tftp.c,v 1.5 1996/08/15 05:16:38 dholland Exp $";
 
 /* Many bug fixes are from Jim Guyton <guyton@rand-unix> */
 
@@ -55,36 +55,39 @@ char tftp_rcsid[] =
 #include <setjmp.h>
 #include <unistd.h>
 
-void startclock(void);
-int makerequest(int request, char *name, struct tftphdr *tp, char *mode);
-void nak(int errnor);
-void tpacket(char *s, struct tftphdr *tp, int n);
-void ahead(void);
-int synchnet(int);
-void stopclock(void);
-void printstats(char *direction, unsigned long amount);
+#include "tftpsubs.h"
 
-int readit(FILE *file, struct tftphdr **dpp, int convert);
-int writeit(FILE *file, struct tftphdr **dpp, int ct, int convert);
-void read_ahead(FILE *file, int convert /* if true, convert to ascii */);
-void write_behind(FILE *file, int convert);
-
-extern  struct sockaddr_in s_in;         /* filled in by main */
+extern  struct sockaddr_in s_inn;         /* filled in by main */
 extern  int     f;                      /* the opened socket */
 extern  int     trace;
 extern  int     verbose;
 extern  int     rexmtval;
 extern  int     maxtimeout;
+extern sigjmp_buf toplevel;
+void sendfile(int fd, char *name, char *modestr);
+void recvfile(int fd, char *name, char *modestr);
+
 
 #define PKTSIZE    SEGSIZE+4
-char    ackbuf[PKTSIZE];
-int	timeout;
-extern sigjmp_buf	toplevel;
-sigjmp_buf	timeoutbuf;
+static char ackbuf[PKTSIZE];
+static int timeout;
+static sigjmp_buf timeoutbuf;
 
+
+static int makerequest(int request, char *name, 
+		       struct tftphdr *tp, char *mode);
+static void nak(int errnor);
+static void tpacket(const char *s, struct tftphdr *tp, int n);
+static void startclock(void);
+static void stopclock(void);
+static void printstats(const char *direction, unsigned long amount);
+
+static
 void
-timer()
+timer(int signum)
 {
+	(void)signum;
+
 	timeout += rexmtval;
 	if (timeout >= maxtimeout) {
 		printf("Transfer timed out.\n");
@@ -100,7 +103,7 @@ void
 sendfile(int fd, char *name, char *mode)
 {
 	register struct tftphdr *ap;       /* data and ack packets */
-	struct tftphdr *r_init(), *dp;
+	struct tftphdr *dp;
 	volatile int block = 0, size = 0;
 	int n;
 	volatile unsigned long amount = 0;
@@ -135,7 +138,7 @@ send_data:
 		if (trace)
 			tpacket("sent", dp, size + 4);
 		n = sendto(f, dp, size + 4, 0,
-		    (struct sockaddr *)&s_in, sizeof (s_in));
+		    (struct sockaddr *)&s_inn, sizeof(s_inn));
 		if (n != size + 4) {
 			perror("tftp: sendto");
 			goto abort;
@@ -153,7 +156,7 @@ send_data:
 				perror("tftp: recvfrom");
 				goto abort;
 			}
-			s_in.sin_port = from.sin_port;   /* added */
+			s_inn.sin_port = from.sin_port;   /* added */
 			if (trace)
 				tpacket("received", ap, n);
 			/* should verify packet came from server */
@@ -201,7 +204,7 @@ void
 recvfile(int fd, char *name, char *mode)
 {
 	register struct tftphdr *ap;
-	struct tftphdr *dp, *w_init();
+	struct tftphdr *dp;
 	volatile int block = 1, size = 0;
 	int n; 
 	volatile unsigned long amount = 0;
@@ -233,8 +236,8 @@ recvfile(int fd, char *name, char *mode)
 send_ack:
 		if (trace)
 			tpacket("sent", ap, size);
-		if (sendto(f, ackbuf, size, 0, (struct sockaddr *)&s_in,
-		    sizeof (s_in)) != size) {
+		if (sendto(f, ackbuf, size, 0, (struct sockaddr *)&s_inn,
+		    sizeof (s_inn)) != size) {
 			alarm(0);
 			perror("tftp: sendto");
 			goto abort;
@@ -252,7 +255,7 @@ send_ack:
 				perror("tftp: recvfrom");
 				goto abort;
 			}
-			s_in.sin_port = from.sin_port;   /* added */
+			s_inn.sin_port = from.sin_port;   /* added */
 			if (trace)
 				tpacket("received", dp, n);
 			/* should verify client address */
@@ -292,7 +295,7 @@ send_ack:
 abort:                                          /* ok to ack, since user */
 	ap->th_opcode = htons((u_short)ACK);    /* has seen err msg */
 	ap->th_block = htons((u_short)block);
-	(void) sendto(f, ackbuf, 4, 0, (struct sockaddr *)&s_in, sizeof (s_in));
+	(void) sendto(f, ackbuf, 4, 0, (struct sockaddr *)&s_inn, sizeof(s_inn));
 	write_behind(file, convert);            /* flush last buffer */
 	fclose(file);
 	stopclock();
@@ -317,8 +320,8 @@ makerequest(int request, char *name, struct tftphdr *tp, char *mode)
 }
 
 struct errmsg {
-	int	e_code;
-	char	*e_msg;
+	int e_code;
+	const char *e_msg;
 } errmsgs[] = {
 	{ EUNDEF,	"Undefined error code" },
 	{ ENOTFOUND,	"File not found" },
@@ -358,19 +361,19 @@ nak(int error)
 	length = strlen(pe->e_msg) + 4;
 	if (trace)
 		tpacket("sent", tp, length);
-	if (sendto(f, ackbuf, length, 0, (struct sockaddr *)&s_in,
-	    sizeof (s_in)) != length)
+	if (sendto(f, ackbuf, length, 0, (struct sockaddr *)&s_inn,
+	    sizeof (s_inn)) != length)
 		perror("nak");
 }
 
+static
 void
-tpacket(char *s, struct tftphdr *tp, int n)
+tpacket(const char *s, struct tftphdr *tp, int n)
 {
-	static char *opcodes[] =
+	static const char *opcodes[] =
 	   { "#0", "RRQ", "WRQ", "DATA", "ACK", "ERROR" };
 	register char *cp, *file;
 	u_short op = ntohs(tp->th_opcode);
-	char *index();
 
 	if (op < RRQ || op > ERROR)
 		printf("%s opcode=%x ", s, op);
@@ -382,7 +385,7 @@ tpacket(char *s, struct tftphdr *tp, int n)
 	case WRQ:
 		n -= 2;
 		file = cp = tp->th_stuff;
-		cp = index(cp, '\0');
+		cp = cp + strlen(cp);
 		printf("<file=%s, mode=%s>\n", file, cp + 1);
 		break;
 
@@ -415,7 +418,7 @@ stopclock(void) {
 }
 
 void
-printstats(char *direction, unsigned long amount)
+printstats(const char *direction, unsigned long amount)
 {
 	double delta;
 			/* compute delta in 1/10's second units */

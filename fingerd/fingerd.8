@@ -30,7 +30,7 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)fingerd.8	6.4 (Berkeley) 3/16/91
-.\"	$Id: fingerd.8,v 1.3 1996/07/13 23:21:21 dholland Exp $
+.\"	$Id: fingerd.8,v 1.5 1996/08/16 19:25:08 dholland Exp $
 .\"
 .Dd March 16, 1991
 .Dt FINGERD 8
@@ -40,7 +40,8 @@
 .Nd remote user information server
 .Sh SYNOPSIS
 .Nm fingerd
-.Op Fl wl
+.Op Fl wul
+.Op Fl L Ar path
 .Sh DESCRIPTION
 .Nm Fingerd
 is a simple protocol based on
@@ -60,18 +61,34 @@ option is given, remote users will get an additional "Welcome to ..." banner
 which also shows some informations (e.g. uptime, operating system name and
 release) about the system the
 .Nm fingerd
-is running on.
+is running on. Some sites may consider this a security risk as it
+gives out information that may be useful to crackers. 
+.Pp
+If the 
+.Fl u
+option is given, requests of the form
+.Dq finger @host
+are rejected.
 .Pp
 If the
 .Fl l
-option is given, information about requests made is logged.
+option is given, information about requests made is logged. This
+option probably violates users' privacy and should not be used on
+multiuser boxes.
+.Pp
+The 
+.Fl L
+option allows specification of an alternate location for fingerd to find
+the 
+.Dq finger
+program.
 .Pp
 There is no required format and the
 protocol consists mostly of specifying a single
 .Dq command line .
 .Pp
 .Nm Fingerd
-listens for
+accepts
 .Tn TCP
 requests at port 79.
 Once connected it reads a single command line
@@ -105,7 +122,7 @@ and
 If a name is ambiguous, all possible derivations are returned.
 .Sh SEE ALSO
 .Xr finger 1
-.Sh BUGS
+.Sh RESTRICTIONS
 Connecting directly to the server from a
 .Tn TIP
 or an equally narrow-minded
@@ -113,13 +130,6 @@ or an equally narrow-minded
 user program can result
 in meaningless attempts at option negotiation being sent to the
 server, which will foul up the command line interpretation.
-.Nm Fingerd
-should be taught to filter out
-.Tn IAC Ns \'s
-and perhaps even respond
-negatively
-.Pq Tn IAC WON'T
-to all option commands received.
 .Sh HISTORY
 The
 .Nm

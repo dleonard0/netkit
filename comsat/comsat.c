@@ -31,16 +31,15 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1980 Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1980 Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)comsat.c	5.24 (Berkeley) 2/25/91";*/
-char rcsid[] = "$Id: comsat.c,v 1.4 1996/07/20 21:09:14 dholland Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)comsat.c	5.24 (Berkeley) 2/25/91
+ */
+char rcsid[] = 
+  "$Id: comsat.c,v 1.5 1996/08/14 18:31:11 dholland Exp $";
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -64,24 +63,22 @@ char rcsid[] = "$Id: comsat.c,v 1.4 1996/07/20 21:09:14 dholland Exp $";
 #include <unistd.h>
 #include <stdlib.h>
 
-int	debug = 0;
+static int debug = 0;
 #define	dsyslog	if (debug) syslog
 
 #define MAXIDLE	120
 
-char	hostname[MAXHOSTNAMELEN];
-struct	utmp *utmp = NULL;
-time_t	lastmsgtime, time();
-int	nutmp, uf;
+static char hostname[MAXHOSTNAMELEN];
+static struct utmp *utmp = NULL;
+static time_t lastmsgtime;
+static int nutmp, uf;
 
 static void mailfor(char *name);
 static void notify(struct utmp *utp, off_t offset);
 static void jkfprintf(FILE *, const char *name, off_t offset, const char *cr);
 static void onalrm(int);
 
-int 
-main(int argc, char *argv[])
-{
+int main(void) {
 	char msgbuf[100];
 	struct sockaddr_in from;
 	int fromlen;
@@ -128,17 +125,19 @@ main(int argc, char *argv[])
 	}
 }
 
-void
-onalrm(int ignore)
-{
-	static u_int utmpsize;		/* last malloced size for utmp */
-	static u_int utmpmtime;		/* last modification time for utmp */
+static void onalrm(int signum) {
+	static int utmpsize;		/* last malloced size for utmp */
+	static int utmpmtime;		/* last modification time for utmp */
 	struct stat statbf;
-	off_t lseek();
+
+	if (signum!=SIGALRM) {
+	    dsyslog(LOG_DEBUG, "wild signal %d\n", signum);
+	    return;
+	}
 
 	if (time((time_t *)NULL) - lastmsgtime >= MAXIDLE)
 		exit(0);
-	(void)alarm((u_int)15);
+	(void)alarm(15);
 	(void)fstat(uf, &statbf);
 	if (statbf.st_mtime > utmpmtime) {
 		utmpmtime = statbf.st_mtime;
