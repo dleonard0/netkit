@@ -1,4 +1,4 @@
-CFLAGS += -DMSG_EOR -Dosockaddr=sockaddr
+CFLAGS += -DMSG_EOR -Dosockaddr=sockaddr  # -DBAD_LINUX_HACK
 LDLIBS += -lcurses
 
 talk: ctl.o ctl_transact.o display.o get_addrs.o get_names.o \

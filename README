@@ -24,7 +24,7 @@
   (Only tcpdump and maybe few others.)
 
 * If you have to remove #include <lastlog.h> somewhere, please read the last
-  point again...
+  point again... (remove your /usr/include/bsd/utmp.h file...)
 
 * Check the configuration options in the toplevel Makefile.
 

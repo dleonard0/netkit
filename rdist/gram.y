@@ -45,6 +45,7 @@ struct	namelist *last_n;
 struct	subcmd *last_sc;
 
 static char  *makestr __P((char *));
+void append __P((char *, struct namelist *, char *, struct subcmd *));
 
 %}
 

@@ -1,0 +1,61 @@
+Here is a list of *fixed* bugs. They should be gone with this release.
+Please email me, if you think they still exist.
+
+* I have fixed "lprm". Please test, if it really works!!
+
+* "telnet" always stripps of the highest bit. It should be 8-bit...
+  Just try "telnet localhost". This bug is fixed as of version 0.03.
+
+* This bug should be fixed with the newest alpha kernel. The problem might
+  have been, that the broadcast flag wasn't set for the loopback device.
+
+  "rusers" segmentation faults, if invoked without any arguments (host names).
+  (broadcast to all hosts on the local network)
+  rusers with a list of hostnames works fine.)
+
+* See above, this bug should also be fixed with the newest alpha kernel.
+  rpc.rusersd and rpc.rwalld cannot be run from inetd, but must be started
+  from the /etc/rc* scripts as constantly running daemons.
+  Inetd will start up dozen of rpc.rusersd processes and eventually terminates
+  them, saying "rusersd/rpc/udp server failing (looping), service terminated".
+
+* rpc.rwalld prints two messages instead of one. (fixed??)
+
+* ftp to a slow site and do "ls -ltr" a lot of times. ftp will get stuck and
+  there will be a "CLOSE" connection, that will not vanish for days.
+  (I am not sure, if this is still true for newer kernels.)
+
+* "rsh" is known to have a problem: A stopped rsh command will block the
+  port, so that other rsh commands will hang. Alan Cox has promised to fix
+  the kernel for this. This should be gone with a very new kernel. (??)
+
+* I use rpcgen from rpc-0.9. I should upgrade to the newer available version.
+  But I have heard rumors, that they don't work ok for all source code.
+  If newer versions work ok, I should delete source code for rpcgen and
+  rpcinfo from my source collection.
+  I couldn't find newer versions with archie. Where are they?
+
+* I have had some problems with talk. Talk is unable to stamp is own
+  packets with the correct src-IP address, and uses thw system wide(?)
+  adress. On my machine (which is locally in an ethernet-net, nothing
+  goes wrong, because the system-wide address gets routed through the
+  eth device and i'm able to talk to all the systems there. *HOWEVER*
+  when talking to a host through a SLIP connection, talk still uses the
+  ethernet address, and the talk on the other side (which sents its packets
+  to that address, won't get a repsonse because i'm only known with the SLIP
+  address to the outside world.) (Arrg, hopes this clarifies a little, i
+  seem to be raving on)
+
+  So, i patched talk by looking which outgoing device will be used
+  for the destination address. It's not one of the best patches ever
+  (hunting through /proc/net/route) but it works.
+
+  (PS. I understood talk.FvK should be along thse lines, but it simply
+       didn't seem to work for me)
+
+  BTW: I'm posting it here, but i'm not sure i should :)
+       If not, please point me (politly) in the correct direction?
+
+      Met vriendelijke groet,
+          Pauline Middelink    middelin@calvin.iaf.nl
+

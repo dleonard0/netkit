@@ -1,7 +1,7 @@
 # -DKERBEROS -DCRYPT
 # -lutil -lkrb -ldes
 
-rlogind: rlogind.o # des_rw.o
+rlogind: rlogind.o logwtmp.o # des_rw.o
 
 install: rlogind
 	install -s -m744 rlogind /usr/sbin/in.rlogind
