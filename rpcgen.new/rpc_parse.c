@@ -28,30 +28,44 @@
  * Mountain View, California  94043
  */
 
-#ifndef lint
-static char sccsid[] = "@(#)rpc_parse.c 1.8 89/02/22 (C) 1987 SMI";
-#endif
+/*
+ * From: @(#)rpc_parse.c 1.8 89/02/22 (C) 1987 SMI
+ */
+char parse_rcsid[] = 
+  "$Id: rpc_parse.c,v 1.2 1996/07/15 19:31:27 dholland Exp $";
 
 /*
  * rpc_parse.c, Parser for the RPC protocol compiler 
  * Copyright (C) 1987 Sun Microsystems, Inc.
  */
 #include <stdio.h>
+#include <string.h>
 #include "rpc/types.h"
 #include "rpc_scan.h"
 #include "rpc_parse.h"
 #include "rpc_util.h"
+#include "proto.h"
 
 #define ARGNAME "arg"
 
-extern char *make_argname();
-extern char *strdup();
+static void isdefined(definition *defp);
+static void def_struct(definition *defp);
+static void def_program(definition *defp);
+static void def_enum(definition *defp);
+static void def_const(definition *defp);
+static void def_union(definition *defp);
+static void check_type_name(char *name, int new_type);
+static void def_typedef(definition *defp);
+static void get_declaration(declaration *dec, defkind dkind);
+static void get_prog_declaration(declaration *dec, defkind dkind, int num);
+static void get_type(char **prefixp, char **typep, defkind dkind);
+static void unsigned_dec(char **typep);
 
 /*
  * return the next definition you see
  */
 definition *
-get_definition()
+get_definition(void)
 {
 	definition *defp;
 	token tok;
@@ -87,16 +101,14 @@ get_definition()
 	return (defp);
 }
 
-static
-isdefined(defp)
-	definition *defp;
+static void
+isdefined(definition *defp)
 {
 	STOREVAL(&defined, defp);
 }
 
-static
-def_struct(defp)
-	definition *defp;
+static void
+def_struct(definition *defp)
 {
 	token tok;
 	declaration dec;
@@ -122,9 +134,8 @@ def_struct(defp)
 	*tailp = NULL;
 }
 
-static
-def_program(defp)
-	definition *defp;
+static void
+def_program(definition *defp)
 {
 	token tok;
 	declaration dec;
@@ -228,9 +239,8 @@ def_program(defp)
 }
 
 
-static
-def_enum(defp)
-	definition *defp;
+static void
+def_enum(definition *defp)
 {
 	token tok;
 	enumval_list *elist;
@@ -258,9 +268,8 @@ def_enum(defp)
 	*tailp = NULL;
 }
 
-static
-def_const(defp)
-	definition *defp;
+static void
+def_const(definition *defp)
 {
 	token tok;
 
@@ -272,13 +281,13 @@ def_const(defp)
 	defp->def.co = tok.str;
 }
 
-static
-def_union(defp)
-	definition *defp;
+static void
+def_union(definition *defp)
 {
   token tok;
   declaration dec;
-  case_list *cases,*tcase;
+  case_list *cases;
+/*  case_list *tcase; */
   case_list **tailp;
   int flag;
 
@@ -370,11 +379,11 @@ static char* reserved_types[] =
   NULL
   };
 
-/* check that the given name is not one that would eventually result in
-   xdr routines that would conflict with internal XDR routines. */
-static check_type_name( name, new_type )
-int new_type;
-char* name;
+/*
+ * check that the given name is not one that would eventually result in
+ * xdr routines that would conflict with internal XDR routines. 
+ */
+static void check_type_name(char *name, int new_type)
 {
   int i;
   char tmp[100];
@@ -399,9 +408,8 @@ char* name;
 
 
 
-static
-def_typedef(defp)
-	definition *defp;
+static void
+def_typedef(definition *defp)
 {
 	declaration dec;
 
@@ -415,10 +423,8 @@ def_typedef(defp)
 	defp->def.ty.array_max = dec.array_max;
 }
 
-static
-get_declaration(dec, dkind)
-	declaration *dec;
-	defkind dkind;
+static void
+get_declaration(declaration *dec, defkind dkind)
 {
 	token tok;
 
@@ -469,11 +475,8 @@ get_declaration(dec, dkind)
 }
 
 
-static
-get_prog_declaration(dec, dkind, num)
-	declaration *dec;
-	defkind dkind;
-        int num;  /* arg number */
+static void
+get_prog_declaration(declaration *dec, defkind dkind, int num /* arg number */)
 {
 	token tok;
 	char name[10]; /* argument name */
@@ -538,11 +541,8 @@ get_prog_declaration(dec, dkind, num)
 
 
 
-static
-get_type(prefixp, typep, dkind)
-	char **prefixp;
-	char **typep;
-	defkind dkind;
+static void
+get_type(char **prefixp, char **typep, defkind dkind)
 {
 	token tok;
 
@@ -590,9 +590,8 @@ get_type(prefixp, typep, dkind)
 	}
 }
 
-static
-unsigned_dec(typep)
-	char **typep;
+static void
+unsigned_dec(char **typep)
 {
 	token tok;
 

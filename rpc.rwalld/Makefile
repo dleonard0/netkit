@@ -1,6 +1,12 @@
+all: rwalld
+
+include ../MCONFIG
+include ../MRULES
+
 CFLAGS += -I ../include
 
 rwalld: rwalld.o
+	$(CC) $(LDFLAGS) $^ $(LIBS) -lbsd -o $@
 
 install: rwalld
 	install -s -m744 rwalld /usr/sbin/rpc.rwalld

@@ -31,19 +31,21 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-static char sccsid[] = "@(#)slave.c	5.1 (Berkeley) 5/11/93";
-#endif /* not lint */
+/* 
+ * From: @(#)slave.c	5.1 (Berkeley) 5/11/93
+ */
+char slave_rcsid[] =
+  "$Id: slave.c,v 1.2 1996/07/20 19:45:38 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.3 $"
+#ident "$Revision: 1.2 $"
 #endif
 
 #include "globals.h"
 #include <setjmp.h>
 #include "pathnames.h"
 
-extern jmp_buf jmpenv;
+extern sigjmp_buf jmpenv;
 extern int Mflag;
 extern int justquit;
 
@@ -77,6 +79,7 @@ slave()
 	char tname[MAXHOSTNAMELEN];
 	struct tsp *msg, to;
 	struct timeval ntime, wait;
+	time_t tyme;
 	struct tsp *answer;
 	int timeout();
 	char olddate[32];
@@ -114,7 +117,7 @@ loop:
 	if (ntime.tv_sec > electiontime) {
 		if (trace)
 			fprintf(fd, "election timer expired\n");
-		longjmp(jmpenv, 1);
+		siglongjmp(jmpenv, 1);
 	}
 
 	if (ntime.tv_sec >= looktime) {
@@ -266,7 +269,8 @@ loop:
 			 * calling ctime() which clobbers the static buffer
 			 */
 			(void)strcpy(olddate, date());
-			(void)strcpy(newdate, ctime(&msg->tsp_time.tv_sec));
+			tyme = msg->tsp_time.tv_sec;
+			(void)strcpy(newdate, ctime(&tyme));
 #endif /* sgi */
 
 			if (!good_host_name(msg->tsp_name)) {
@@ -357,7 +361,8 @@ loop:
 #ifdef sgi
 			(void)cftime(newdate, "%D %T", &msg->tsp_time.tv_sec);
 #else
-			(void)strcpy(newdate, ctime(&msg->tsp_time.tv_sec));
+			tyme = msg->tsp_time.tv_sec;
+			(void)strcpy(newdate, ctime(&tyme));
 #endif /* sgi */
 			schgdate(msg, newdate);
 			break;
@@ -368,7 +373,8 @@ loop:
 #ifdef sgi
 			(void)cftime(newdate, "%D %T", &msg->tsp_time.tv_sec);
 #else
-			(void)strcpy(newdate, ctime(&msg->tsp_time.tv_sec));
+			tyme = msg->tsp_time.tv_sec;
+			(void)strcpy(newdate, ctime(&tyme));
 #endif /* sgi */
 			htp = findhost(msg->tsp_name);
 			if (0 == htp) {

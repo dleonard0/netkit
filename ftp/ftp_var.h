@@ -31,80 +31,88 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)ftp_var.h	5.9 (Berkeley) 6/1/90
- *	$Id: ftp_var.h,v 1.1 1994/05/23 09:03:42 rzsfl Exp rzsfl $
+ *	$Id: ftp_var.h,v 1.5 1996/07/20 19:50:27 dholland Exp $
  */
 
 /*
  * FTP global variables.
  */
 
+#include <setjmp.h>
+#include <sys/param.h>
+
 /*
  * Tick counter step size.
  */
 #define TICKBYTES     10240
 
+#ifndef Extern
+#define Extern extern
+#endif
+
+
 /*
  * Options and other state info.
  */
-int	trace;			/* trace packets exchanged */
-int	hash;			/* print # for each buffer transferred */
-int	tick;			/* print byte counter during transfers */
-int	sendport;		/* use PORT cmd for each data connection */
-int	verbose;		/* print messages coming back from server */
-int	connected;		/* connected to server */
-int	fromatty;		/* input is from a terminal */
-int	interactive;		/* interactively prompt on m* cmds */
-int	debug;			/* debugging level */
-int	bell;			/* ring bell on cmd completion */
-int	doglob;			/* glob local file names */
-int	autologin;		/* establish user account on connection */
-int	proxy;			/* proxy server connection active */
-int	proxflag;		/* proxy connection exists */
-int	sunique;		/* store files on server with unique name */
-int	runique;		/* store local files with unique name */
-int	mcase;			/* map upper to lower case for mget names */
-int	ntflag;			/* use ntin ntout tables for name translation */
-int	mapflag;		/* use mapin mapout templates on file names */
-int	code;			/* return/reply code for ftp command */
-int	crflag;			/* if 1, strip car. rets. on ascii gets */
-char	pasv[64];		/* passive port for proxy data connection */
-char	*altarg;		/* argv[1] with no shell-like preprocessing  */
-char	ntin[17];		/* input translation table */
-char	ntout[17];		/* output translation table */
-#include <sys/param.h>
-char	mapin[MAXPATHLEN];	/* input map template */
-char	mapout[MAXPATHLEN];	/* output map template */
-char	typename[32];		/* name of file transfer type */
-int	type;			/* requested file transfer type */
-int	curtype;		/* current file transfer type */
-char	structname[32];		/* name of file transfer structure */
-int	stru;			/* file transfer structure */
-char	formname[32];		/* name of file transfer format */
-int	form;			/* file transfer format */
-char	modename[32];		/* name of file transfer mode */
-int	mode;			/* file transfer mode */
-char	bytename[32];		/* local byte size in ascii */
-int	bytesize;		/* local byte size in binary */
+Extern int	trace;		/* trace packets exchanged */
+Extern int	hash;		/* print # for each buffer transferred */
+Extern int	tick;		/* print byte counter during transfers */
+Extern int	sendport;	/* use PORT cmd for each data connection */
+Extern int	verbose;	/* print messages coming back from server */
+Extern int	connected;	/* connected to server */
+Extern int	fromatty;	/* input is from a terminal */
+Extern int	interactive;	/* interactively prompt on m* cmds */
+Extern int	debug;		/* debugging level */
+Extern int	bell;		/* ring bell on cmd completion */
+Extern int	doglob;		/* glob local file names */
+Extern int	autologin;	/* establish user account on connection */
+Extern int	proxy;		/* proxy server connection active */
+Extern int	proxflag;	/* proxy connection exists */
+Extern int	sunique;	/* store files on server with unique name */
+Extern int	runique;	/* store local files with unique name */
+Extern int	mcase;		/* map upper to lower case for mget names */
+Extern int	ntflag;		/* use ntin ntout tables for name xlation */
+Extern int	mapflag;	/* use mapin mapout templates on file names */
+Extern int	code;		/* return/reply code for ftp command */
+Extern int	crflag;		/* if 1, strip car. rets. on ascii gets */
+Extern char     pasv[64];       /* passive port for proxy data connection */
+Extern int      passivemode;    /* passive mode enabled */
+Extern char	*altarg;	/* argv[1] with no shell-like preprocessing  */
+Extern char	ntin[17];	/* input translation table */
+Extern char	ntout[17];	/* output translation table */
+Extern char	mapin[MAXPATHLEN];	/* input map template */
+Extern char	mapout[MAXPATHLEN];	/* output map template */
+Extern char	typename[32];		/* name of file transfer type */
+Extern int	type;			/* requested file transfer type */
+Extern int	curtype;		/* current file transfer type */
+Extern char	structname[32];		/* name of file transfer structure */
+Extern int	stru;			/* file transfer structure */
+Extern char	formname[32];		/* name of file transfer format */
+Extern int	form;			/* file transfer format */
+Extern char	modename[32];		/* name of file transfer mode */
+Extern int	mode;			/* file transfer mode */
+Extern char	bytename[32];		/* local byte size in ascii */
+Extern int	bytesize;		/* local byte size in binary */
 
-char	*hostname;		/* name of host connected to */
-int	unix_server;		/* server is unix, can use binary for ascii */
-int	unix_proxy;		/* proxy is unix, can use binary for ascii */
+Extern char	*hostname;	/* name of host connected to */
+Extern int	unix_server;	/* server is unix, can use binary for ascii */
+Extern int	unix_proxy;	/* proxy is unix, can use binary for ascii */
 
-struct	servent *sp;		/* service spec for tcp/ftp */
+/*Extern struct	servent *sp;*/	/* service spec for tcp/ftp */
+Extern int	ftp_port;	/* htons'd port number for ftp service */
 
-#include <setjmp.h>
-jmp_buf	toplevel;		/* non-local goto stuff for cmd scanner */
+Extern sigjmp_buf toplevel;	/* non-local goto stuff for cmd scanner */
 
-char	line[200];		/* input line buffer */
-char	*stringbase;		/* current scan point in line buffer */
-char	argbuf[200];		/* argument storage buffer */
-char	*argbase;		/* current storage point in arg buffer */
-int	margc;			/* count of arguments on input line */
-char	*margv[20];		/* args parsed from input line */
-int     cpend;                  /* flag: if != 0, then pending server reply */
-int	mflag;			/* flag: if != 0, then active multi command */
+Extern char	line[200];	/* input line buffer */
+Extern char	*stringbase;	/* current scan point in line buffer */
+Extern char	argbuf[200];	/* argument storage buffer */
+Extern char	*argbase;	/* current storage point in arg buffer */
+Extern int	margc;		/* count of arguments on input line */
+Extern char	*margv[20];	/* args parsed from input line */
+Extern int	cpend;		/* flag: if != 0, then pending server reply */
+Extern int	mflag;		/* flag: if != 0, then active multi command */
 
-int	options;		/* used during socket creation */
+Extern int	options;	/* used during socket creation */
 
 /*
  * Format of command table.
@@ -115,7 +123,7 @@ struct cmd {
 	char	c_bell;		/* give bell when command completes */
 	char	c_conn;		/* must be connected to use command */
 	char	c_proxy;	/* proxy server may execute */
-	int	(*c_handler)();	/* function to call */
+	void	(*c_handler)(int, char *[]);	/* function to call */
 };
 
 struct macel {
@@ -124,17 +132,27 @@ struct macel {
 	char *mac_end;		/* end of macro in macbuf */
 };
 
-int macnum;			/* number of defined macros */
-struct macel macros[16];
-char macbuf[4096];
+Extern int macnum;			/* number of defined macros */
+Extern struct macel macros[16];
+Extern char macbuf[4096];
 
 extern	char *tail();
-extern	char *index();
-extern	char *rindex();
 extern	char *remglob();
-extern	int errno;
 extern	char *mktemp();
-extern	char *strncpy();
-extern	char *strncat();
-extern	char *strcat();
-extern	char *strcpy();
+
+void makeargv(void);
+int login(const char *host);
+int command(const char *fmt, ...);
+void sendrequest(char *cmd, char *local, char *remote, int printnames);
+int another(int *pargc, char ***pargv, const char *prompt);
+void blkfree(char **av0);
+void fatal(const char *msg);
+int getreply(int expecteof);
+void domacro(int argc, char *argv[]);
+void pswitch(int flag);
+void recvrequest(char *cmd, char *local, char *remote, 
+		 char *lmode, int printnames);
+int xruserpass(const char *host, char **aname, char **apass, char **aacct);
+void setpeer(int argc, char *argv[]);
+void quit(int argc, char *argv[]);
+void changetype(int newtype, int show);

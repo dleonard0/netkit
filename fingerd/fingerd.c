@@ -31,137 +31,163 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1983 The Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1983 The Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)fingerd.c	5.6 (Berkeley) 6/1/90";*/
-static char rcsid[] = "$Id: fingerd.c,v 1.1 1994/05/23 09:03:33 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/* 
+ * from: @(#)fingerd.c	5.6 (Berkeley) 6/1/90"
+ */
+char rcsid[] = 
+  "$Id: fingerd.c,v 1.4 1996/07/22 08:37:41 dholland Exp $";
 
-#include <stdio.h>
-#include "pathnames.h"
+
 #include <pwd.h>
-#include <syslog.h>
-#include <sys/utsname.h>
-#include <string.h>
 #include <netdb.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <syslog.h>
+#include <getopt.h>
+#include <netinet/in.h>
+#include <sys/utsname.h>
+
+#include "pathnames.h"
+
+#define	ENTRIES	50
+#define WS " \t\r\n"
+
+/* These are used in this order if the finger path compiled in doesn't work. */
+#define _ALT_PATH_FINGER_1 "/usr/local/bin/finger"
+#define _ALT_PATH_FINGER_2 "/usr/ucb/finger"
+#define _ALT_PATH_FINGER_3 "/usr/bin/finger"
+
+void
+fatal(const char *msg, int logging)
+{
+	const char *err = strerror(errno);
+	if (logging) syslog(LOG_ERR, "%s: %s:\n", msg, err);
+	fprintf(stderr, "fingerd: %s: %s\r\n", msg, err);
+	exit(1);
+}
 
 
-main(argc, argv)
-	int argc;
-	char *argv[];
+int
+main(int argc, char *argv[])
 {
 	extern int opterr, optind;
 	struct passwd *pw;
-	char *sp;
-	register FILE *fp;
-	register int ch, ca;
-	register char *lp;
+	FILE *fp;
+	int ch, ca;
 	int p[2];
-#define	ENTRIES	50
-	char **ap, *av[ENTRIES + 1], line[1024], *strtok();
-	int welcome = 0;
+	char *av[ENTRIES + 1], line[1024];
+	int welcome = 0, logging = 0;
+	int k, pid;
+	char *s, *t;
+
+
+	struct sockaddr_in sin;
+	int sval = sizeof(sin);
+	if (getpeername(0, (struct sockaddr *) &sin, &sval) < 0) {
+		fatal("getpeername", 0);
+	}
 
 	opterr = 0;
-	while ((ca = getopt(argc, argv, "w")) != EOF)
+	while ((ca = getopt(argc, argv, "wlh?")) != EOF) {
 		switch(ca) {
-		case 'w':
+		  case 'w':
 			welcome = 1;
 			break;
-		case '?':
-		default:
-			syslog(LOG_ERR, "usage: fingerd [-w]");
+		  case 'l':
+		        logging = 1;
+			break;
+		  case '?':
+		  case 'h':
+		  default:
+			syslog(LOG_ERR, "usage: fingerd [-lw]");
 			exit(1);
 		}
+	}
 	argc -= optind;
 	argv += optind;
 
-#ifdef LOGGING					/* unused for now */
-#include <netinet/in.h>
-	struct sockaddr_in sin;
-	int sval;
-
-	sval = sizeof(sin);
-	if (getpeername(0, &sin, &sval) < 0)
-		fatal("getpeername");
-#endif
+	if (logging) {
+		openlog("fingerd", LOG_PID, LOG_DAEMON);
+	}
 
 	if (!fgets(line, sizeof(line), stdin))
 		exit(1);
 
-	if(welcome) {
-		char myname[128];
+	if (welcome) {
+		char buf[256];
 		struct hostent *hp;
 		struct utsname utsname;
 
-		(void) uname(&utsname);
-		gethostname(myname, sizeof(myname));
-		if ((hp = gethostbyname(myname)))
-			strcpy(myname, hp->h_name);
+		uname(&utsname);
+		gethostname(buf, sizeof(buf));
+		if ((hp = gethostbyname(buf))) {
+			/* paranoia: dns spoofing? */
+			strncpy(buf, hp->h_name, sizeof(buf));
+			buf[sizeof(buf)-1] = 0;
+		}
 		printf("\r\nWelcome to %s version %s at %s !\r\n\n",
-				utsname.sysname, utsname.release, myname);
+				utsname.sysname, utsname.release, buf);
 		fflush(stdout);
-		sprintf(myname, "%s -c %s", _PATH_SH, _PATH_UPTIME);
-		system(myname);
+		system(_PATH_UPTIME);
 		fflush(stdout);
 		printf("\r\n");
 		fflush(stdout);
 	}
 
-	av[0] = "finger";
-	for (lp = line, ap = &av[1];;) {
-		*ap = strtok(lp, " \t\r\n");
-		if (!*ap)
-			break;
+	k = 0;
+	av[k++] = "finger";
+	for (s = strtok(line, WS); s && k<ENTRIES; s = strtok(NULL, WS)) {
 		/* RFC742: "/[Ww]" == "-l" */
-		if ((*ap)[0] == '/' && ((*ap)[1] == 'W' || (*ap)[1] == 'w'))
-			*ap = "-l";
-		if (++ap == av + ENTRIES)
-			break;
-		lp = NULL;
+		if (!strncasecmp(s, "/w", 2)) memcpy(s, "-l", 2);
+		t = strchr(s, '@');
+		if (t) {
+			fprintf(stderr, "fingerd: fowarding not allowed\n");
+			if (logging) syslog(LOG_WARNING, "rejected %s\n", s);
+			exit(1);
+		}
+		if (logging) syslog(LOG_INFO, "fingered %s\n", s);
+		av[k++] = s;
 	}
+	av[k] = NULL;
 
-	if (pipe(p) < 0)
-		fatal("pipe");
+	if (pipe(p) < 0) fatal("pipe", logging);
 
 	if ((pw = getpwnam("nobody")) != NULL) {
-		(void) setgid(pw->pw_gid);
-		(void) setuid(pw->pw_uid);
+	        setgid(pw->pw_gid);
+		setuid(pw->pw_uid);
 	}
-
-	switch(fork()) {
-	case 0:
-		(void)close(p[0]);
-		if (p[1] != 1) {
-			(void)dup2(p[1], 1);
-			(void)close(p[1]);
-		}
+	
+	pid = fork();
+	if (pid<0) fatal("fork", logging);
+	if (pid==0) {
+		/* child */
+		close(p[0]);
+		dup2(p[1], 1);
+		if (p[1]!=1) close(p[1]);
 		execv(_PATH_FINGER, av);
+		execv(_ALT_PATH_FINGER_1, av);
+		execv(_ALT_PATH_FINGER_2, av);
+		execv(_ALT_PATH_FINGER_3, av);
 		_exit(1);
-	case -1:
-		fatal("fork");
 	}
-	(void)close(p[1]);
-	if (!(fp = fdopen(p[0], "r")))
-		fatal("fdopen");
+	/* parent */
+	close(p[1]);
+
+	/* convert \n to \r\n. This should be an option to finger... */
+	fp = fdopen(p[0], "r");
+	if (!fp) fatal("fdopen", logging);
+
 	while ((ch = getc(fp)) != EOF) {
-		if (ch == '\n')
-			putchar('\r');
+		if (ch == '\n')	putchar('\r');
 		putchar(ch);
 	}
-	exit(0);
+	return 0;
 }
 
-fatal(msg)
-	char *msg;
-{
-	extern int errno;
-	char *strerror();
-
-	fprintf(stderr, "fingerd: %s: %s\r\n", msg, strerror(errno));
-	exit(1);
-}

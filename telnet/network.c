@@ -31,24 +31,23 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)network.c	5.2 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: network.c,v 1.2 1993/08/01 18:07:23 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)network.c	5.2 (Berkeley) 3/1/91
+ */
+char net_rcsid[] = 
+  "$Id: network.c,v 1.4 1996/07/20 21:01:24 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/time.h>
-
 #include <errno.h>
-
 #include <arpa/telnet.h>
 
 #include "ring.h"
-
 #include "defines.h"
 #include "externs.h"
 #include "fdset.h"
+#include "proto.h"
 
 Ring		netoring, netiring;
 unsigned char	netobuf[2*BUFSIZ], netibuf[BUFSIZ];
@@ -75,8 +74,8 @@ init_network()
  * Telnet "synch" processing).
  */
 
-    int
-stilloob()
+int
+stilloob(void)
 {
     static struct timeval timeout = { 0 };
     fd_set	excepts;
@@ -124,8 +123,8 @@ setneturg()
  */
 
 
-    int
-netflush()
+int
+netflush(void)
 {
     register int n, n1;
 
@@ -154,7 +153,7 @@ netflush()
 	    perror(hostname);
 	    (void)NetClose(net);
 	    ring_clear_mark(&netoring);
-	    longjmp(peerdied, -1);
+	    siglongjmp(peerdied, -1);
 	    /*NOTREACHED*/
 	}
 	n = 0;

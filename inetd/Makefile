@@ -1,4 +1,10 @@
-inetd: inetd.o
+all: inetd
+
+include ../MCONFIG
+include ../MRULES
+
+inetd: inetd.o daemon.o
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 install: inetd
 	install -s -m744 inetd /usr/sbin/

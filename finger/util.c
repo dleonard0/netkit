@@ -36,7 +36,7 @@
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)util.c	5.14 (Berkeley) 1/17/91";*/
-static char rcsid[] = "$Id: util.c,v 1.1 1994/05/23 09:03:29 rzsfl Exp rzsfl $";
+char util_rcsid[] = "$Id: util.c,v 1.4 1996/07/13 22:32:43 dholland Exp $";
 #endif /* not lint */
 
 #include <sys/param.h>
@@ -47,9 +47,19 @@ static char rcsid[] = "$Id: util.c,v 1.1 1994/05/23 09:03:29 rzsfl Exp rzsfl $";
 #include <string.h>
 #include <paths.h>
 #include <errno.h>
-#include "finger.h"
 #include <lastlog.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include "finger.h"
 
+#define	HBITS	8			/* number of bits in hash code */
+#define	HSIZE	(1 << 8)		/* hash table size */
+#define	HMASK	(HSIZE - 1)		/* hash code mask */
+static PERSON *htab[HSIZE];		/* the buckets */
+
+static int hash(const char *name);
+
+void
 find_idle_and_ttywrite(w)
 	register WHERE *w;
 {
@@ -61,7 +71,7 @@ find_idle_and_ttywrite(w)
 	/* No device for X console. Utmp entry by XDM login (":0"). */
 	if (w->tty[0] == ':')
 		return;
-	(void)sprintf(tbuf, "%s/%s", _PATH_DEV, w->tty);
+	snprintf(tbuf, TBUFLEN, "%s/%s", _PATH_DEV, w->tty);
 	if (stat(tbuf, &sb) < 0) {
 		(void)fprintf(stderr,
 		    "finger: %s: %s\n", tbuf, strerror(errno));
@@ -73,11 +83,11 @@ find_idle_and_ttywrite(w)
 	w->writable = ((sb.st_mode & TALKABLE) == TALKABLE);
 }
 
+void
 userinfo(pn, pw)
 	register PERSON *pn;
 	register struct passwd *pw;
 {
-	extern time_t now;
 	register char *p, *t;
 	struct stat sb;
 	extern int errno;
@@ -96,9 +106,10 @@ userinfo(pn, pw)
 		++bp;
 
 	/* ampersands get replaced by the login name */
-	if (!(p = strsep(&bp, ",")))
-		return;
-	for (t = name; *t = *p; ++p)
+	p = strsep(&bp, ",");
+	if (!p)	return;
+
+	for (t = name; (*t = *p) != 0; ++p)
 		if (*t == '&') {
 			(void)strcpy(t, pw->pw_name);
 			if (islower(*t))
@@ -114,7 +125,7 @@ userinfo(pn, pw)
 	    strdup(p) : NULL;
 	pn->homephone = ((p = strsep(&bp, ",")) && *p) ?
 	    strdup(p) : NULL;
-	(void)sprintf(tbuf, "%s/%s", _PATH_MAILSPOOL, pw->pw_name);
+	snprintf(tbuf, TBUFLEN, "%s/%s", _PATH_MAILDIR, pw->pw_name);
 	pn->mailrecv = -1;		/* -1 == not_valid */
 	if (stat(tbuf, &sb) < 0) {
 		if (errno != ENOENT) {
@@ -128,9 +139,8 @@ userinfo(pn, pw)
 	}
 }
 
-match(pw, user)
-	struct passwd *pw;
-	char *user;
+int
+match(struct passwd *pw, const char *user)
 {
 	register char *p, *t;
 	char name[1024];
@@ -141,23 +151,25 @@ match(pw, user)
 		++p;
 
 	/* ampersands get replaced by the login name */
-	if (!(p = strtok(p, ",")))
-		return(0);
-	for (t = name; *t = *p; ++p)
+	p = strtok(p, ",");
+	if (!p)	return 0;
+
+	for (t = name; (*t = *p) != 0; ++p)
 		if (*t == '&') {
 			(void)strcpy(t, pw->pw_name);
 			while (*++t);
 		}
 		else
 			++t;
-	for (t = name; p = strtok(t, "\t "); t = (char *)NULL)
+	for (p = strtok(t, "\t "); p; p = strtok(NULL, "\t ")) {
 		if (!strcasecmp(p, user))
-			return(1);
-	return(0);
+			return 1;
+	}
+	return 0;
 }
 
-enter_lastlog(pn)
-	register PERSON *pn;
+void
+enter_lastlog(PERSON *pn)
 {
 	register WHERE *w;
 	static int opened, fd;
@@ -206,9 +218,8 @@ enter_lastlog(pn)
 	}
 }
 
-enter_where(ut, pn)
-	struct utmp *ut;
-	PERSON *pn;
+void
+enter_where(struct utmp *ut, PERSON *pn)
 {
 	register WHERE *w = walloc(pn);
 
@@ -222,8 +233,7 @@ enter_where(ut, pn)
 }
 
 PERSON *
-enter_person(pw)
-	register struct passwd *pw;
+enter_person(struct passwd *pw)
 {
 	register PERSON *pn, **pp;
 
@@ -250,8 +260,7 @@ enter_person(pw)
 }
 
 PERSON *
-find_person(name)
-	char *name;
+find_person(const char *name)
 {
 	register PERSON *pn;
 
@@ -263,15 +272,15 @@ find_person(name)
 	return(pn);
 }
 
-hash(name)
-	register char *name;
+static int
+hash(const char *name)
 {
 	register int h, i;
 
 	h = 0;
 	/* name may be only UT_NAMESIZE long and not terminated */
 	for (i = UT_NAMESIZE; --i >= 0 && *name;)
-		h = ((h << 2 | h >> HBITS - 2) ^ *name++) & HMASK;
+		h = ((h << 2 | h >> (HBITS - 2)) ^ *name++) & HMASK;
 	return(h);
 }
 
@@ -288,8 +297,7 @@ palloc()
 }
 
 WHERE *
-walloc(pn)
-	register PERSON *pn;
+walloc(PERSON *pn)
 {
 	register WHERE *w;
 
@@ -307,19 +315,19 @@ walloc(pn)
 	return(w);
 }
 
-char *
-prphone(num)
-	char *num;
+const char *
+prphone(const char *num)
 {
-	register char *p;
+	char *p;
+	const char *q;
 	int len;
 	static char pbuf[15];
 
 	/* don't touch anything if the user has their own formatting */
-	for (p = num; *p; ++p)
-		if (!isdigit(*p))
+	for (q = num; *q; ++q)
+		if (!isdigit(*q))
 			return(num);
-	len = p - num;
+	len = q - num;
 	p = pbuf;
 	switch(len) {
 	case 11:			/* +0-123-456-7890 */
@@ -344,7 +352,7 @@ prphone(num)
 		*p++ = *num++;
 		break;
 	default:
-		return(num);
+		return num;
 	}
 	if (len != 4) {
 		*p++ = '-';

@@ -1,0 +1,11 @@
+--- NetKit-B-0.06/lpr/common_source/common.c.marc	Mon Feb 26 13:34:36 1996
++++ NetKit-B-0.06/lpr/common_source/common.c	Mon Feb 26 13:34:53 1996
+@@ -188,7 +188,7 @@
+ 
+ 	if ((dirp = opendir(SD)) == NULL)
+ 		return(-1);
+-	if (fstat(dirp->dd_fd, &stbuf) < 0)
++	if (fstat(dirfd(dirp), &stbuf) < 0)
+ 		goto errdone;
+ 
+ 	/*

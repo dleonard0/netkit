@@ -31,12 +31,14 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-static char sccsid[] = "@(#)measure.c	5.1 (Berkeley) 5/11/93";
-#endif /* not lint */
+/*
+ * From: @(#)measure.c	5.1 (Berkeley) 5/11/93
+ */
+char measure_rcsid[] =
+  "$Id: measure.c,v 1.3 1996/07/20 19:45:38 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.1 $"
+#ident "$Revision: 1.3 $"
 #endif
 
 #include "globals.h"
@@ -71,7 +73,7 @@ measure(u_long maxmsec,			/* wait this many msec at most */
 {
 	int length;
 	int measure_status;
-	int rcvcount, trials;
+	int rcvcount, trials = 0;
 	int cc, count;
 	fd_set ready;
 	long sendtime, recvtime, histime1, histime2;

@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)slc.c	5.7 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: slc.c,v 1.2 1993/08/01 18:29:16 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)slc.c	5.7 (Berkeley) 3/1/91
+ */
+char slc_rcsid[] = 
+  "$Id: slc.c,v 1.2 1996/07/16 08:58:22 dholland Exp $";
 
 #include "telnetd.h"
 

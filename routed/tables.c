@@ -31,10 +31,12 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)tables.c	5.17 (Berkeley) 6/1/90";*/
-static char rcsid[] = "$Id: tables.c,v 1.1 1994/05/23 09:08:12 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)tables.c	5.17 (Berkeley) 6/1/90
+ */
+char tables_rcsid[] = 
+  "$Id: tables.c,v 1.3 1996/07/15 17:45:59 dholland Exp $";
+
 
 /*
  * Routing Table Management Daemon
@@ -42,6 +44,7 @@ static char rcsid[] = "$Id: tables.c,v 1.1 1994/05/23 09:08:12 rzsfl Exp rzsfl $
 #include "defs.h"
 #include <sys/ioctl.h>
 #include <errno.h>
+#include <stdlib.h>
 #include <sys/syslog.h>
 
 #ifndef DEBUG
@@ -60,8 +63,7 @@ int	install = !DEBUG;		/* if 1 call kernel */
  * Lookup dst in the tables for an exact match.
  */
 struct rt_entry *
-rtlookup(dst)
-	struct sockaddr *dst;
+rtlookup(struct sockaddr *dst)
 {
 	register struct rt_entry *rt;
 	register struct rthash *rh;
@@ -96,15 +98,15 @@ struct sockaddr wildcard;	/* zero valued cookie for wildcard searches */
  * Find a route to dst as the kernel would.
  */
 struct rt_entry *
-rtfind(dst)
-	struct sockaddr *dst;
+rtfind(struct sockaddr *dst)
 {
 	register struct rt_entry *rt;
 	register struct rthash *rh;
 	register u_int hash;
 	struct afhash h;
 	int af = dst->sa_family;
-	int doinghost = 1, (*match)();
+	int doinghost = 1;
+	int (*match)() = NULL;
 
 	if (af >= af_max)
 		return (0);
@@ -144,9 +146,8 @@ again:
 	return (0);
 }
 
-rtadd(dst, gate, metric, state)
-	struct sockaddr *dst, *gate;
-	int metric, state;
+void
+rtadd(struct sockaddr *dst, struct sockaddr *gate, int metric, int state)
 {
 	struct afhash h;
 	register struct rt_entry *rt;
@@ -174,7 +175,7 @@ rtadd(dst, gate, metric, state)
 		hash = h.afh_nethash;
 		rh = &nethash[hash & ROUTEHASHMASK];
 	}
-	rt = (struct rt_entry *)malloc(sizeof (*rt));
+	rt = malloc(sizeof (*rt));
 	if (rt == 0)
 		return;
 	rt->rt_hash = hash;
@@ -213,10 +214,8 @@ rtadd(dst, gate, metric, state)
 	}
 }
 
-rtchange(rt, gate, metric)
-	struct rt_entry *rt;
-	struct sockaddr *gate;
-	short metric;
+void
+rtchange(struct rt_entry *rt, struct sockaddr *gate, short metric)
 {
 	int add = 0, delete = 0, newgateway = 0;
 	struct rtentry oldroute;
@@ -284,8 +283,8 @@ rtchange(rt, gate, metric)
 #endif
 }
 
-rtdelete(rt)
-	struct rt_entry *rt;
+void
+rtdelete(struct rt_entry *rt)
 {
 
 	TRACE_ACTION("DELETE", rt);
@@ -305,8 +304,8 @@ rtdelete(rt)
 	free((char *)rt);
 }
 
-rtdeleteall(sig)
-	int sig;
+void
+rtdeleteall(int sig)
 {
 	register struct rthash *rh;
 	register struct rt_entry *rt;
@@ -343,7 +342,8 @@ again:
  * but this entry prevents us from listening to other people's defaults
  * and installing them in the kernel here.
  */
-rtdefault()
+void
+rtdefault(void)
 {
 	extern struct sockaddr inet_default;
 
@@ -351,7 +351,8 @@ rtdefault()
 		RTS_CHANGED | RTS_PASSIVE | RTS_INTERNAL);
 }
 
-rtinit()
+void
+rtinit(void)
 {
 	register struct rthash *rh;
 
@@ -367,8 +368,8 @@ rtinit()
 /*
  * insert an element into a queue 
  */
-insque(element, head)
-	register struct rthash *element, *head;
+void
+insque(struct rthash *element, struct rthash *head)
 {
 	element->rt_forw = head->rt_forw;
 	head->rt_forw = (struct rt_entry *)element;
@@ -379,8 +380,8 @@ insque(element, head)
 /*
  * remove an element from a queue
  */
-remque(element)
-	register struct rthash *element;
+void
+remque(struct rthash *element)
 {
 	((struct rthash *)(element->rt_forw))->rt_back = element->rt_back;
 	((struct rthash *)(element->rt_back))->rt_forw = element->rt_forw;

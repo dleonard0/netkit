@@ -31,16 +31,16 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1983, 1988 Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1983, 1988 Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)main.c	5.23 (Berkeley) 7/1/91";*/
-static char rcsid[] = "$Id: main.c,v 1.1 1994/05/23 09:08:11 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)main.c	5.23 (Berkeley) 7/1/91
+ */
+char main_rcsid[] = 
+  "$Id: main.c,v 1.3 1996/07/15 17:45:59 dholland Exp $";
+
 
 /*
  * Routing Table Management Daemon
@@ -54,6 +54,7 @@ static char rcsid[] = "$Id: main.c,v 1.1 1994/05/23 09:08:11 rzsfl Exp rzsfl $";
 #include <sys/errno.h>
 #include <sys/signal.h>
 #include <sys/syslog.h>
+#include <unistd.h>
 #include "pathnames.h"
 
 int	supplier = -1;		/* process should supply updates */
@@ -64,9 +65,8 @@ int	bufspace = 127*1024;	/* max. input buffer size to request */
 struct	rip *msg = (struct rip *)packet;
 void	hup(), rtdeleteall(), sigtrace(), timer();
 
-main(argc, argv)
-	int argc;
-	char *argv[];
+int
+main(int argc, char *argv[])
 {
 	int n, cc, nfd, omask, tflags = 0;
 	struct sockaddr from;
@@ -255,8 +255,8 @@ printf("s %d, ibits %x index %d, mod %d, sh %x, or %x &ibits %x\n",
 	}
 }
 
-timevaladd(t1, t2)
-	struct timeval *t1, *t2;
+void
+timevaladd(struct timeval *t1, struct timeval *t2)
 {
 
 	t1->tv_sec += t2->tv_sec;
@@ -266,8 +266,8 @@ timevaladd(t1, t2)
 	}
 }
 
-timevalsub(t1, t2)
-	struct timeval *t1, *t2;
+void
+timevalsub(struct timeval *t1, struct timeval *t2)
 {
 
 	t1->tv_sec -= t2->tv_sec;
@@ -277,8 +277,8 @@ timevalsub(t1, t2)
 	}
 }
 
-process(fd)
-	int fd;
+void
+process(int fd)
 {
 	struct sockaddr from;
 	int fromlen, cc;
@@ -301,9 +301,8 @@ process(fd)
 	}
 }
 
-getsocket(domain, type, sin)
-	int domain, type;
-	struct sockaddr_in *sin;
+int
+getsocket(int domain, int type, struct sockaddr_in *sin)
 {
 	int sock, on = 1;
 

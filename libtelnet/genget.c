@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)genget.c	5.1 (Berkeley) 2/28/91";*/
-static char rcsid[] = "$Id: genget.c,v 1.2 1993/08/01 18:32:39 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)genget.c	5.1 (Berkeley) 2/28/91
+ */
+char gg_rcsid[] = 
+  "$Id: genget.c,v 1.2 1996/07/16 09:14:25 dholland Exp $";
 
 
 #include <ctype.h>
@@ -50,7 +51,7 @@ static char rcsid[] = "$Id: genget.c,v 1.2 1993/08/01 18:32:39 mycroft Exp $";
 isprefix(s1, s2)
 	register char *s1, *s2;
 {
-        register int n = 0;
+/*        register int n = 0; */
         char *os1;
 	register char c1, c2;
 

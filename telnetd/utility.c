@@ -31,13 +31,20 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)utility.c	5.8 (Berkeley) 3/22/91";*/
-static char rcsid[] = "$Id: utility.c,v 1.1 1994/05/23 09:11:57 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)utility.c	5.8 (Berkeley) 3/22/91
+ */
+char util_rcsid[] = 
+  "$Id: utility.c,v 1.4 1996/07/22 08:37:05 dholland Exp $";
 
 #define PRINTOPTIONS
+
 #include <sys/utsname.h>
+
+#ifdef AUTHENTICATE
+#include <libtelnet/auth.h>
+#endif
+
 #include "telnetd.h"
 
 /*
@@ -582,8 +589,10 @@ printsub(direction, pointer, length)
     unsigned char	*pointer;	/* where suboption data sits */
     int			length;		/* length of suboption data */
 {
-    register int i;
+    register int i = -1;
+#ifdef AUTHENTICATE
     char buf[512];
+#endif
 
         if (!(diagnostic & TD_OPTIONS))
 		return;

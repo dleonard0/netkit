@@ -1,12 +1,22 @@
+all: ftpd
+
+include ../MCONFIG
+include ../MRULES
+
+# comment this out, if you don't have shadow passwords on your system
+# This will affect the compilation of the subdirs: ftpd
+HAVE_SHADOW_PASSWORDS=true
+
 ifdef HAVE_SHADOW_PASSWORDS
 CFLAGS += -DSHADOW_PWD
-LDLIBS += -lshadow
+LIBS += -lshadow
 endif
 
 CFLAGS += -include ftphack.h -DSETPROCTITLE -I../ftp
 YACC = bison -y
 
 ftpd: ftpd.o ftpcmd.o glob.o logwtmp.o popen.o vers.o
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 glob.o: ../ftp/glob.c
 	$(CC) $(CFLAGS) -c ../ftp/glob.c -o glob.o

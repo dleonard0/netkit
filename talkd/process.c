@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)process.c	5.10 (Berkeley) 2/26/91";*/
-static char rcsid[] = "$Id: process.c,v 1.2 1993/08/01 18:29:34 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)process.c	5.10 (Berkeley) 2/26/91
+ */
+char rcsid[] = 
+  "$Id: process.c,v 1.2 1996/07/16 05:01:32 dholland Exp $";
 
 /*
  * process.c handles the requests, which can be of three types:
@@ -54,15 +55,16 @@ static char rcsid[] = "$Id: process.c,v 1.2 1993/08/01 18:29:34 mycroft Exp $";
 #include <stdio.h>
 #include <string.h>
 #include <paths.h>
+#include <utmp.h>
+#include "proto.h"
 
-CTL_MSG *find_request();
-CTL_MSG *find_match();
+static void do_announce(CTL_MSG *mp, CTL_RESPONSE *rp);
+static int find_user(char *name, char *tty);
 
-process_request(mp, rp)
-	register CTL_MSG *mp;
-	register CTL_RESPONSE *rp;
+void
+process_request(CTL_MSG *mp, CTL_RESPONSE *rp)
 {
-	register CTL_MSG *ptr;
+	CTL_MSG *ptr;
 	extern int debug;
 
 	rp->vers = TALK_VERSION;
@@ -89,53 +91,47 @@ process_request(mp, rp)
 		return;
 	}
 	mp->pid = ntohl(mp->pid);
-	if (debug)
-		print_request("process_request", mp);
-	switch (mp->type) {
+	if (debug) print_request("process_request", mp);
 
-	case ANNOUNCE:
+	switch (mp->type) {
+	  case ANNOUNCE:
 		do_announce(mp, rp);
 		break;
-
-	case LEAVE_INVITE:
+	  case LEAVE_INVITE:
 		ptr = find_request(mp);
 		if (ptr != (CTL_MSG *)0) {
 			rp->id_num = htonl(ptr->id_num);
 			rp->answer = SUCCESS;
-		} else
-			insert_table(mp, rp);
+		} 
+		else insert_table(mp, rp);
 		break;
-
-	case LOOK_UP:
+	  case LOOK_UP:
 		ptr = find_match(mp);
 		if (ptr != (CTL_MSG *)0) {
 			rp->id_num = htonl(ptr->id_num);
 			rp->addr = ptr->addr;
 			rp->addr.sa_family = htons(ptr->addr.sa_family);
 			rp->answer = SUCCESS;
-		} else
-			rp->answer = NOT_HERE;
+		} 
+		else rp->answer = NOT_HERE;
 		break;
-
-	case DELETE:
+	  case DELETE:
 		rp->answer = delete_invite(mp->id_num);
 		break;
-
-	default:
+	  default:
 		rp->answer = UNKNOWN_REQUEST;
 		break;
 	}
-	if (debug)
-		print_response("process_request", rp);
+	if (debug) print_response("process_request", rp);
 }
 
-do_announce(mp, rp)
-	register CTL_MSG *mp;
-	CTL_RESPONSE *rp;
+static void
+do_announce(CTL_MSG *mp, CTL_RESPONSE *rp)
 {
 	struct hostent *hp;
 	CTL_MSG *ptr;
 	int result;
+	struct in_addr the_addr;
 
 	/* see if the user is logged */
 	result = find_user(mp->r_name, mp->r_tty);
@@ -143,15 +139,14 @@ do_announce(mp, rp)
 		rp->answer = result;
 		return;
 	}
-#define	satosin(sa)	((struct sockaddr_in *)(sa))
-	hp = gethostbyaddr((char *)&satosin(&mp->ctl_addr)->sin_addr,
-		sizeof (struct in_addr), AF_INET);
-	if (hp == (struct hostent *)0) {
+	the_addr = ((struct sockaddr_in *)(&mp->ctl_addr))->sin_addr;
+	hp = gethostbyaddr((char *)&the_addr, sizeof(the_addr), AF_INET);
+	if (hp == NULL) {
 		rp->answer = MACHINE_UNKNOWN;
 		return;
 	}
 	ptr = find_request(mp);
-	if (ptr == (CTL_MSG *) 0) {
+	if (ptr == NULL) {
 		insert_table(mp, rp);
 		rp->answer = announce(mp, hp->h_name);
 		return;
@@ -164,53 +159,64 @@ do_announce(mp, rp)
 		ptr->id_num = new_id();
 		rp->id_num = htonl(ptr->id_num);
 		rp->answer = announce(mp, hp->h_name);
-	} else {
+	} 
+	else {
 		/* a duplicated request, so ignore it */
 		rp->id_num = htonl(ptr->id_num);
 		rp->answer = SUCCESS;
 	}
 }
 
-#include <utmp.h>
-
 /*
  * Search utmp for the local user
  */
-find_user(name, tty)
-	char *name, *tty;
+static int
+find_user(char *name, char *tty)
 {
 	struct utmp ubuf;
 	int status;
 	FILE *fd;
 	struct stat statb;
 	char ftty[20];
+	time_t last_time = 0;
+	int notty;
+
+	notty = (*tty == '\0');
 
 	if ((fd = fopen(_PATH_UTMP, "r")) == NULL) {
 		fprintf(stderr, "talkd: can't read %s.\n", _PATH_UTMP);
 		return (FAILED);
 	}
-#define SCMPN(a, b)	strncmp(a, b, sizeof (a))
 	status = NOT_HERE;
-	(void) strcpy(ftty, _PATH_DEV);
-	while (fread((char *) &ubuf, sizeof ubuf, 1, fd) == 1)
-		if (SCMPN(ubuf.ut_name, name) == 0) {
-			if (*tty == '\0') {
-				status = PERMISSION_DENIED;
+	strcpy(ftty, _PATH_DEV);
+	status = PERMISSION_DENIED;
+	while (fread((char *) &ubuf, sizeof ubuf, 1, fd) == 1) {
+#ifdef USER_PROCESS
+		if (ubuf.ut_type!=USER_PROCESS) continue;
+#endif
+		if (!strncmp(ubuf.ut_name, name, sizeof(ubuf.ut_name))) {
+			if (notty) {
 				/* no particular tty was requested */
-				(void) strcpy(ftty+5, ubuf.ut_line);
+				strncpy(ftty+5, ubuf.ut_line, sizeof(ftty)-5);
+				ftty[sizeof(ftty)-1] = 0;
+
 				if (stat(ftty,&statb) == 0) {
 					if (!(statb.st_mode & 020))
 						continue;
-					(void) strcpy(tty, ubuf.ut_line);
-					status = SUCCESS;
-					break;
+					if (statb.st_atime > last_time) {
+						last_time = statb.st_atime;
+						strcpy(tty, ubuf.ut_line);
+						status = SUCCESS;
+					}
+					continue;
 				}
 			}
-			if (strcmp(ubuf.ut_line, tty) == 0) {
+			if (!strcmp(ubuf.ut_line, tty)) {
 				status = SUCCESS;
 				break;
 			}
 		}
+	}
 	fclose(fd);
-	return (status);
+	return status;
 }

@@ -1,6 +1,12 @@
-CFLAGS += -I ../include
+all: rusers
+
+include ../MCONFIG
+include ../MRULES
+
+CFLAGS = -O2 -I ../include
 
 rusers: rusers.o rusers_xdr.o rnusers_xdr.o
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 install: rusers
 	install -s rusers /usr/bin/

@@ -31,19 +31,69 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)global.c	5.2 (Berkeley) 6/1/90";*/
-static char rcsid[] = "$Id: global.c,v 1.2 1993/08/01 18:29:18 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)global.c	5.2 (Berkeley) 6/1/90
+ */
+char global_rcsid[] = 
+  "$Id: global.c,v 1.2 1996/07/16 08:58:22 dholland Exp $";
 
 /*
- * Allocate global variables.  We do this
- * by including the header file that defines
- * them all as externs, but first we define
- * the keyword "extern" to be nothing, so that
- * we will actually allocate the space.
+ * Allocate global variables.  
  */
 
 #include "defs.h"
-#define extern
 #include "ext.h"
+
+/*
+ * Telnet server variable declarations
+ */
+#define extern
+extern char	options[256];
+extern char	do_dont_resp[256];
+extern char	will_wont_resp[256];
+extern int	linemode;	/* linemode on/off */
+#ifdef	LINEMODE
+extern int	uselinemode;	/* what linemode to use (on/off) */
+extern int	editmode;	/* edit modes in use */
+extern int	useeditmode;	/* edit modes to use */
+extern int	alwayslinemode;	/* command line option */
+# ifdef	KLUDGELINEMODE
+extern int	lmodetype;	/* Client support for linemode */
+# endif	/* KLUDGELINEMODE */
+#endif	/* LINEMODE */
+extern int	flowmode;	/* current flow control state */
+#ifdef DIAGNOSTICS
+extern int	diagnostic;	/* telnet diagnostic capabilities */
+#endif /* DIAGNOSTICS */
+#ifdef BFTPDAEMON
+extern int	bftpd;		/* behave as bftp daemon */
+#endif /* BFTPDAEMON */
+#if	defined(SecurID)
+extern int	require_SecurID;
+#endif
+
+extern slcfun	slctab[NSLC + 1];	/* slc mapping table */
+
+extern char	*terminaltype;
+
+/*
+ * I/O data buffers, pointers, and counters.
+ */
+extern char	ptyobuf[BUFSIZ+NETSLOP], *pfrontp, *pbackp;
+
+extern char	netibuf[BUFSIZ], *netip;
+
+extern char	netobuf[BUFSIZ+NETSLOP], *nfrontp, *nbackp;
+extern char	*neturg;		/* one past last bye of urgent data */
+
+extern int	pcc, ncc;
+
+#if defined(CRAY2) && defined(UNICOS5)
+extern int unpcc;  /* characters left unprocessed by CRAY-2 terminal routine */
+extern char *unptyip;  /* pointer to remaining characters in buffer */
+#endif
+
+extern int	pty, net;
+extern int	SYNCHing;		/* we are in TELNET SYNCH mode */
+
+struct _clocks clocks;

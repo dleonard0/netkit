@@ -1,6 +1,12 @@
+all: rwhod
+
+include ../MCONFIG
+include ../MRULES
+
 CFLAGS += -I ../include
 
 rwhod: rwhod.o
+	$(CC) $(LDFLAGS) $^ $(LIBS) -lbsd -o $@
 
 install: rwhod
 	install -s -m744 rwhod /usr/sbin/

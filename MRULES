@@ -1,0 +1,5 @@
+# Standard compilation rules (don't use make builtins)
+
+%.o: %.c
+	$(CC) $(CFLAGS) $< -c
+

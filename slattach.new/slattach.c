@@ -36,38 +36,42 @@
 
 /*
  *	Linux changes by Alan Cox 5/2/94: Copyright as above
+ *	Additional changes by David A. Holland 15-Jul-1996; copyright as above
  */
  
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1988 Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1988 Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-static char sccsid[] = "@(#)slattach.c	4.6 (Berkeley) 6/1/90";
-static char subid[] = "Linux Port Alan Cox 1993";
-#endif /* not lint */
+/*
+ * From: @(#)slattach.c	4.6 (Berkeley) 6/1/90
+ *       Linux Port Alan Cox 1993
+ */
+char rcsid[] =
+  "$Id: slattach.c,v 1.2 1996/07/15 23:06:34 dholland Exp $";
 
-#include <sys/param.h>
-#include <termios.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <sys/ioctl.h>
+#include <termios.h>
+#include <signal.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
 #include <netdb.h>
 #include <fcntl.h>
 #include <stdio.h>
-
-#define _PATH_DEV	"/dev/"
+#include <paths.h>
 
 #define DEFAULT_BAUD	9600
-int	slipdisc = N_SLIP;
+static int slipdisc = N_SLIP;
 
-char	devname[32];
-char	hostname[MAXHOSTNAMELEN];
+static char devname[32];
 
-main(argc, argv)
-	int argc;
-	char *argv[];
+static int findspeed(int speed);
+
+int
+main(int argc, char *argv[])
 {
 	register int fd;
 	register char *dev;
@@ -192,8 +196,7 @@ struct sg_spds {
 	{ 0, 0 }
 };
 
-findspeed(speed)
-	register int speed;
+static int findspeed(int speed)
 {
 	register struct sg_spds *sp;
 

@@ -31,18 +31,18 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1985, 1993 The Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+ "@(#) Copyright (c) 1985, 1993 The Regents of the University of California.\n"
+ "All rights reserved.\n";
 
-#ifndef lint
-static char sccsid[] = "@(#)timed.c	5.1 (Berkeley) 5/11/93";
-#endif /* not lint */
+/*
+ * From: @(#)timed.c	5.1 (Berkeley) 5/11/93
+ */
+char timed_rcsid[] = 
+  "$Id: timed.c,v 1.4 1996/07/20 21:07:26 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.1 $"
+#ident "$Revision: 1.4 $"
 #endif /* sgi */
 
 #define TSPTYPES
@@ -61,6 +61,12 @@ static char sccsid[] = "@(#)timed.c	5.1 (Berkeley) 5/11/93";
 #include <sys/schedctl.h>
 #endif /* sgi */
 
+#ifdef __linux__
+/* from libbsd.a */
+int daemon(int, int);
+#endif
+
+
 int trace = 0;
 int sock, sock_raw = -1;
 int status = 0;
@@ -75,7 +81,7 @@ int nnets;				/* nets I am connected to */
 
 FILE *fd;				/* trace file FD */
 
-jmp_buf jmpenv;
+sigjmp_buf jmpenv;
 
 struct netinfo *nettab = 0;
 struct netinfo *slavenet;
@@ -166,9 +172,7 @@ main(int argc, char **argv)
 #endif /* HAVENIS */
 #endif /* sgi */
 
-#ifdef lint
 	ntip = NULL;
-#endif
 
 	on = 1;
 	nflag = OFF;
@@ -455,7 +459,7 @@ main(int argc, char **argv)
 			if (ntp->net.s_addr == nt->net)
 				break;
 		}
-		if (nflag && !nt || iflag && nt)
+		if ((nflag && !nt) || (iflag && nt))
 			continue;
 
 		ntp->next = NULL;
@@ -504,7 +508,7 @@ main(int argc, char **argv)
 	/*
 	 * keep returning here
 	 */
-	ret = setjmp(jmpenv);
+	ret = sigsetjmp(jmpenv, 1);
 	savefromnet = fromnet;
 	setstatus();
 
@@ -568,9 +572,7 @@ main(int argc, char **argv)
 		slave();
 	}
 	/* NOTREACHED */
-#ifdef lint
-	return(0);
-#endif
+	return 0;
 }
 
 
@@ -751,7 +753,7 @@ setstatus()
 	status &= ~IGNORE;
 	if (trace)
 		fprintf(fd,
-			"\tnets=%d masters=%d slaves=%d ignored=%d delay2=%d\n",
+			"\tnets=%d masters=%d slaves=%d ignored=%d delay2=%ld\n",
 			nnets, nmasternets, nslavenets, nignorednets, delay2);
 }
 
@@ -832,10 +834,10 @@ date()
 	(void)cftime(tm, "%D %T", &tv.tv_sec);
 	return (tm);
 #else
-	struct	timeval tv;
-
-	(void)gettimeofday(&tv, (struct timezone *)0);
-	return (ctime(&tv.tv_sec));
+/*	struct	timeval tv; */
+	time_t tm;
+	time(&tm);
+	return (ctime(&tm));
 #endif /* sgi */
 }
 
@@ -889,9 +891,9 @@ get_goodgroup(int force)
 # define NG_DELAY (30*60*CLK_TCK)	/* 30 minutes */
 	static unsigned long last_update = -NG_DELAY;
 	unsigned long new_update;
-	struct hosttbl *htp;
+/*	struct hosttbl *htp; */
 	struct goodhost *ghp, **ghpp;
-	char *mach, *usr, *dom;
+/*	char *mach, *usr, *dom; */
 	struct tms tm;
 
 

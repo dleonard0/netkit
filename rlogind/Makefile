@@ -1,7 +1,20 @@
-# -DKERBEROS -DCRYPT
-# -lutil -lkrb -ldes
+all: rlogind
 
-rlogind: rlogind.o logwtmp.o # des_rw.o
+include ../MCONFIG
+include ../MRULES
+
+OBJS = rlogind.o logwtmp.o
+
+ifeq ($(USE_PAM),1)
+CFLAGS += -DUSE_PAM
+LDFLAGS += -ldl -lpam
+OBJS += pamconv.o
+endif
+
+rlogind: $(OBJS)
+	$(CC) $(LDFLAGS) $^ $(LIBS) -lbsd -o $@
+
+rlogind.o logwtmp.o: pathnames.h
 
 install: rlogind
 	install -s -m744 rlogind /usr/sbin/in.rlogind

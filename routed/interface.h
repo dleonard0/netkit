@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)interface.h	5.6 (Berkeley) 6/1/90
- *	$Id: interface.h,v 1.1 1994/05/23 09:08:11 rzsfl Exp rzsfl $
+ *	$Id: interface.h,v 1.3 1996/07/15 17:45:59 dholland Exp $
  */
 
 /*
@@ -89,3 +89,6 @@ struct	interface *if_ifwithaddr();
 struct	interface *if_ifwithdstaddr();
 struct	interface *if_ifwithnet();
 struct	interface *if_iflookup();
+
+void addrouteforif(struct interface *ifp);
+void toall(int (*f)(), int, int, struct interface *skipif);

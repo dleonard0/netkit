@@ -1,3 +1,7 @@
+Mon Jul 15 15:26:52 EDT 1996  David Holland  (dholland@merganser)
+	* added proto.h.
+	* all files: ANSI C and gcc -Wall fixes. 
+
 Tue Jan 19 19:35:40 1993  Rick Sladkey  (jrs@lepton)
 
 	* rpc_svcout.c (write_most): _rpcpmstart etc. no longer static.

@@ -31,12 +31,14 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-static char sccsid[] = "@(#)cksum.c	5.2 (Berkeley) 5/11/93";
-#endif /* not lint */
+/*
+ * From: @(#)cksum.c	5.2 (Berkeley) 5/11/93
+ */
+char cksum_rcsid[] =
+  "$Id: cksum.c,v 1.2 1996/07/20 19:45:38 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.1 $"
+#ident "$Revision: 1.2 $"
 #endif
 
 #include <sys/types.h>

@@ -31,10 +31,13 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)commands.c	5.5 (Berkeley) 3/22/91";*/
-static char rcsid[] = "$Id: commands.c,v 1.1 1994/05/23 09:11:48 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)commands.c	5.5 (Berkeley) 3/22/91
+ */
+char cmd_rcsid[] = 
+  "$Id: commands.c,v 1.8 1996/07/22 08:36:33 dholland Exp $";
+
+#include <string.h>
 
 #if	defined(unix)
 #include <sys/param.h>
@@ -51,15 +54,21 @@ static char rcsid[] = "$Id: commands.c,v 1.1 1994/05/23 09:11:48 rzsfl Exp rzsfl
 #include <fcntl.h>
 #endif	/* CRAY */
 
+#include <sys/wait.h>
 #include <signal.h>
 #include <netdb.h>
 #include <ctype.h>
 #include <pwd.h>
 #include <varargs.h>
 #include <errno.h>
-
+#include <unistd.h>
+#include <stdlib.h>
 #include <arpa/inet.h>
 #include <arpa/telnet.h>
+
+#ifdef AUTHENTICATE
+#include <libtelnet/misc-proto.h>
+#endif
 
 #include "general.h"
 
@@ -68,6 +77,8 @@ static char rcsid[] = "$Id: commands.c,v 1.1 1994/05/23 09:11:48 rzsfl Exp rzsfl
 #include "externs.h"
 #include "defines.h"
 #include "types.h"
+
+#include "proto.h"
 
 #ifndef CRAY
 # if (defined(vax) || defined(tahoe) || defined(hp300)) && !defined(ultrix)
@@ -121,7 +132,7 @@ makeargv()
 	margc++;
 	cp++;
     }
-    while (c = *cp) {
+    while ((c = *cp)!=0) {
 	register int inquote = 0;
 	while (isspace(c))
 	    c = *++cp;
@@ -164,11 +175,10 @@ makeargv()
  * Todo:  1.  Could take random integers (12, 0x12, 012, 0b1).
  */
 
-	static
-special(s)
-	register char *s;
+static int
+special(char *s)
 {
-	register char c;
+	char c;
 	char b;
 
 	switch (*s) {
@@ -244,21 +254,18 @@ struct sendlist {
     int		nbyte;		/* Number of bytes to send this command */
     int		what;		/* Character to be sent (<0 ==> special) */
 };
-
 
-static int
-	send_esc P((void)),
-	send_help P((void)),
-	send_docmd P((char *)),
-	send_dontcmd P((char *)),
-	send_willcmd P((char *)),
-	send_wontcmd P((char *));
+static int send_esc(void);
+static int send_help(void);
+static int send_docmd(char *);
+static int send_dontcmd(char *);
+static int send_willcmd(char *);
+static int send_wontcmd(char *);
 
-extern int
-	send_do P((int, int)),
-	send_dont P((int, int)),
-	send_will P((int, int)),
-	send_wont P((int, int));
+extern int send_do(int, int);
+extern int send_dont(int, int);
+extern int send_will(int, int);
+extern int send_wont(int, int);
 
 static struct sendlist Sendlist[] = {
     { "ao",	"Send Telnet Abort output",		1, 0, 0, 2, AO },
@@ -292,14 +299,12 @@ static struct sendlist Sendlist[] = {
 #define	GETSEND(name) ((struct sendlist *) genget(name, (char **) Sendlist, \
 				sizeof(struct sendlist)))
 
-    static int
-sendcmd(argc, argv)
-    int  argc;
-    char **argv;
+static int
+sendcmd(int argc, char *argv[])
 {
     int count;		/* how many bytes we are going to need to send */
     int i;
-    int question = 0;	/* was at least one argument a question */
+/*    int question = 0;*/	/* was at least one argument a question */
     struct sendlist *s;	/* pointer to current command */
     int success = 0;
     int needconnect = 0;
@@ -360,7 +365,7 @@ sendcmd(argc, argv)
     for (i = 1; i < argc; i++) {
 	if ((s = GETSEND(argv[i])) == 0) {
 	    fprintf(stderr, "Telnet 'send' error - argument disappeared!\n");
-	    (void) quit();
+	    quit();
 	    /*NOTREACHED*/
 	}
 	if (s->handler) {
@@ -383,36 +388,24 @@ send_esc()
     return 1;
 }
 
-    static int
-send_docmd(name)
-    char *name;
-{
-    return(send_tncmd(send_do, "do", name));
+static int send_docmd(char *name) {
+    return send_tncmd(send_do, "do", name);
 }
 
-    static int
-send_dontcmd(name)
-    char *name;
-{
+static int send_dontcmd(char *name) {
     return(send_tncmd(send_dont, "dont", name));
 }
-    static int
-send_willcmd(name)
-    char *name;
-{
+
+static int send_willcmd(char *name) {
     return(send_tncmd(send_will, "will", name));
 }
-    static int
-send_wontcmd(name)
-    char *name;
-{
+
+static int send_wontcmd(char *name) {
     return(send_tncmd(send_wont, "wont", name));
 }
 
-    int
-send_tncmd(func, cmd, name)
-    void	(*func)();
-    char	*cmd, *name;
+int 
+send_tncmd(int (*func)(), char *cmd, char *name)
 {
     char **cpp;
     extern char *telopts[];
@@ -906,17 +899,15 @@ _setlist_init()
 }
 #endif	/* defined(CRAY) && !defined(__STDC__) */
 
-    static struct setlist *
-getset(name)
-    char *name;
+static struct setlist *
+getset(char *name)
 {
     return (struct setlist *)
 		genget(name, (char **) Setlist, sizeof(struct setlist));
 }
 
-    void
-set_escape_char(s)
-    char *s;
+void
+set_escape_char(char *s)
 {
 	if (rlogin != _POSIX_VDISABLE) {
 		rlogin = (s && *s) ? special(s) : _POSIX_VDISABLE;
@@ -1071,13 +1062,14 @@ unsetcmd(argc, argv)
 #ifdef	KLUDGELINEMODE
 extern int kludgelinemode;
 
-    static int
-dokludgemode()
+static int
+dokludgemode(void)
 {
     kludgelinemode = 1;
     send_wont(TELOPT_LINEMODE, 1);
     send_dont(TELOPT_SGA, 1);
     send_dont(TELOPT_ECHO, 1);
+    return 0;
 }
 #endif
 
@@ -1407,11 +1399,8 @@ shell(argc, argv)
 }
 #endif	/* !defined(TN3270) */
 
-    /*VARARGS*/
-    static
-bye(argc, argv)
-    int  argc;		/* Number of arguments */
-    char *argv[];	/* arguments */
+static int
+bye(int argc, char *argv[])
 {
     extern int resettermname;
 
@@ -1431,26 +1420,23 @@ bye(argc, argv)
 #endif	/* defined(TN3270) */
     }
     if ((argc != 2) || (strcmp(argv[1], "fromquit") != 0)) {
-	longjmp(toplevel, 1);
+	siglongjmp(toplevel, 1);
 	/* NOTREACHED */
     }
     return 1;			/* Keep lint, etc., happy */
 }
 
-/*VARARGS*/
-quit()
+void quit(void)
 {
-	(void) call(bye, "bye", "fromquit", 0);
+	call(bye, "bye", "fromquit", 0);
 	Exit(0);
-	/*NOTREACHED*/
 }
 
-/*VARARGS*/
-	int
-logout()
+int
+logout(void)
 {
 	send_do(TELOPT_LOGOUT, 1);
-	(void) netflush();
+	netflush();
 	return 1;
 }
 
@@ -1503,10 +1489,8 @@ getslc(name)
 		genget(name, (char **) SlcList, sizeof(struct slclist));
 }
 
-    static
-slccmd(argc, argv)
-    int  argc;
-    char *argv[];
+static int
+slccmd(int argc, char *argv[])
 {
     struct slclist *c;
 
@@ -1593,9 +1577,8 @@ getenvcmd(name)
 		genget(name, (char **) EnvList, sizeof(struct envlist));
 }
 
-env_cmd(argc, argv)
-    int  argc;
-    char *argv[];
+int
+env_cmd(int argc, char *argv[])
 {
     struct envlist *c;
 
@@ -1658,7 +1641,7 @@ env_init()
 	extern char *index();
 
 	for (epp = environ; *epp; epp++) {
-		if (cp = index(*epp, '=')) {
+		if ((cp = strchr(*epp, '='))!=NULL) {
 			*cp = '\0';
 			ep = env_define((unsigned char *)*epp,
 					(unsigned char *)cp+1);
@@ -1703,7 +1686,7 @@ env_define(var, value)
 {
 	register struct env_lst *ep;
 
-	if (ep = env_find(var)) {
+	if ((ep = env_find(var))!=NULL) {
 		if (ep->var)
 			free(ep->var);
 		if (ep->value)
@@ -1728,7 +1711,7 @@ env_undefine(var)
 {
 	register struct env_lst *ep;
 
-	if (ep = env_find(var)) {
+	if ((ep = env_find(var))!=NULL) {
 		ep->prev->next = ep->next;
 		if (ep->next)
 			ep->next->prev = ep->prev;
@@ -1746,7 +1729,7 @@ env_export(var)
 {
 	register struct env_lst *ep;
 
-	if (ep = env_find(var))
+	if ((ep = env_find(var))!=NULL)
 		ep->export = 1;
 }
 
@@ -1756,7 +1739,7 @@ env_unexport(var)
 {
 	register struct env_lst *ep;
 
-	if (ep = env_find(var))
+	if ((ep = env_find(var))!=NULL)
 		ep->export = 0;
 }
 
@@ -1802,10 +1785,10 @@ env_default(init)
 
 	if (init) {
 		nep = &envlisthead;
-		return;
+		return NULL;   /* was just return... (?) */
 	}
 	if (nep) {
-		while (nep = nep->next) {
+		while ((nep = nep->next)!=NULL) {
 			if (nep->export)
 				return(nep->var);
 		}
@@ -1819,7 +1802,7 @@ env_getvalue(var)
 {
 	register struct env_lst *ep;
 
-	if (ep = env_find(var))
+	if ((ep = env_find(var))!=NULL)
 		return(ep->value);
 	return(NULL);
 }
@@ -1837,8 +1820,8 @@ struct authlist {
 };
 
 extern int
-	auth_enable P((int)),
-	auth_disable P((int)),
+	auth_enable(char *),
+	auth_disable(char *),
 	auth_status P((void));
 static int
 	auth_help P((void));
@@ -1871,9 +1854,8 @@ auth_help()
     return 0;
 }
 
-auth_cmd(argc, argv)
-    int  argc;
-    char *argv[];
+int
+auth_cmd(int argc, char *argv[])
 {
     struct authlist *c;
 
@@ -2049,11 +2031,8 @@ filestuff(fd)
 /*
  * Print status about the connection.
  */
-    /*ARGSUSED*/
-    static
-status(argc, argv)
-    int	 argc;
-    char *argv[];
+static int
+status(int argc, char *argv[])
 {
     if (connected) {
 	printf("Connected to %s.\n", hostname);
@@ -2129,21 +2108,19 @@ ayt_status()
 }
 #endif
 
-    int
-tn(argc, argv)
-    int argc;
-    char *argv[];
+int
+tn(int argc, char *argv[])
 {
     register struct hostent *host = 0;
     struct sockaddr_in sin;
     struct servent *sp = 0;
-    unsigned long temp;
+    unsigned int temp;
     extern char *inet_ntoa();
 #if	defined(IP_OPTIONS) && defined(IPPROTO_IP)
     char *srp = 0, *strrchr();
     unsigned long sourceroute(), srlen;
 #endif
-    char *cmd, *hostp = 0, *portp = 0, *user = 0;
+    char *cmd, *hostp = 0, *portp = 0, *volatile user = 0;
 
     /* clear the socket address prior to use */
     bzero((char *)&sin, sizeof(sin));
@@ -2219,7 +2196,7 @@ tn(argc, argv)
     } else {
 #endif
 	temp = inet_addr(hostp);
-	if (temp != (unsigned long) -1) {
+	if (temp != (unsigned int) -1) {
 	    sin.sin_addr.s_addr = temp;
 	    sin.sin_family = AF_INET;
 	    (void) strcpy(_hostname, hostp);
@@ -2342,8 +2319,8 @@ tn(argc, argv)
 
 	user = getenv("USER");
 	if (user == NULL ||
-	    (pw = getpwnam(user)) && pw->pw_uid != getuid()) {
-		if (pw = getpwuid(getuid()))
+	    ((pw = getpwnam(user))!=NULL && pw->pw_uid != getuid())) {
+		if ((pw = getpwuid(getuid()))!=NULL)
 			user = pw->pw_name;
 		else
 			user = NULL;
@@ -2354,11 +2331,12 @@ tn(argc, argv)
 	env_export((unsigned char *)"USER");
     }
     (void) call(status, "status", "notmuch", 0);
-    if (setjmp(peerdied) == 0)
+    if (sigsetjmp(peerdied, 1) == 0)
 	telnet(user);
     (void) NetClose(net);
     ExitString("Connection closed by foreign host.\n",1);
     /*NOTREACHED*/
+    return 0;
 }
 
 #define HELPINDENT (sizeof ("connect"))
@@ -2388,11 +2366,18 @@ static char
 #if	defined(unix)
 	zhelp[] =	"suspend telnet",
 #endif	/* defined(unix) */
-	shellhelp[] =	"invoke a subshell",
+/*	shellhelp[] =	"invoke a subshell", */
 	envhelp[] =	"change environment variables ('environ ?' for more)",
 	modestring[] = "try to enter line or character mode ('mode ?' for more)";
 
 static int	help();
+
+static int 
+doquit(int ign1, char *ign2[]) 
+{
+	quit();
+	return 0;
+}
 
 static Command cmdtab[] = {
 	{ "close",	closehelp,	bye,		1 },
@@ -2400,7 +2385,7 @@ static Command cmdtab[] = {
 	{ "display",	displayhelp,	display,	0 },
 	{ "mode",	modestring,	modecmd,	0 },
 	{ "open",	openhelp,	tn,		0 },
-	{ "quit",	quithelp,	quit,		0 },
+	{ "quit",	quithelp,	doquit,		0 },
 	{ "send",	sendhelp,	sendcmd,	0 },
 	{ "set",	sethelp,	setcmd,		0 },
 	{ "unset",	unsethelp,	unsetcmd,	0 },
@@ -2424,7 +2409,7 @@ static Command cmdtab[] = {
 #endif
 	{ "environ",	envhelp,	env_cmd,	0 },
 	{ "?",		helphelp,	help,		0 },
-	0
+	{ NULL }
 };
 
 static char	crmodhelp[] =	"deprecated command -- use 'toggle crmod' instead";
@@ -2434,7 +2419,7 @@ static Command cmdtab2[] = {
 	{ "help",	0,		help,		0 },
 	{ "escape",	escapehelp,	setescape,	0 },
 	{ "crmod",	crmodhelp,	togcrmod,	0 },
-	0
+	{ NULL }
 };
 
 
@@ -2443,7 +2428,7 @@ static Command cmdtab2[] = {
  */
 
     /*VARARGS1*/
-    static
+static int
 call(va_alist)
     va_dcl
 {
@@ -2469,8 +2454,9 @@ getcmd(name)
 {
     Command *cm;
 
-    if (cm = (Command *) genget(name, (char **) cmdtab, sizeof(Command)))
-	return cm;
+    cm = (Command *) genget(name, (char **) cmdtab, sizeof(Command));
+    if (cm!=NULL) return cm;
+
     return (Command *) genget(name, (char **) cmdtab2, sizeof(Command));
 }
 
@@ -2542,7 +2528,7 @@ command(top, tbuf, cnt)
     }
     if (!top) {
 	if (!connected) {
-	    longjmp(toplevel, 1);
+	    siglongjmp(toplevel, 1);
 	    /*NOTREACHED*/
 	}
 #if	defined(TN3270)
@@ -2558,10 +2544,8 @@ command(top, tbuf, cnt)
 /*
  * Help command.
  */
-	static
-help(argc, argv)
-	int argc;
-	char *argv[];
+static int
+help(int argc, char *argv[])
 {
 	register Command *c;
 
@@ -2591,8 +2575,8 @@ help(argc, argv)
 static char *rcname = 0;
 static char rcbuf[128];
 
-cmdrc(m1, m2)
-	char *m1, *m2;
+void
+cmdrc(char *m1, char *m2)
 {
     register Command *c;
     FILE *rcfile;

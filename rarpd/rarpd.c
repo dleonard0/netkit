@@ -26,7 +26,7 @@ char    copyright[] =
 
 #ifndef lint
 static char rcsid[] =
-"@(#) $Id: rarpd.c,v 1.1 1993/12/16 05:31:08 deraadt Exp $";
+"@(#) $Id: rarpd.c,v 1.1 1996/07/15 00:27:09 dholland Exp $";
 #endif
 
 

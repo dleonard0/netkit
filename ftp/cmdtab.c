@@ -31,30 +31,18 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)cmdtab.c	5.10 (Berkeley) 6/1/90";*/
-static char rcsid[] = "$Id: cmdtab.c,v 1.1 1994/05/23 09:03:41 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * from: @(#)cmdtab.c	5.10 (Berkeley) 6/1/90
+ */
+char cmdtab_rcsid[] = 
+  "$Id: cmdtab.c,v 1.3 1996/07/14 09:16:00 dholland Exp $";
 
 #include "ftp_var.h"
+#include "cmds.h"
 
 /*
  * User FTP -- Command Tables.
  */
-int	setascii(), setbell(), setbinary(), setdebug(), setform();
-int	setglob(), sethash(), settick(), setmode(), setpeer(), setport();
-int	setprompt(), setstruct();
-int	settenex(), settrace(), settype(), setverbose();
-int	disconnect(), restart(), reget(), syst();
-int	cd(), lcd(), delete_cmd(), mdelete(), user();
-int	ls(), mls(), get(), mget(), help(), append(), put(), mput();
-int	quit(), renamefile(), status();
-int	quote(), rmthelp(), shell(), site();
-int	pwd(), makedir(), removedir(), setcr();
-int	account(), doproxy(), reset(), setcase(), setntrans(), setnmap();
-int	setsunique(), setrunique(), cdup(), macdef(), domacro();
-int	sizecmd(), modtime(), newer(), rmtstatus();
-int	do_chmod(), do_umask(), idle_cmd();
 
 char	accounthelp[] =	"send account command to remote server";
 char	appendhelp[] =	"append to a file";
@@ -92,6 +80,7 @@ char	newerhelp[] =	"get file if remote file is newer than local file ";
 char	nlisthelp[] =	"nlist contents of remote directory";
 char	nmaphelp[] =	"set templates for default file name mapping";
 char	ntranshelp[] =	"set translation table for default file name mapping";
+char    passivehelp[] = "enter passive transfer mode";
 char	porthelp[] =	"toggle use of PORT cmd for each data connection";
 char	prompthelp[] =	"force interactive prompting on multiple commands";
 char	proxyhelp[] =	"issue command on alternate connection";
@@ -166,6 +155,7 @@ struct cmd cmdtab[] = {
 	{ "ntrans",	ntranshelp,	0,	0,	1,	setntrans },
 	{ "open",	connecthelp,	0,	0,	1,	setpeer },
 	{ "prompt",	prompthelp,	0,	0,	0,	setprompt },
+        { "passive",    passivehelp,    0,      0,      0,      setpassive },
 	{ "proxy",	proxyhelp,	0,	0,	1,	doproxy },
 	{ "sendport",	porthelp,	0,	0,	0,	setport },
 	{ "put",	sendhelp,	1,	1,	1,	put },

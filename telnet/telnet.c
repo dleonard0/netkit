@@ -31,12 +31,16 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)telnet.c	5.53 (Berkeley) 3/22/91";*/
-static char rcsid[] = "$Id: telnet.c,v 1.1 1994/05/23 09:11:49 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)telnet.c	5.53 (Berkeley) 3/22/91
+ */
+char telnet_rcsid[] = 
+  "$Id: telnet.c,v 1.7 1996/07/22 08:36:33 dholland Exp $";
 
+#include <string.h>
 #include <sys/types.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #if	defined(unix)
 #include <signal.h>
@@ -47,9 +51,15 @@ static char rcsid[] = "$Id: telnet.c,v 1.1 1994/05/23 09:11:49 rzsfl Exp rzsfl $
 #endif	/* defined(unix) */
 
 #include <arpa/telnet.h>
-#include <sgtty.h>
+/*#include <bsd/sgtty.h>*/
 
 #include <ctype.h>
+#include <termcap.h>
+
+#ifdef AUTHENTICATE
+#include <libtelnet/misc-proto.h>
+#include <libtelnet/auth.h>
+#endif
 
 #include "ring.h"
 
@@ -57,8 +67,9 @@ static char rcsid[] = "$Id: telnet.c,v 1.1 1994/05/23 09:11:49 rzsfl Exp rzsfl $
 #include "externs.h"
 #include "types.h"
 #include "general.h"
+#include "proto.h"
 
-
+
 #define	strip(x)	((x)&0x7f)
 
 static unsigned char	subbuffer[SUBBUFSIZE],
@@ -130,8 +141,8 @@ cc_t echoc;
 
 static int	telrcv_state;
 
-jmp_buf	toplevel = { 0 };
-jmp_buf	peerdied;
+sigjmp_buf	toplevel;
+sigjmp_buf	peerdied;
 
 int	flushline;
 int	linemode;
@@ -697,9 +708,8 @@ mklist(buf, name)
 		return(unknown);
 }
 
-	int
-is_unique(name, as, ae)
-	register char *name, **as, **ae;
+int
+is_unique(char *name, char **as, char **ae)
 {
 	register char **ap;
 	register int n;
@@ -715,10 +725,8 @@ is_unique(name, as, ae)
 char termbuf[2048];
 
 	/*ARGSUSED*/
-	int
-setupterm(tname, fd, errp)
-	char *tname;
-	int fd, *errp;
+int
+setupterm(char *tname, int fd, int *errp)
 {
 	if (tgetent(termbuf, tname) == 1) {
 		termbuf[1023] = '\0';
@@ -825,8 +833,8 @@ suboption()
 
 	    TerminalSpeeds(&ispeed, &ospeed);
 
-	    sprintf((char *)temp, "%c%c%c%c%d,%d%c%c", IAC, SB, TELOPT_TSPEED,
-		    TELQUAL_IS, ospeed, ispeed, IAC, SE);
+	    sprintf((char *)temp, "%c%c%c%c%ld,%ld%c%c", IAC, SB, 
+		    TELOPT_TSPEED, TELQUAL_IS, ospeed, ispeed, IAC, SE);
 	    len = strlen((char *)temp+4) + 4;	/* temp[3] is 0 ... */
 
 	    if (len < NETROOM()) {
@@ -1172,7 +1180,7 @@ slc_init()
 
 #define	initfunc(func, flags) { \
 					spcp = &spc_data[func]; \
-					if (spcp->valp = tcval(func)) { \
+					if ((spcp->valp = tcval(func))) { \
 					    spcp->val = *spcp->valp; \
 					    spcp->mylevel = SLC_VARIABLE|flags; \
 					} else { \
@@ -1538,7 +1546,7 @@ env_opt_add(ep)
 
 	if (ep == NULL || *ep == '\0') {
 		env_default(1);
-		while (ep = env_default(0))
+		while ((ep = env_default(0))!=NULL)
 			env_opt_add(ep);
 		return;
 	}
@@ -1560,7 +1568,7 @@ env_opt_add(ep)
 	}
 	*opt_replyp++ = ENV_VAR;
 	for (;;) {
-		while (c = *ep++) {
+		while ((c = *ep++)!=0) {
 			switch(c&0xff) {
 			case IAC:
 				*opt_replyp++ = IAC;
@@ -1573,7 +1581,7 @@ env_opt_add(ep)
 			}
 			*opt_replyp++ = c;
 		}
-		if (ep = vp) {
+		if ((ep = vp)!=NULL) {
 			*opt_replyp++ = ENV_VALUE;
 			vp = NULL;
 		} else
@@ -1603,14 +1611,13 @@ env_opt_end(emptyok)
 	}
 }
 
-
 
-    int
-telrcv()
+int
+telrcv(void)
 {
-    register int c;
-    register int scc;
-    register unsigned char *sbp;
+    int c;
+    int scc;
+    unsigned char *sbp = NULL;
     int count;
     int returnValue = 0;
 
@@ -1882,8 +1889,8 @@ process_iac:
 
 static int bol = 1, local = 0;
 
-    int
-rlogin_susp()
+int
+rlogin_susp(void)
 {
     if (local) {
 	local = 0;
@@ -1900,7 +1907,7 @@ telsnd()
     int tcc;
     int count;
     int returnValue = 0;
-    unsigned char *tbp;
+    unsigned char *tbp = NULL;
 
     tcc = 0;
     count = 0;
@@ -2141,7 +2148,7 @@ telnet(user)
 	int len = sizeof(local_host);
 
 	if (!local_host[0]) {
-		gethostname(local_host, &len);
+		gethostname(local_host, len);
 		local_host[sizeof(local_host)-1] = 0;
 	}
 	auth_encrypt_init(local_host, hostname, "TELNET", 0);
@@ -2526,9 +2533,8 @@ tel_enter_binary(rw)
 	send_will(TELOPT_BINARY, 1);
 }
 
-    void
-tel_leave_binary(rw)
-    int rw;
+void
+tel_leave_binary(int rw)
 {
     if (rw&1)
 	send_dont(TELOPT_BINARY, 1);

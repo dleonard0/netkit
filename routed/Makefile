@@ -1,11 +1,16 @@
+all: routed
+include ../MCONFIG
+include ../MRULES
+
 CFLAGS += -I .
-LDFLAGS	+= -N
 
 OBJECTS = af.o if.o inet.o input.o main.o output.o startup.o tables.o \
 		timer.o trace.o
 
 routed: $(OBJECTS)
-	$(CC) $(LDFLAGS) -o routed $(OBJECTS) $(LDLIBS)
+	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
+
+$(OBJECTS): defs.h pathnames.h trace.h table.h af.h interface.h
 
 install: routed
 	install -s -m744 routed /usr/sbin

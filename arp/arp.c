@@ -42,7 +42,7 @@ char copyright[] =
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)arp.c	5.11.1.1 (Berkeley) 7/22/91";*/
-static char rcsid[] = "$Id: arp.c,v 1.1 1994/05/23 08:58:37 rzsfl Exp rzsfl $";
+static char rcsid[] = "$Id: arp.c,v 1.3 1996/07/13 20:16:20 dholland Exp $";
 #endif /* not lint */
 
 /*
@@ -57,7 +57,8 @@ static char rcsid[] = "$Id: arp.c,v 1.1 1994/05/23 08:58:37 rzsfl Exp rzsfl $";
 #include <netdb.h>
 #include <netinet/in.h>
 #include <net/if.h>
-#include <linux/if_ether.h>
+#include <linux/netdevice.h>
+#include <linux/if_arp.h>
 
 #include <errno.h>
 #include <stdio.h>

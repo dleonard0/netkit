@@ -1,0 +1,55 @@
+# Configuration makefile
+#
+
+# Do you want to have GNU readline and history support in 'ftp'. Use
+# cursor keys to get your last commands.
+# There are a number of versions of GNU readline floating around. 
+# The one from the current version of bash should work; so should
+# readline-2.0, which is available separately on GNU ftp sites.
+# The ftp makefile assumes the headers are installed in 
+# /usr/include/readline (or /usr/local/include/readline) and the 
+# readline library itself is someplace where the linker can find it.
+# If this doesn't apply, edit ftp/Makefile to taste.
+#
+# Note: some versions of readline don't install tilde.h, which is
+# needed. Install it manually if necessary. 
+#
+# Further note: the readline library messes around with signals in a 
+# way that causes ftp to misbehave (eg, exit on ^C while logged in.)
+# Compiling readline with -D__USE_BSD_SIGNAL should fix this but may
+# break other things... sigh.
+#
+# To resolve these problems future versions of this package will probably
+# include a private copy of readline.
+USE_GNU_READLINE=1
+
+#
+# Do you want to use the PAM (Pluggable Authentication Modules) system
+# for password lookups? Uncomment this if so. This may or may not actually
+# work in this release.
+#USE_PAM=1
+
+
+#
+# This is a broken flag to enable libwrap.a support in rexecd. For the 
+# time being, leave this off and install rexecd wrapped in inetd.conf. 
+# Or, better yet, don't install rexecd, as it's not very useful and not
+# a very secure protocol.
+# HAVE_TCP_WRAPPER_LIBRARY=true
+
+
+####
+#
+# Compiler configuration
+# Note that some directories may add stuff, and a few don't honor these.
+# If you take out the __USE_BSD_SIGNAL, things will probably not work.
+#
+# On the PowerPC, you probably want to add -fsigned-char to CFLAGS.
+
+CC=gcc
+CFLAGS=-O2 -Wall -D__USE_BSD_SIGNAL
+LDFLAGS=
+LIBS=
+
+# You could also use "YACC=yacc", if you have the BSD yacc.
+YACC=bison -y

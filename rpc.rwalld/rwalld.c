@@ -27,9 +27,8 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-static char rcsid[] = "$Id: rwalld.c,v 1.1 1994/05/23 09:08:34 rzsfl Exp rzsfl $";
-#endif /* not lint */
+char rcsid[] = 
+  "$Id: rwalld.c,v 1.5 1996/07/20 20:54:10 dholland Exp $";
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -41,24 +40,32 @@ static char rcsid[] = "$Id: rwalld.c,v 1.1 1994/05/23 09:08:34 rzsfl Exp rzsfl $
 #include <signal.h>
 #include <sys/wait.h>
 #include <rpc/rpc.h>
+#include <rpc/pmap_clnt.h>
 #include <rpcsvc/rwall.h>
 
+/* from libbsd.a */
+int daemon(int, int);
+
+/*
+ * Note: check to see if your wall accepts -n or not (check the source,
+ * it's not documented) and modify as necessary. The -n flag is supposed
+ * to suppress the banner.
+ */
 #ifdef OSF
 #define WALL_CMD "/usr/sbin/wall"
 #else
 #define WALL_CMD "/usr/bin/wall -n"
 #endif
 
-void wallprog_1();
-void possess();
-void killkids();
+void wallprog_1(struct svc_req *rqstp, SVCXPRT *transp);
+void possess(void);
+void killkids(int);
 
 int nodaemon = 0;
 int from_inetd = 1;
 
-main(argc, argv)
-	int argc;
-	char *argv[];
+int
+main(int argc, char *argv[])
 {
 	SVCXPRT *transp;
 	int s, salen;
@@ -136,12 +143,12 @@ main(argc, argv)
 
 }
 
-void possess()
+void possess(void)
 {
 	daemon(0, 0);
 }
 
-void killkids()
+void killkids(int ignore)
 {
 	while(wait4(-1, NULL, WNOHANG, NULL) > 0)
 		;
@@ -162,12 +169,11 @@ void *wallproc_wall_1(s, tmp1)
 			exit(0);
 		}
 	}
+	return NULL;  /* ? */
 }
 
 void
-wallprog_1(rqstp, transp)
-	struct svc_req *rqstp;
-	SVCXPRT *transp;
+wallprog_1(struct svc_req *rqstp, SVCXPRT *transp)
 {
 	union {
 		char *wallproc_wall_1_arg;
@@ -178,7 +184,7 @@ wallprog_1(rqstp, transp)
 
 	switch (rqstp->rq_proc) {
 	case NULLPROC:
-		(void)svc_sendreply(transp, xdr_void, (char *)NULL);
+		(void)svc_sendreply(transp, (xdrproc_t) xdr_void, NULL);
 		goto leave;
 
 	case WALLPROC_WALL:
@@ -197,7 +203,7 @@ wallprog_1(rqstp, transp)
 		goto leave;
 	}
 	result = (*local)(&argument, rqstp);
-	if (result != NULL && !svc_sendreply(transp, xdr_result, result)) {
+	if (result != NULL && !svc_sendreply(transp, (xdrproc_t) xdr_result, result)) {
 		svcerr_systemerr(transp);
 	}
 	if (!svc_freeargs(transp, xdr_argument, &argument)) {

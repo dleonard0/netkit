@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)trace.h	5.8 (Berkeley) 6/1/90
- *	$Id: trace.h,v 1.4 1993/08/01 18:24:33 mycroft Exp $
+ *	$Id: trace.h,v 1.2 1996/07/15 17:45:59 dholland Exp $
  */
 
 /*
@@ -95,3 +95,10 @@ FILE	*ftrace;		/* output trace file */
 	  if (tracepackets) \
 		dumppacket(ftrace, "to", dst, packet, size, &now); \
 	}
+
+
+void trace(struct ifdebug *ifd, struct sockaddr *who, char *p, int len, int m);
+void dumppacket(FILE *fd, int dir, struct sockaddr_in *who, char *cp, 
+		int size, struct timeval *stamp);
+void traceon(char *);
+void traceoff(void);

@@ -1,11 +1,17 @@
+all: rusersd
+include ../MCONFIG
+include ../MRULES
+
 #  .if exists(/usr/include/X11/extensions/xidle.h)
 #CFLAGS+= -DXIDLE
 #LDADD+= -L/usr/X386/lib -lXext -lX11
 #  .endif
 
-CFLAGS += -I ../include
+# Doesn't compile cleanly with -Wall
+CFLAGS = -O2 -D__USE_BSD_SIGNAL -I../include
 
 rusersd: rusersd.o rusers_proc.o rusers_xdr.o rnusers_xdr.o
+	$(CC) $(LDFLAGS) $^ $(LIBS) -lbsd -o $@
 
 rusers_xdr.o: rusers_xdr.c rusers.h
 

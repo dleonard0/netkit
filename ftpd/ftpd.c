@@ -39,7 +39,7 @@ char copyright[] =
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)ftpd.c	5.40 (Berkeley) 7/2/91";*/
-static char rcsid[] = "$Id: ftpd.c,v 1.1 1994/05/23 09:03:47 rzsfl Exp rzsfl $";
+static char rcsid[] = "$Id: ftpd.c,v 1.4 1996/07/20 19:51:41 dholland Exp $";
 #endif /* not lint */
 
 /*
@@ -78,13 +78,17 @@ static char rcsid[] = "$Id: ftpd.c,v 1.1 1994/05/23 09:03:47 rzsfl Exp rzsfl $";
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
-#include "pathnames.h"
 
 /*
  * File containing login names
  * NOT to be used on this machine.
  * Commonly used to disallow uucp.
  */
+#include "pathnames.h"
+
+static int dolog(struct sockaddr_in *sin);
+static void fatal(const char *s);
+
 extern	int errno;
 extern	char version[];
 extern	char *home;		/* pointer to home directory for glob */
@@ -101,7 +105,7 @@ struct	sockaddr_in his_addr;
 struct	sockaddr_in pasv_addr;
 
 int	data;
-jmp_buf	errcatch, urgcatch;
+sigjmp_buf	errcatch, urgcatch;
 int	logged_in;
 struct	passwd *pw;
 int	debug;
@@ -147,10 +151,8 @@ char	*LastArgv = NULL;	/* end of argv */
 char	proctitle[BUFSIZ];	/* initial part of title */
 #endif /* SETPROCTITLE */
 
-main(argc, argv, envp)
-	int argc;
-	char *argv[];
-	char **envp;
+int
+main(int argc, char *argv[], char *envp[])
 {
 	int addrlen, on = 1, tos;
 	char *cp;
@@ -264,7 +266,7 @@ nextopt:
 	tmpline[0] = '\0';
 	(void) gethostname(hostname, sizeof (hostname));
 	reply(220, "%s FTP server (%s) ready.", hostname, version);
-	(void) setjmp(errcatch);
+	(void) sigsetjmp(errcatch);
 	for (;;)
 		(void) yyparse();
 	/* NOTREACHED */
@@ -353,6 +355,7 @@ int askpasswd;			/* had user command, ask for passwd */
  * shell as returned by getusershell().  Disallow anyone mentioned in the file
  * _PATH_FTPUSERS to allow people such as root and uucp to be avoided.
  */
+void
 user(name)
 	char *name;
 {
@@ -410,6 +413,7 @@ user(name)
 /*
  * Check if a user is in the file _PATH_FTPUSERS
  */
+int
 checkuser(name)
 	char *name;
 {
@@ -435,6 +439,7 @@ checkuser(name)
  * Terminate login as previous user, if any, resetting state;
  * used when USER command is given or login fails.
  */
+void
 end_login()
 {
 
@@ -446,6 +451,7 @@ end_login()
 	guest = 0;
 }
 
+void
 pass(passwd)
 	char *passwd;
 {
@@ -540,6 +546,7 @@ bad:
 	end_login();
 }
 
+void
 retrieve(cmd, name)
 	char *cmd, *name;
 {
@@ -783,6 +790,7 @@ dataconn(name, size, mode)
  *
  * NB: Form isn't handled.
  */
+void
 send_data(instr, outstr, blksize)
 	FILE *instr, *outstr;
 	off_t blksize;
@@ -792,7 +800,7 @@ send_data(instr, outstr, blksize)
 	int netfd, filefd;
 
 	transflag++;
-	if (setjmp(urgcatch)) {
+	if (sigsetjmp(urgcatch)) {
 		transflag = 0;
 		return;
 	}
@@ -879,7 +887,7 @@ receive_data(instr, outstr)
 	char buf[BUFSIZ];
 
 	transflag++;
-	if (setjmp(urgcatch)) {
+	if (sigsetjmp(urgcatch)) {
 		transflag = 0;
 		return (-1);
 	}
@@ -947,6 +955,7 @@ file_err:
 	return (-1);
 }
 
+void
 statfilecmd(filename)
 	char *filename;
 {
@@ -978,6 +987,7 @@ statfilecmd(filename)
 	reply(211, "End of Status");
 }
 
+void
 statcmd()
 {
 	struct sockaddr_in *sin;
@@ -1030,8 +1040,8 @@ printaddr:
 	reply(211, "End of status");
 }
 
-fatal(s)
-	char *s;
+static void
+fatal(const char *s)
 {
 	reply(451, "Error in server: %s\n", s);
 	reply(221, "Closing connection due to server error.");
@@ -1040,6 +1050,7 @@ fatal(s)
 }
 
 /* VARARGS2 */
+void
 reply(n, fmt, p0, p1, p2, p3, p4, p5)
 	int n;
 	char *fmt;
@@ -1069,12 +1080,14 @@ lreply(n, fmt, p0, p1, p2, p3, p4, p5)
 	}
 }
 
+void
 ack(s)
 	char *s;
 {
 	reply(250, "%s command successful.", s);
 }
 
+void
 nack(s)
 	char *s;
 {
@@ -1082,6 +1095,7 @@ nack(s)
 }
 
 /* ARGSUSED */
+void
 yyerror(s)
 	char *s;
 {
@@ -1092,6 +1106,7 @@ yyerror(s)
 	reply(500, "'%s': command not understood.", cbuf);
 }
 
+void
 _delete(name)
 	char *name;
 {
@@ -1116,6 +1131,7 @@ done:
 	ack("DELE");
 }
 
+void
 cwd(path)
 	char *path;
 {
@@ -1125,6 +1141,7 @@ cwd(path)
 		ack("CWD");
 }
 
+void
 makedir(name)
 	char *name;
 {
@@ -1134,6 +1151,7 @@ makedir(name)
 		reply(257, "MKD command successful.");
 }
 
+void
 removedir(name)
 	char *name;
 {
@@ -1143,6 +1161,7 @@ removedir(name)
 		ack("RMD");
 }
 
+void
 pwd()
 {
 	char path[MAXPATHLEN + 1];
@@ -1168,6 +1187,7 @@ renamefrom(name)
 	return (name);
 }
 
+void
 renamecmd(from, to)
 	char *from, *to;
 {
@@ -1177,8 +1197,8 @@ renamecmd(from, to)
 		ack("RNTO");
 }
 
-dolog(sin)
-	struct sockaddr_in *sin;
+static void
+dolog(struct sockaddr_in *sin)
 {
 	struct hostent *hp = gethostbyaddr((char *)&sin->sin_addr,
 		sizeof (struct in_addr), AF_INET);
@@ -1206,6 +1226,7 @@ dolog(sin)
  * Record logout in wtmp file
  * and exit with supplied status.
  */
+void
 dologout(status)
 	int status;
 {
@@ -1235,7 +1256,7 @@ myoob()
 		tmpline[0] = '\0';
 		reply(426, "Transfer aborted. Data connection closed.");
 		reply(226, "Abort successful");
-		longjmp(urgcatch, 1);
+		siglongjmp(urgcatch, 1);
 	}
 	if (strcmp(cp, "STAT\r\n") == 0) {
 		if (file_size != (off_t) -1)
@@ -1252,6 +1273,7 @@ myoob()
  * 	a legitimate response by Jon Postel in a telephone conversation
  *	with Rick Adams on 25 Jan 89.
  */
+void
 passive()
 {
 	int len;
@@ -1328,6 +1350,7 @@ gunique(local)
 /*
  * Format and send reply containing system error number.
  */
+void
 perror_reply(code, string)
 	int code;
 	char *string;
@@ -1340,6 +1363,7 @@ static char *onefile[] = {
 	0
 };
 
+void
 send_file_list(whichfiles)
 	char *whichfiles;
 {
@@ -1370,7 +1394,7 @@ send_file_list(whichfiles)
 		simple = 1;
 	}
 
-	if (setjmp(urgcatch)) {
+	if (sigsetjmp(urgcatch)) {
 		transflag = 0;
 		return;
 	}

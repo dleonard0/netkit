@@ -31,15 +31,15 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1985, 1993 The Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+ "@(#) Copyright (c) 1985, 1993 The Regents of the University of California.\n"
+ "All rights reserved.\n";
 
-#ifndef lint
-static char sccsid[] = "@(#)timedc.c	5.1 (Berkeley) 5/11/93";
-#endif /* not lint */
+/*
+ * From: @(#)timedc.c	5.1 (Berkeley) 5/11/93
+ */
+char timedc_rcsid[] =
+  "$Id: timedc.c,v 1.3 1996/07/20 21:08:13 dholland Exp $";
 
 #ifdef sgi
 #ident "$Revision: 1.3 $"
@@ -60,7 +60,7 @@ int	margc;
 int	fromatty;
 char	*margv[20];
 char	cmdline[200];
-jmp_buf	toplevel;
+sigjmp_buf	toplevel;
 static struct cmd *getcmd(char *);
 
 int
@@ -98,7 +98,7 @@ main(int argc, char *argv[])
 	}
 
 	fromatty = isatty(fileno(stdin));
-	if (setjmp(toplevel))
+	if (sigsetjmp(toplevel, 1))
 		putchar('\n');
 	(void) signal(SIGINT, intr);
 	for (;;) {
@@ -137,7 +137,7 @@ intr(signo)
 {
 	if (!fromatty)
 		exit(0);
-	longjmp(toplevel, 1);
+	siglongjmp(toplevel, 1);
 }
 
 

@@ -31,12 +31,14 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-static char sccsid[] = "@(#)master.c	5.1 (Berkeley) 5/11/93";
-#endif /* not lint */
+/*
+ * From: @(#)master.c	5.1 (Berkeley) 5/11/93
+ */
+char master_rcsid[] =
+  "$Id: master.c,v 1.2 1996/07/20 19:45:38 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.3 $"
+#ident "$Revision: 1.2 $"
 #endif
 
 #include "globals.h"
@@ -53,8 +55,13 @@ static char sccsid[] = "@(#)master.c	5.1 (Berkeley) 5/11/93";
 
 #include "pathnames.h"
 
+#ifdef __linux__
+/* from libbsd.a */
+void logwtmp(char *, char *, char *);
+#endif
+
 extern int measure_delta;
-extern jmp_buf jmpenv;
+extern sigjmp_buf jmpenv;
 extern int Mflag;
 extern int justquit;
 
@@ -86,6 +93,7 @@ master()
 #define POLLRATE 4
 	int polls;
 	struct timeval wait, ntime;
+	time_t tyme;
 	struct tsp *msg, *answer, to;
 	char newdate[32];
 	struct sockaddr_in taddr;
@@ -182,7 +190,8 @@ loop:
 #ifdef sgi
 			(void)cftime(newdate, "%D %T", &msg->tsp_time.tv_sec);
 #else
-			(void)strcpy(newdate, ctime(&msg->tsp_time.tv_sec));
+			tyme = msg->tsp_time.tv_sec;
+			(void)strcpy(newdate, ctime(&tyme));
 #endif /* sgi */
 			if (!good_host_name(msg->tsp_name)) {
 				syslog(LOG_NOTICE,
@@ -203,7 +212,8 @@ loop:
 #ifdef sgi
 			(void)cftime(newdate, "%D %T", &msg->tsp_time.tv_sec);
 #else
-			(void)strcpy(newdate, ctime(&msg->tsp_time.tv_sec));
+			tyme = msg->tsp_time.tv_sec;
+			(void)strcpy(newdate, ctime(&tyme));
 #endif /* sgi */
 			htp = findhost(msg->tsp_name);
 			if (htp == 0) {
@@ -606,7 +616,7 @@ addmach(char *name, struct sockaddr_in *addr, struct netinfo *ntp)
 			}
 			syslog(LOG_ERR, "no more slots in host table");
 			Mflag = 0;
-			longjmp(jmpenv, 2); /* give up and be a slave */
+			siglongjmp(jmpenv, 2); /* give up and be a slave */
 		}
 
 		/* if our home hash slot is occupied, find a free entry
@@ -821,7 +831,7 @@ doquit(struct tsp *msg)
 			fromnet->status = SLAVE;
 		}
 		rmnetmachs(fromnet);
-		longjmp(jmpenv, 2);		/* give up and be a slave */
+		siglongjmp(jmpenv, 2);		/* give up and be a slave */
 
 	} else {
 		if (!good_host_name(msg->tsp_name)) {

@@ -31,16 +31,15 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1983 Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1983 Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)talk.c	5.5 (Berkeley) 6/1/90";*/
-static char rcsid[] = "$Id: talk.c,v 1.2 1993/08/01 18:07:45 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)talk.c	5.5 (Berkeley) 6/1/90
+ */
+char talk_rcsid[] = 
+  "$Id: talk.c,v 1.2 1996/07/16 03:30:46 dholland Exp $";
 
 #include "talk.h"
 
@@ -58,9 +57,8 @@ static char rcsid[] = "$Id: talk.c,v 1.2 1993/08/01 18:07:45 mycroft Exp $";
  *		Modified to run under 4.1c by Peter Moore 3/17/83
  */
 
-main(argc, argv)
-	int argc;
-	char *argv[];
+int
+main(int argc, char *argv[])
 {
 	get_names(argc, argv);
 	init_display();
@@ -72,4 +70,5 @@ main(argc, argv)
 	end_msgs();
 	set_edit_chars();
 	talk();
+	return 0;
 }

@@ -1,4 +1,10 @@
+all: biff
+
+include ../MCONFIG
+include ../MRULES
+
 biff: biff.o
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 install: biff
 	install -s biff /usr/bin/

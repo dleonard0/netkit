@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)utilities.c	5.3 (Berkeley) 3/22/91";*/
-static char rcsid[] = "$Id: utilities.c,v 1.2 1993/08/01 18:07:15 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)utilities.c	5.3 (Berkeley) 3/22/91
+ */
+char util_rcsid[] = 
+  "$Id: utilities.c,v 1.5 1996/07/22 08:36:33 dholland Exp $";
 
 #define	TELOPTS
 #define	TELCMDS
@@ -42,18 +43,19 @@ static char rcsid[] = "$Id: utilities.c,v 1.2 1993/08/01 18:07:15 mycroft Exp $"
 #include <arpa/telnet.h>
 #include <sys/types.h>
 #include <sys/time.h>
-
+#include <sys/socket.h>
+#include <unistd.h>
 #include <ctype.h>
+#ifdef AUTHENTICATE
+#include <libtelnet/auth.h>
+#endif
 
 #include "general.h"
-
 #include "fdset.h"
-
 #include "ring.h"
-
 #include "defines.h"
-
 #include "externs.h"
+#include "proto.h"
 
 FILE	*NetTrace = 0;		/* Not in bss, since needs to stay */
 int	prettydump;
@@ -84,9 +86,8 @@ upcase(argument)
  * Compensate for differences in 4.2 and 4.3 systems.
  */
 
-    int
-SetSockOpt(fd, level, option, yesno)
-    int fd, level, option, yesno;
+int
+SetSockOpt(int fd, int level, int option, int yesno)
 {
 #ifndef	NOT43
     return setsockopt(fd, level, option,
@@ -100,7 +101,7 @@ SetSockOpt(fd, level, option, yesno)
     return setsockopt(fd, level, option, 0, 0);
 #endif	/* NOT43 */
 }
-
+
 /*
  * The following are routines used to print out debugging information.
  */
@@ -135,7 +136,7 @@ Dump(direction, buffer, length)
 #   define min(x,y)	((x<y)? x:y)
     unsigned char *pThis;
     int offset;
-    extern pettydump;
+/*    extern pettydump;*/
 
     offset = 0;
 
@@ -294,8 +295,10 @@ printsub(direction, pointer, length)
     unsigned char *pointer;	/* where suboption data sits */
     int		  length;	/* length of suboption data */
 {
-    register int i;
+    register int i = 0;
+#ifdef AUTHENTICATE
     char buf[512];
+#endif
     extern int want_status_response;
 
     if (showoptions || direction == 0 ||
@@ -877,18 +880,15 @@ SetForExit()
     setcommandmode();
 }
 
-    void
-Exit(returnCode)
-    int returnCode;
+void
+Exit(int returnCode)
 {
     SetForExit();
     exit(returnCode);
 }
 
-    void
-ExitString(string, returnCode)
-    char *string;
-    int returnCode;
+void
+ExitString(const char *string, int returnCode)
 {
     SetForExit();
     fwrite(string, 1, strlen(string), stderr);

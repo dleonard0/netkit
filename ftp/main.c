@@ -31,21 +31,20 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1985, 1989 Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1985, 1989 Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)main.c	5.18 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: main.c,v 1.1 1994/05/23 09:03:42 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * from: @(#)main.c	5.18 (Berkeley) 3/1/91
+ */
+char main_rcsid[] = 
+  "$Id: main.c,v 1.8 1996/07/21 09:28:33 dholland Exp $";
+
 
 /*
  * FTP User Program -- Command Interface.
  */
-#include "ftp_var.h"
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -53,6 +52,9 @@ static char rcsid[] = "$Id: main.c,v 1.1 1994/05/23 09:03:42 rzsfl Exp rzsfl $";
 #include <arpa/ftp.h>
 
 #include <signal.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
 #include <ctype.h>
@@ -63,15 +65,23 @@ static char rcsid[] = "$Id: main.c,v 1.1 1994/05/23 09:03:42 rzsfl Exp rzsfl $";
 #include <readline/history.h>
 #endif
 
-uid_t	getuid();
-void	intr(), lostpeer();
-extern	char *home;
-char	*getlogin();
+#define Extern
+#include "ftp_var.h"
 
-main(argc, argv)
-	char *argv[];
+uid_t	getuid(void);
+void	intr(int), lostpeer(int);
+extern	char *home;
+char	*getlogin(void);
+
+static void cmdscanner(int top);
+void help(int argc, char *argv[]);
+
+
+int
+main(volatile int argc, char **volatile argv)
 {
 	register char *cp;
+	struct servent *sp;
 	int top;
 	struct passwd *pw = NULL;
 	char homedir[MAXPATHLEN];
@@ -83,9 +93,17 @@ main(argc, argv)
 		fprintf(stderr, "ftp: ftp/tcp: unknown service\n");
 		exit(1);
 	}
+	ftp_port = sp->s_port;
 	doglob = 1;
 	interactive = 1;
 	autologin = 1;
+	passivemode = 0;
+
+        cp = strrchr(argv[0], '/');
+        cp = (cp == NULL) ? argv[0] : cp+1;
+        if (strcmp(cp, "pftp") == 0)
+            passivemode = 1;
+
 	argc--, argv++;
 	while (argc > 0 && **argv == '-') {
 		for (cp = *argv + 1; *cp; cp++)
@@ -110,6 +128,10 @@ main(argc, argv)
 
 			case 'n':
 				autologin = 0;
+				break;
+
+			case 'p':
+				passivemode = 1;
 				break;
 
 			case 'g':
@@ -144,13 +166,13 @@ main(argc, argv)
 		(void) strcpy(home, pw->pw_dir);
 	}
 	if (argc > 0) {
-		if (setjmp(toplevel))
+		if (sigsetjmp(toplevel, 1))
 			exit(0);
 		(void) signal(SIGINT, intr);
 		(void) signal(SIGPIPE, lostpeer);
 		setpeer(argc + 1, argv - 1);
 	}
-	top = setjmp(toplevel) == 0;
+	top = sigsetjmp(toplevel, 1) == 0;
 	if (top) {
 		(void) signal(SIGINT, intr);
 		(void) signal(SIGPIPE, lostpeer);
@@ -162,14 +184,13 @@ main(argc, argv)
 }
 
 void
-intr()
+intr(int ignore)
 {
-
-	longjmp(toplevel, 1);
+	siglongjmp(toplevel, 1);
 }
 
 void
-lostpeer()
+lostpeer(int ignore)
 {
 	extern FILE *cout;
 	extern int data;
@@ -220,13 +241,12 @@ tail(filename)
 /*
  * Command parser.
  */
-cmdscanner(top)
-	int top;
+static void
+cmdscanner(int top)
 {
 	register struct cmd *c;
 	register int l;
 	struct cmd *getcmd();
-	extern int help();
 #ifdef __USE_READLINE__
 	char *lineread;
 #endif
@@ -245,10 +265,10 @@ cmdscanner(top)
 #ifdef __USE_READLINE__
 		if (!fromatty) {
 			if (fgets(line, sizeof line, stdin) == NULL)
-				quit();
+				quit(0, NULL);
 		} else {
 			if (!lineread) {
-				quit();
+				quit(0, NULL);
 				break;
 			}
 			strcpy(line, lineread);
@@ -257,7 +277,7 @@ cmdscanner(top)
                 }
 #else
 		if (fgets(line, sizeof line, stdin) == NULL)
-			quit();
+			quit(0, NULL);
 #endif
 		l = strlen(line);
 		if (l == 0)
@@ -311,7 +331,7 @@ getcmd(name)
 	longest = 0;
 	nmatches = 0;
 	found = 0;
-	for (c = cmdtab; p = c->c_name; c++) {
+	for (c = cmdtab; (p = c->c_name) != NULL; c++) {
 		for (q = name; *q == *p++; q++)
 			if (*q == 0)		/* exact match? */
 				return (c);
@@ -335,7 +355,8 @@ getcmd(name)
 
 int slrflag;
 
-makeargv()
+void
+makeargv(void)
 {
 	char **argp;
 	char *slurpstring();
@@ -345,7 +366,7 @@ makeargv()
 	stringbase = line;		/* scan from first of buffer */
 	argbase = argbuf;		/* store from first of buffer */
 	slrflag = 0;
-	while (*argp++ = slurpstring())
+	while ((*argp++ = slurpstring())!=NULL)
 		margc++;
 }
 
@@ -478,9 +499,8 @@ OUT:
  * Help command.
  * Call each command handler with argc == 0 and argv[0] == name.
  */
-help(argc, argv)
-	int argc;
-	char *argv[];
+void
+help(int argc, char *argv[])
 {
 	extern struct cmd cmdtab[];
 	register struct cmd *c;

@@ -31,24 +31,29 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)announce.c	5.9 (Berkeley) 2/26/91";*/
-static char rcsid[] = "$Id: announce.c,v 1.2 1993/08/01 18:29:37 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)announce.c	5.9 (Berkeley) 2/26/91
+ */
+char ann_rcsid[] = 
+  "$Id: announce.c,v 1.2 1996/07/16 05:01:32 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <protocols/talkd.h>
-#include <sgtty.h>
 #include <errno.h>
 #include <syslog.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <paths.h>
+#include "proto.h"
+
+static int announce_proc(CTL_MSG *request, const char *remote_machine);
+static void print_mesg(FILE *tf, CTL_MSG *request, const char *remote_machine);
 
 extern char hostname[];
 
@@ -59,16 +64,15 @@ extern char hostname[];
  * process to any terminal that it writes on, we must fork a child
  * to protect ourselves
  */
-announce(request, remote_machine)
-	CTL_MSG *request;
-	char *remote_machine;
+int
+announce(CTL_MSG *request, const char *remote_machine)
 {
 	int pid, val, status;
 
-	if (pid = fork()) {
+	if ((pid = fork())!=0) {
 		/* we are the parent, so wait for the child */
 		if (pid == -1)		/* the fork failed */
-			return (FAILED);
+			return FAILED;
 		do {
 			val = wait(&status);
 			if (val == -1) {
@@ -79,8 +83,8 @@ announce(request, remote_machine)
 				return (FAILED);
 			}
 		} while (val != pid);
-		if (status&0377 > 0)	/* we were killed by some signal */
-			return (FAILED);
+		if ((status&0377) > 0)	/* we were killed by some signal */
+			return FAILED;
 		/* Get the second byte, this is the exit/return code */
 		return ((status >> 8) & 0377);
 	}
@@ -92,33 +96,43 @@ announce(request, remote_machine)
  * See if the user is accepting messages. If so, announce that 
  * a talk is requested.
  */
-announce_proc(request, remote_machine)
-	CTL_MSG *request;
-	char *remote_machine;
+static int
+announce_proc(CTL_MSG *request, const char *remote_machine)
 {
-	int pid, status;
+/*	int pid, status; */
 	char full_tty[32];
 	FILE *tf;
 	struct stat stbuf;
 
-	(void)sprintf(full_tty, "%s/%s", _PATH_DEV, request->r_tty);
+	snprintf(full_tty, sizeof(full_tty), "%s/%s", _PATH_DEV, 
+		 request->r_tty);
 	if (access(full_tty, 0) != 0)
-		return (FAILED);
+		return FAILED;
 	if ((tf = fopen(full_tty, "w")) == NULL)
-		return (PERMISSION_DENIED);
+		return PERMISSION_DENIED;
 	/*
 	 * On first tty open, the server will have
 	 * it's pgrp set, so disconnect us from the
 	 * tty before we catch a signal.
 	 */
-	ioctl(fileno(tf), TIOCNOTTY, (struct sgttyb *) 0);
+	ioctl(fileno(tf), TIOCNOTTY, NULL);
 	if (fstat(fileno(tf), &stbuf) < 0)
 		return (PERMISSION_DENIED);
 	if ((stbuf.st_mode&020) == 0)
 		return (PERMISSION_DENIED);
 	print_mesg(tf, request, remote_machine);
 	fclose(tf);
-	return (SUCCESS);
+	return SUCCESS;
+}
+
+/*
+ * Reject control codes and other crap.
+ * FUTURE: don't clear high ascii if the tty is in 8-bit mode
+ * Note that we don't need to let through tabs or newlines here.
+ */
+static int safechar(int ch) {
+    if (ch>127 || ch<32) ch = '?';
+    return ch;
 }
 
 #define max(a,b) ( (a) > (b) ? (a) : (b) )
@@ -131,10 +145,8 @@ announce_proc(request, remote_machine)
  * try to keep the message in one piece if the recipient
  * in in vi at the time
  */
-print_mesg(tf, request, remote_machine)
-	FILE *tf;
-	CTL_MSG *request;
-	char *remote_machine;
+static void
+print_mesg(FILE *tf, CTL_MSG *request, const char *remote_machine)
 {
 	struct timeval clock;
 	struct timezone zone;
@@ -145,31 +157,34 @@ print_mesg(tf, request, remote_machine)
 	char big_buf[N_LINES*N_CHARS];
 	char *bptr, *lptr;
 	int i, j, max_size;
+	time_t footime;
 
 	i = 0;
 	max_size = 0;
 	gettimeofday(&clock, &zone);
-	localclock = localtime( &clock.tv_sec );
-	(void)sprintf(line_buf[i], " ");
+	footime = clock.tv_sec;
+	localclock = localtime(&footime);
+	snprintf(line_buf[i], N_CHARS, " ");
 	sizes[i] = strlen(line_buf[i]);
 	max_size = max(max_size, sizes[i]);
 	i++;
-	(void)sprintf(line_buf[i], "Message from Talk_Daemon@%s at %d:%02d ...",
-	hostname, localclock->tm_hour , localclock->tm_min );
+	snprintf(line_buf[i], N_CHARS, 
+		 "Message from Talk_Daemon@%s at %d:%02d ...",
+		 hostname, localclock->tm_hour, localclock->tm_min);
 	sizes[i] = strlen(line_buf[i]);
 	max_size = max(max_size, sizes[i]);
 	i++;
-	(void)sprintf(line_buf[i], "talk: connection requested by %s@%s.",
+	snprintf(line_buf[i], N_CHARS, "talk: connection requested by %s@%s.",
 		request->l_name, remote_machine);
 	sizes[i] = strlen(line_buf[i]);
 	max_size = max(max_size, sizes[i]);
 	i++;
-	(void)sprintf(line_buf[i], "talk: respond with:  talk %s@%s",
-		request->l_name, remote_machine);
+	snprintf(line_buf[i], N_CHARS, "talk: respond with:  talk %s@%s",
+		 request->l_name, remote_machine);
 	sizes[i] = strlen(line_buf[i]);
 	max_size = max(max_size, sizes[i]);
 	i++;
-	(void)sprintf(line_buf[i], " ");
+	snprintf(line_buf[i], N_CHARS, " ");
 	sizes[i] = strlen(line_buf[i]);
 	max_size = max(max_size, sizes[i]);
 	i++;
@@ -181,15 +196,15 @@ print_mesg(tf, request, remote_machine)
 		/* copy the line into the big buffer */
 		lptr = line_buf[i];
 		while (*lptr != '\0')
-			*(bptr++) = *(lptr++);
+			*(bptr++) = safechar(*(lptr++));
 		/* pad out the rest of the lines with blanks */
 		for (j = sizes[i]; j < max_size + 2; j++)
 			*(bptr++) = ' ';
 		*(bptr++) = '\r';	/* add a \r in case of raw mode */
 		*(bptr++) = '\n';
 	}
-	*bptr = '\0';
+	*bptr = 0;
 	fprintf(tf, big_buf);
 	fflush(tf);
-	ioctl(fileno(tf), TIOCNOTTY, (struct sgttyb *) 0);
+	ioctl(fileno(tf), TIOCNOTTY, NULL);
 }

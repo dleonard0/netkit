@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)rwhod.h	5.6 (Berkeley) 4/3/91
- *	$Id: rwhod.h,v 1.2 1993/08/01 18:46:08 mycroft Exp $
+ *	$Id: rwhod.h,v 1.2 1996/07/15 21:41:36 dholland Exp $
  */
 
 #ifndef _RWHOD_H_
@@ -64,6 +64,6 @@ struct	whod {
 #define	WHODVERSION	1
 #define	WHODTYPE_STATUS	1		/* host status */
 
-#define	_PATH_RWHODIR	"/var/rwho"
+#define	_PATH_RWHODIR	"/var/spool/rwho"
 
 #endif /* !_RWHOD_H_ */

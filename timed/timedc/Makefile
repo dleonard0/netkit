@@ -1,4 +1,10 @@
+all: timedc
+
+include ../../MCONFIG
+include ../../MRULES
+
 timedc: timedc.o cmds.o cmdtab.o byteorder.o measure.o cksum.o
+	$(CC) $(CFLAGS) $^ $(LIBS) -o $@
 
 byteorder.o: ../timed/byteorder.c
 	$(CC) $(CFLAGS) -c ../timed/byteorder.c -o byteorder.o

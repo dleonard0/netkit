@@ -31,12 +31,14 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-static char sccsid[] = "@(#)readmsg.c	5.1 (Berkeley) 5/11/93";
-#endif /* not lint */
+/*
+ * From: @(#)readmsg.c	5.1 (Berkeley) 5/11/93
+ */
+char readmsg_rcsid[] =
+  "$Id: readmsg.c,v 1.2 1996/07/20 19:45:38 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.3 $"
+#ident "$Revision: 1.2 $"
 #endif
 
 #include "globals.h"
@@ -53,7 +55,7 @@ extern char *tsptype[];
 	 ((netp) == 0 || 						\
 	  ((netp)->mask & (froms).sin_addr.s_addr) == (netp)->net.s_addr))
 
-struct timeval rtime, rwait, rtout;
+static struct timeval rtime, rwait, rtout;
 struct tsp msgin;
 static struct tsplist {
 	struct tsp info;
@@ -182,7 +184,7 @@ again:
 			rwait.tv_usec = 1000000/CLK_TCK;
 
 		if (trace) {
-			fprintf(fd, "readmsg: wait %ld.%6ld at %s\n",
+			fprintf(fd, "readmsg: wait %d.%6d at %s\n",
 				rwait.tv_sec, rwait.tv_usec, date());
 			/* Notice a full disk, as we flush trace info.
 			 * It is better to flush periodically than at
@@ -432,6 +434,7 @@ struct tsp *msg;
 struct sockaddr_in *addr;
 {
 	char tm[26];
+	time_t tyme;
 	switch (msg->tsp_type) {
 
 	case TSP_LOOP:
@@ -450,7 +453,8 @@ struct sockaddr_in *addr;
 #ifdef sgi
 		(void)cftime(tm, "%D %T", &msg->tsp_time.tv_sec);
 #else
-		strncpy(tm, ctime(&msg->tsp_time.tv_sec)+3+1, sizeof(tm));
+		tyme = msg->tsp_time.tv_sec;
+		strncpy(tm, ctime(&tyme)+3+1, sizeof(tm));
 		tm[15] = '\0';		/* ugh */
 #endif /* sgi */
 		fprintf(fd, "%s %d %-6u %s %-15s %s\n",
@@ -463,7 +467,7 @@ struct sockaddr_in *addr;
 		break;
 
 	case TSP_ADJTIME:
-		fprintf(fd, "%s %d %-6u (%ld,%ld) %-15s %s\n",
+		fprintf(fd, "%s %d %-6u (%d,%d) %-15s %s\n",
 			tsptype[msg->tsp_type],
 			msg->tsp_vers,
 			msg->tsp_seq,

@@ -28,9 +28,11 @@
  * Mountain View, California  94043
  */
 
-#ifndef lint
-static char sccsid[] = "@(#)rpc_hout.c 1.12 89/02/22 (C) 1987 SMI";
-#endif
+/*
+ * From: @(#)rpc_hout.c 1.12 89/02/22 (C) 1987 SMI
+ */
+char hout_rcsid[] = 
+  "$Id: rpc_hout.c,v 1.2 1996/07/15 19:31:27 dholland Exp $";
 
 /*
  * rpc_hout.c, Header file outputter for the RPC protocol compiler 
@@ -39,14 +41,26 @@ static char sccsid[] = "@(#)rpc_hout.c 1.12 89/02/22 (C) 1987 SMI";
 #include <ctype.h>
 #include "rpc_parse.h"
 #include "rpc_util.h"
+#include "proto.h"
 
+static void pconstdef(definition *def);
+static void pargdef(definition *def);
+static void pstructdef(definition *def);
+static void puniondef(definition *def);
+static void pdefine(char *name, char *num);
+static void puldefine(char *name, char *num);
+static int define_printed(proc_list *stop, version_list *start);
+static void pprogramdef(definition *def);
+static void parglist(proc_list *proc, char *addargtype);
+static void penumdef(definition *def);
+static void ptypedef(definition *def);
+static int undefined2(char *type, char *stop);
 
 /*
  * Print the C-version of an xdr definition 
  */
 void
-print_datadef(def)
-	definition *def;
+print_datadef(definition *def)
 {
 
 	if (def->def_kind == DEF_PROGRAM )  /* handle data only */
@@ -85,20 +99,20 @@ print_datadef(def)
 
 
 void
-print_funcdef(def)
-	definition *def;
+print_funcdef(definition *def)
 {
 	switch (def->def_kind) {
-	case DEF_PROGRAM:
+	  case DEF_PROGRAM:
 		f_print(fout, "\n");
 		pprogramdef(def);
 		break;
-	      }
+	  default:
+	    /* ?... shouldn't happen I guess */
+	}
 }
 
-pxdrfuncdecl( name, pointerp )
-char* name;
-int pointerp;
+void
+pxdrfuncdecl(char *name, int pointerp)
 {
 
   f_print(fout,"#ifdef __cplusplus \n");
@@ -111,9 +125,8 @@ int pointerp;
 }
 
 
-static
-pconstdef(def)
-	definition *def;
+static void
+pconstdef(definition *def)
 {
 	pdefine(def->def_name, def->def.co);
 }
@@ -121,9 +134,8 @@ pconstdef(def)
 /* print out the definitions for the arguments of functions in the 
    header file 
 */
-static 
-pargdef(def)
-	definition *def;
+static void
+pargdef(definition *def)
 {
 	decl_list *l;
 	version_list *vers;
@@ -146,7 +158,7 @@ pargdef(def)
 				}
 				f_print(fout, "};\n");
 				f_print(fout, "typedef struct %s %s;\n", name, name);
-				pxdrfuncdecl( name,NULL );
+				pxdrfuncdecl(name, 0);
 				f_print( fout, "\n" );
 			}
 		}
@@ -154,9 +166,8 @@ pargdef(def)
 }
 
 
-static 
-pstructdef(def)
-	definition *def;
+static void
+pstructdef(definition *def)
 {
 	decl_list *l;
 	char *name = def->def_name;
@@ -169,9 +180,8 @@ pstructdef(def)
 	f_print(fout, "typedef struct %s %s;\n", name, name);
 }
 
-static
-puniondef(def)
-	definition *def;
+static void
+puniondef(definition *def)
 {
 	case_list *l;
 	char *name = def->def_name;
@@ -198,26 +208,20 @@ puniondef(def)
 	f_print(fout, "typedef struct %s %s;\n", name, name);
 }
 
-static
-pdefine(name, num)
-	char *name;
-	char *num;
+static void
+pdefine(char *name, char *num)
 {
 	f_print(fout, "#define %s %s\n", name, num);
 }
 
-static
-puldefine(name, num)
-	char *name;
-	char *num;
+static void
+puldefine(char *name, char *num)
 {
 	f_print(fout, "#define %s ((u_long)%s)\n", name, num);
 }
 
-static
-define_printed(stop, start)
-	proc_list *stop;
-	version_list *start;
+static int
+define_printed(proc_list *stop, version_list *start)
 {
 	version_list *vers;
 	proc_list *proc;
@@ -235,9 +239,8 @@ define_printed(stop, start)
 	/* NOTREACHED */
 }
 
-static
-pprogramdef(def)
-	definition *def;
+static void
+pprogramdef(definition *def)
 {
 	version_list *vers;
 	proc_list *proc;
@@ -290,12 +293,8 @@ pprogramdef(def)
 	}
 }
 
-pprocdef(proc, vp, addargtype, server_p,mode)
-	proc_list *proc;
-	version_list *vp;
-	char* addargtype;
-	int server_p;
-	int mode;
+void
+pprocdef(proc_list *proc, version_list *vp, char *addargtype, int server_p, int mode)
 {
 
 
@@ -323,10 +322,8 @@ pprocdef(proc, vp, addargtype, server_p,mode)
 
 
 /* print out argument list of procedure */
-static 
-parglist(proc, addargtype)
-        proc_list *proc;
-     char* addargtype;
+static void
+parglist(proc_list *proc, char *addargtype)
 {
 	decl_list *dl;
 
@@ -349,9 +346,8 @@ parglist(proc, addargtype)
 
 }
 
-static
-penumdef(def)
-	definition *def;
+static void
+penumdef(definition *def)
 {
 	char *name = def->def_name;
 	enumval_list *l;
@@ -378,9 +374,8 @@ penumdef(def)
 	f_print(fout, "typedef enum %s %s;\n", name, name);
 }
 
-static
-ptypedef(def)
-	definition *def;
+static void
+ptypedef(definition *def)
 {
 	char *name = def->def_name;
 	char *old = def->def.ty.old_type;
@@ -425,11 +420,8 @@ ptypedef(def)
 	}
 }
 
-pdeclaration(name, dec, tab, separator)
-	char *name;
-	declaration *dec;
-	int tab;
-        char *separator;
+void
+pdeclaration(char *name, declaration *dec, int tab, char *separator)
 {
 	char buf[8];	/* enough to hold "struct ", include NUL */
 	char *prefix;
@@ -482,10 +474,8 @@ pdeclaration(name, dec, tab, separator)
 	f_print(fout, separator );
 }
 
-static
-undefined2(type, stop)
-	char *type;
-	char *stop;
+static int
+undefined2(char *type, char *stop)
 {
 	list *l;
 	definition *def;

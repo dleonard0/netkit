@@ -1,11 +1,11 @@
 compile:
-	make -C timed
-	make -C timedc
+	$(MAKE) -C timed
+	$(MAKE) -C timedc
 
 install:
-	make -C timed install
-	make -C timedc install
+	$(MAKE) -C timed install
+	$(MAKE) -C timedc install
 
 clean:
-	make -C timed clean
-	make -C timedc clean
+	$(MAKE) -C timed clean
+	$(MAKE) -C timedc clean

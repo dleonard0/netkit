@@ -1,6 +1,12 @@
+all: rwho
+
+include ../MCONFIG
+include ../MRULES
+
 CFLAGS += -I ../include
 
 rwho: rwho.o
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 install: rwho
 	install -s rwho /usr/bin

@@ -1,7 +1,13 @@
+all: tftpd
+
+include ../MCONFIG
+include ../MRULES
+
 OBJS = tftpd.o ../tftp/tftpsubs.o
 CFLAGS += -Dsin=x_sin
 
 tftpd: tftpd.o ../tftp/tftpsubs.o
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 install: tftpd
 	install -s -m744 tftpd /usr/sbin/in.tftpd

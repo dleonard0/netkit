@@ -31,11 +31,13 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)af.c	5.11 (Berkeley) 2/28/91";*/
-static char rcsid[] = "$Id: af.c,v 1.1 1994/05/23 09:08:11 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)af.c	5.11 (Berkeley) 2/28/91
+ */
+char af_rcsid[] = 
+  "$Id: af.c,v 1.3 1996/07/15 17:45:59 dholland Exp $";
 
+#include <arpa/inet.h>
 #include "defs.h"
 
 /*
@@ -68,9 +70,8 @@ struct sockaddr_in inet_default = {
 #endif
 	AF_INET, INADDR_ANY };
 
-inet_hash(sin, hp)
-	register struct sockaddr_in *sin;
-	struct afhash *hp;
+void
+inet_hash(struct sockaddr_in *sin, struct afhash *hp)
 {
 	register u_long n;
 
@@ -83,40 +84,35 @@ inet_hash(sin, hp)
 	hp->afh_hosthash &= 0x7fffffff;
 }
 
-inet_netmatch(sin1, sin2)
-	struct sockaddr_in *sin1, *sin2;
+int
+inet_netmatch(struct sockaddr_in *sin1, struct sockaddr_in *sin2)
 {
-
 	return (inet_netof(sin1->sin_addr) == inet_netof(sin2->sin_addr));
 }
 
 /*
  * Verify the message is from the right port.
  */
-inet_portmatch(sin)
-	register struct sockaddr_in *sin;
+int
+inet_portmatch(struct sockaddr_in *sin)
 {
-	
 	return (sin->sin_port == sp->s_port);
 }
 
 /*
  * Verify the message is from a "trusted" port.
  */
-inet_portcheck(sin)
-	struct sockaddr_in *sin;
+int
+inet_portcheck(struct sockaddr_in *sin)
 {
-
 	return (ntohs(sin->sin_port) <= IPPORT_RESERVED);
 }
 
 /*
  * Internet output routine.
  */
-inet_output(s, flags, sin, size)
-	int s, flags;
-	struct sockaddr_in *sin;
-	int size;
+void
+inet_output(int s, int flags, struct sockaddr_in *sin, int size)
 {
 	struct sockaddr_in dst;
 
@@ -138,8 +134,8 @@ inet_output(s, flags, sin, size)
  * Return 1 if the address is believed
  * for an Internet host -- THIS IS A KLUDGE.
  */
-inet_checkhost(sin)
-	struct sockaddr_in *sin;
+int
+inet_checkhost(struct sockaddr_in *sin)
 {
 	u_long i = ntohl(sin->sin_addr.s_addr);
 
@@ -160,10 +156,9 @@ inet_checkhost(sin)
 	return (1);
 }
 
-inet_canon(sin)
-	struct sockaddr_in *sin;
+void
+inet_canon(struct sockaddr_in *sin)
 {
-
 	sin->sin_port = 0;
 #ifndef __linux__
 	sin->sin_len = sizeof(*sin);
@@ -171,10 +166,7 @@ inet_canon(sin)
 }
 
 char *
-inet_format(sin)
-	struct sockaddr_in *sin;
+inet_format(struct sockaddr_in *sin);
 {
-	char *inet_ntoa();
-
 	return (inet_ntoa(sin->sin_addr));
 }

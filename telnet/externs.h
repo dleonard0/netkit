@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)externs.h	5.3 (Berkeley) 3/22/91
- *	$Id: externs.h,v 1.1 1994/05/23 09:11:49 rzsfl Exp rzsfl $
+ *	$Id: externs.h,v 1.3 1996/07/20 19:47:39 dholland Exp $
  */
 
 #ifndef	BSD
@@ -218,7 +218,7 @@ extern unsigned char
 extern void
     SetNetTrace P((char *));	/* Function to change where debugging goes */
 
-extern jmp_buf
+extern sigjmp_buf
     peerdied,
     toplevel;		/* For error conditions. */
 

@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)get_addrs.c	5.7 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: get_addrs.c,v 1.1 1994/08/04 17:57:24 florian Exp florian $";
-#endif /* not lint */
+/*
+ * From: @(#)get_addrs.c	5.7 (Berkeley) 3/1/91
+ */
+char ga_rcsid[] = 
+  "$Id: get_addrs.c,v 1.4 1996/07/20 20:59:41 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -43,10 +44,12 @@ static char rcsid[] = "$Id: get_addrs.c,v 1.1 1994/08/04 17:57:24 florian Exp fl
 #include <protocols/talkd.h>
 #include <netdb.h>
 #include <stdio.h>
+#include <unistd.h>
+#include "talk.h"
 #include "talk_ctl.h"
 
-get_addrs(my_machine_name, his_machine_name)
-	char *my_machine_name, *his_machine_name;
+void
+get_addrs(char *my_machine_name, char *his_machine_name)
 {
 	struct hostent *hp;
 	struct servent *sp;
@@ -59,7 +62,7 @@ get_addrs(my_machine_name, his_machine_name)
 		herror((char *)NULL);
 		exit(-1);
 	}
-	bcopy(hp->h_addr, (char *)&my_machine_addr, hp->h_length);
+	memcpy(&my_machine_addr, hp->h_addr, hp->h_length);
 	/*
 	 * If the callee is on-machine, just copy the
 	 * network address, otherwise do a lookup...
@@ -71,7 +74,7 @@ get_addrs(my_machine_name, his_machine_name)
 			herror((char *)NULL);
 			exit(-1);
 		}
-		bcopy(hp->h_addr, (char *) &his_machine_addr, hp->h_length);
+		memcpy(&his_machine_addr, hp->h_addr, hp->h_length);
 	} else
 		his_machine_addr = my_machine_addr;
 	/* find the server's port */

@@ -31,9 +31,7 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-static char rcsid[] = "$Id: rup.c,v 1.9 1993/12/09 23:58:04 jtc Exp $";
-#endif /* not lint */
+char rcsid[] = "$Id: rup.c,v 1.2 1996/07/15 21:28:13 dholland Exp $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,6 +42,7 @@ static char rcsid[] = "$Id: rup.c,v 1.9 1993/12/09 23:58:04 jtc Exp $";
 #include <netdb.h>
 #include <rpc/rpc.h>
 #include <arpa/inet.h>
+#include <rpc/pmap_clnt.h>
 #include <err.h>
 
 #undef FSHIFT			/* Use protocol's shift and scale values */
@@ -51,6 +50,8 @@ static char rcsid[] = "$Id: rup.c,v 1.9 1993/12/09 23:58:04 jtc Exp $";
 #include <rpcsvc/rstat.h>
 
 #define HOST_WIDTH 24
+
+static int print_rup_data(const char *host, statstime *host_stat);
 
 int printtime;			/* print the remote host(s)'s time */
 
@@ -91,7 +92,6 @@ remember_host(addr)
 }
 
 
-
 struct rup_data {
 	char *host;
 	struct statstime statstime;
@@ -108,10 +108,12 @@ enum sort_type {
 };
 enum sort_type sort_type;
 
-compare(d1, d2)
-	struct rup_data *d1;
-	struct rup_data *d2;
+static int
+compare(const void *a1, const void *a2)
 {
+	const struct rup_data *d1 = (struct rup_data *) a1;
+	const struct rup_data *d2 = (struct rup_data *) a2;
+
 	switch(sort_type) {
 	case SORT_HOST:
 		return strcmp(d1->host, d2->host);
@@ -154,7 +156,7 @@ rstat_reply(replyp, raddrp)
 	struct sockaddr_in *raddrp;
 {
 	struct hostent *hp;
-	char *host;
+	const char *host;
 	statstime *host_stat = (statstime *)replyp;
 
 	if (!search_host(raddrp->sin_addr)) {
@@ -175,14 +177,11 @@ rstat_reply(replyp, raddrp)
 		}
 	}
 
-	return (0);
+	return 0;
 }
 
-
-int
-print_rup_data(host, host_stat)
-	char *host;
-	statstime *host_stat;
+static int
+print_rup_data(const char *host, statstime *host_stat)
 {
 	struct tm *tmp_time;
 	struct tm host_time;
@@ -236,6 +235,7 @@ onehost(host)
 {
 	CLIENT *rstat_clnt;
 	statstime host_stat;
+	struct timeval foo;
 	
 	rstat_clnt = clnt_create(host, RSTATPROG, RSTATVERS_TIME, "udp");
 	if (rstat_clnt == NULL) {
@@ -243,8 +243,12 @@ onehost(host)
 		return;
 	}
 
-	bzero((char *)&host_stat, sizeof(host_stat));
-	if (clnt_call(rstat_clnt, RSTATPROC_STATS, xdr_void, NULL, xdr_statstime, &host_stat, NULL) != RPC_SUCCESS) {
+	memset(&host_stat, 0, sizeof(host_stat));
+	if (clnt_call(rstat_clnt, RSTATPROC_STATS, 
+		      (xdrproc_t) xdr_void, NULL, 
+		      (xdrproc_t) xdr_statstime, &host_stat, 
+		      foo) != RPC_SUCCESS) 
+	{
 		warnx("%s",  clnt_sperror(rstat_clnt, host));
 		return;
 	}
@@ -266,8 +270,9 @@ allhosts()
 	}
 
 	clnt_stat = clnt_broadcast(RSTATPROG, RSTATVERS_TIME, RSTATPROC_STATS,
-				   xdr_void, NULL,
-				   xdr_statstime, &host_stat, rstat_reply);
+				   (xdrproc_t) xdr_void, NULL,
+				   (xdrproc_t) xdr_statstime, &host_stat, 
+				   (resultproc_t) rstat_reply);
 	if (clnt_stat != RPC_SUCCESS && clnt_stat != RPC_TIMEDOUT) {
 		warnx("%s", clnt_sperrno(clnt_stat));
 		exit(1);
@@ -283,10 +288,13 @@ allhosts()
 	}
 }
 
+static void usage(void)
+{
+	fprintf(stderr, "Usage: rup [-dhlt] [hosts ...]\n");
+	exit(1);
+}
 
-main(argc, argv)
-	int argc;
-	char *argv[];
+int main(int argc, char *argv[])
 {
 	int ch;
 	extern int optind;
@@ -321,11 +329,4 @@ main(argc, argv)
 	}
 
 	exit(0);
-}
-
-
-usage()
-{
-	fprintf(stderr, "Usage: rup [-dhlt] [hosts ...]\n");
-	exit(1);
 }

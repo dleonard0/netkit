@@ -31,28 +31,33 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1988, 1990 Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1988, 1990 Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)main.c	5.4 (Berkeley) 3/22/91";*/
-static char rcsid[] = "$Id: main.c,v 1.2 1993/08/01 18:07:24 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)main.c	5.4 (Berkeley) 3/22/91
+ */
+char main_rcsid[] = 
+  "$Id: main.c,v 1.6 1996/07/22 08:36:33 dholland Exp $";
 
 #include <sys/types.h>
+#include <getopt.h>
+
+#ifdef AUTHENTICATE
+#include <libtelnet/auth.h>
+#endif
 
 #include "ring.h"
 #include "externs.h"
 #include "defines.h"
+#include "proto.h"
 
 /*
  * Initialize variables.
  */
-    void
-tninit()
+void
+tninit(void)
 {
     init_terminal();
 
@@ -101,10 +106,8 @@ usage()
  * main.  Parse arguments, invoke the protocol or command parser.
  */
 
-
-main(argc, argv)
-	int argc;
-	char *argv[];
+int
+main(int argc, char *argv[])
 {
 	extern char *optarg;
 	extern int optind;
@@ -118,7 +121,7 @@ main(argc, argv)
 
 	TerminalSaveState();
 
-	if (prompt = strrchr(argv[0], '/'))
+	if ((prompt = strrchr(argv[0], '/'))!=NULL)
 		++prompt;
 	else
 		prompt = argv[0];
@@ -247,7 +250,7 @@ main(argc, argv)
 	argv += optind;
 
 	if (argc) {
-		char *args[7], **argp = args;
+		char *args[7], **volatile argp = args;
 
 		if (argc > 2)
 			usage();
@@ -261,14 +264,14 @@ main(argc, argv)
 			*argp++ = argv[1];	/* port */
 		*argp = 0;
 
-		if (setjmp(toplevel) != 0)
+		if (sigsetjmp(toplevel, 1) != 0)
 			Exit(0);
 		if (tn(argp - args, args) == 1)
 			return (0);
 		else
 			return (1);
 	}
-	(void)setjmp(toplevel);
+	(void)sigsetjmp(toplevel, 1);
 	for (;;) {
 #ifdef TN3270
 		if (shell_active)

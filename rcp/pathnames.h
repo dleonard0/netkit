@@ -31,10 +31,10 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)pathnames.h	5.3 (Berkeley) 5/31/90
- *	$Id: pathnames.h,v 1.1 1994/05/23 09:07:46 rzsfl Exp rzsfl $
+ *	$Id: pathnames.h,v 1.3 1996/07/15 07:20:16 dholland Exp $
  */
 
 #include <paths.h>
 
 #define	_PATH_CP	"/bin/cp"
-#define	_PATH_RSH	"/bin/rsh"
+#define	_PATH_RSH	"/usr/bin/rsh"

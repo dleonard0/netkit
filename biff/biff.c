@@ -39,48 +39,48 @@ char copyright[] =
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)biff.c	5.3 (Berkeley) 6/1/90";*/
-static char rcsid[] = "$Id: biff.c,v 1.1 1994/07/15 23:48:45 florian Exp florian $";
+char rcsid[] = "$Id: biff.c,v 1.3 1996/07/13 20:25:04 dholland Exp $";
+char pkg[] = "NetKit-B-0.07";
 #endif /* not lint */
 
 /*
  * biff
  */
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
-char	*ttyname();
-
-int main(argc, argv)
-	int argc;
-	char **argv;
+int main(int argc, char *argv[])
 {
 	char *cp = ttyname(2);
 	struct stat stb;
 
 	argc--, argv++;
-	if (cp == 0)
-		fprintf(stderr, "Where are you?\n"), exit(1);
-	if (stat(cp, &stb) < 0)
-		perror(cp), exit(1);
+	if (cp == NULL) {
+		fprintf(stderr, "Where are you?\n");
+		exit(1);
+	}
+	if (stat(cp, &stb) < 0) {
+		perror(cp);
+		exit(1);
+	}
 	if (argc == 0) {
 		printf("is %s\n", stb.st_mode&0100 ? "y" : "n");
 		exit((stb.st_mode&0100) ? 0 : 1);
 	}
 	switch (argv[0][0]) {
-
-	case 'y':
+	  case 'y':
 		if (chmod(cp, stb.st_mode|0100) < 0)
 			perror(cp);
 		break;
 
-	case 'n':
+	  case 'n':
 		if (chmod(cp, stb.st_mode&~0100) < 0)
 			perror(cp);
 		break;
 
-	default:
-		fprintf(stderr, "usage: biff [y] [n]\n");
+	  default:
+		fprintf(stderr, "usage: biff [y|n]\n");
 	}
 	exit((stb.st_mode&0100) ? 0 : 1);
 }

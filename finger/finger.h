@@ -34,13 +34,11 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)finger.h	5.5 (Berkeley) 6/1/90
- *	$Id: finger.h,v 1.1 1994/05/23 09:03:28 rzsfl Exp rzsfl $
+ *	$Id: finger.h,v 1.4 1996/07/13 22:32:43 dholland Exp $
  */
 
 #include <pwd.h>
 #include <utmp.h>
-
-#define _PATH_MAILSPOOL "/var/spool/mail"
 
 /*
  * All unique persons are linked in a list headed by "head" and linkd
@@ -75,16 +73,22 @@ typedef struct where {
 	char host[UT_HOSTSIZE+1];	/* null terminated remote host name */
 } WHERE;
 
-#define	HBITS	8			/* number of bits in hash code */
-#define	HSIZE	(1 << 8)		/* hash table size */
-#define	HMASK	(HSIZE - 1)		/* hash code mask */
+extern PERSON *phead, *ptail;		/* the linked list of all people */
 
-PERSON *htab[HSIZE];			/* the buckets */
-PERSON *phead, *ptail;			/* the linked list of all people */
+extern int entries;			/* number of people */
 
-int entries;				/* number of people */
+#define TBUFLEN 1024
+extern char tbuf[TBUFLEN];		/* temp buffer for anybody */
 
-PERSON *enter_person(), *find_person(), *palloc();
-WHERE *walloc();
+PERSON *enter_person(struct passwd *);
+PERSON *find_person(const char *name);
+PERSON *palloc(void);
+WHERE *walloc(PERSON *);
+void lflag_print(void);
+void sflag_print(void);
+void enter_where(struct utmp *ut, PERSON *pn);
+void enter_lastlog(PERSON *pn);
+int match(struct passwd *pw, const char *user);
+void netfinger(const char *name);
+const char *prphone(const char *num);
 
-extern char tbuf[1024];			/* temp buffer for anybody */

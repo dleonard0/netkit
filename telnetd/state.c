@@ -31,15 +31,19 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)state.c	5.10 (Berkeley) 3/22/91";*/
-static char rcsid[] = "$Id: state.c,v 1.1 1994/05/23 09:11:55 rzsfl Exp rzsfl $";
-#endif /* not lint */
+/*
+ * From: @(#)state.c	5.10 (Berkeley) 3/22/91
+ */
+char state_rcsid[] = 
+  "$Id: state.c,v 1.4 1996/07/16 08:58:22 dholland Exp $";
 
 #include "telnetd.h"
 #if	defined(AUTHENTICATE)
 #include <libtelnet/auth.h>
+#include <libtelnet/auth-proto.h>
 #endif
+
+static int envvarok(char *varp);
 
 char	doopt[] = { IAC, DO, '%', 'c', 0 };
 char	dont[] = { IAC, DONT, '%', 'c', 0 };
@@ -121,8 +125,8 @@ telrcv()
 			 * if CRMOD is set, which it normally is).
 			 */
 			if ((c == '\r') && his_state_is_wont(TELOPT_BINARY)) {
-				int nc = *netip;
 #if	defined(ENCRYPT)
+				int nc = *netip;
 				if (decrypt_input)
 					nc = (*decrypt_input)(nc & 0xff);
 #endif
@@ -1258,10 +1262,12 @@ suboption()
 
 		case ENV_VAR:
 			*cp = '\0';
-			if (valp)
-				(void)setenv(varp, valp, 1);
-			else
-				unsetenv(varp);
+			if (envvarok(varp)) {
+			    if (valp)
+				    (void)setenv(varp, valp, 1);
+			    else
+				    unsetenv(varp);
+			}
 			cp = varp = (char *)subpointer;
 			valp = 0;
 			break;
@@ -1277,10 +1283,12 @@ suboption()
 		}
 	}
 	*cp = '\0';
-	if (valp)
-		(void)setenv(varp, valp, 1);
-	else
-		unsetenv(varp);
+	if (envvarok(varp)) {
+	    if (valp)
+		    (void)setenv(varp, valp, 1);
+	    else
+		    unsetenv(varp);
+	}
 	break;
     }  /* end of case TELOPT_ENVIRON */
 #if	defined(AUTHENTICATE)
@@ -1442,3 +1450,22 @@ send_status()
 	DIAG(TD_OPTIONS,
 		{printsub('>', statusbuf, ncp - statusbuf); netflush();});
 }
+
+/* envvarok(char*) */
+/* check that variable is safe to pass to login or shell */
+static int
+envvarok(char *varp)
+{
+      if (strncmp(varp, "LD_", strlen("LD_")) &&
+              strncmp(varp, "ELF_LD_", strlen("ELF_LD_")) &&
+              strncmp(varp, "AOUT_LD_", strlen("AOUT_LD_")) &&
+              strncmp(varp, "_RLD_", strlen("_RLD_")) &&
+              strcmp(varp, "LIBPATH") &&
+              strcmp(varp, "IFS")) {
+              return 1;
+      } else {
+              /* optionally syslog(LOG_INFO) here */
+              return 0;
+      }
+}
+

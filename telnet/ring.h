@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)ring.h	5.2 (Berkeley) 3/1/91
- *	$Id: ring.h,v 1.2 1993/08/01 18:07:28 mycroft Exp $
+ *	$Id: ring.h,v 1.1 1996/07/16 05:17:22 dholland Exp $
  */
 
 #if defined(P)

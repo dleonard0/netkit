@@ -31,10 +31,12 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)input.c	5.22 (Berkeley) 6/1/90";*/
-static char rcsid[] = "$Id: input.c,v 1.4 1993/08/01 18:24:28 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)input.c	5.22 (Berkeley) 6/1/90
+ */
+char input_rcsid[] = 
+  "$Id: input.c,v 1.2 1996/07/15 17:45:59 dholland Exp $";
+
 
 /*
  * Routing Table Management Daemon
@@ -45,10 +47,8 @@ static char rcsid[] = "$Id: input.c,v 1.4 1993/08/01 18:24:28 mycroft Exp $";
 /*
  * Process a newly received packet.
  */
-rip_input(from, rip, size)
-	struct sockaddr *from;
-	register struct rip *rip;
-	int size;
+void
+rip_input(struct sockaddr *from, struct rip *rip, int size)
 {
 	register struct rt_entry *rt;
 	register struct netinfo *n;
@@ -126,7 +126,7 @@ rip_input(from, rip, size)
 			n->rip_metric = htonl(n->rip_metric);
 		}
 		rip->rip_cmd = RIPCMD_RESPONSE;
-		bcopy((char *)rip, packet, size);
+		memcpy(packet, rip, size);
 		(*afp->af_output)(s, 0, from, size);
 		return;
 
@@ -164,8 +164,8 @@ rip_input(from, rip, size)
 				return;
 			}
 			rt = rtfind(from);
-			if (rt == 0 || ((rt->rt_state & RTS_INTERFACE) == 0) &&
-			    rt->rt_metric >= ifp->int_metric) 
+			if (rt == 0 || ((rt->rt_state & RTS_INTERFACE) == 0 &&
+					rt->rt_metric >= ifp->int_metric)) 
 				addrouteforif(ifp);
 			else
 				rt->rt_timer = 0;
@@ -191,8 +191,7 @@ rip_input(from, rip, size)
 		if ((ifp = if_iflookup(from)) == 0 || (ifp->int_flags &
 		    (IFF_BROADCAST | IFF_POINTOPOINT | IFF_REMOTE)) == 0 ||
 		    ifp->int_flags & IFF_PASSIVE) {
-			if (bcmp((char *)from, (char *)&badfrom,
-			    sizeof(badfrom)) != 0) {
+			if (memcmp(from, &badfrom, sizeof(badfrom)) != 0) {
 				syslog(LOG_ERR,
 				  "packet from unknown router, %s",
 				  (*afswitch[from->sa_family].af_format)(from));

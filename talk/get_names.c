@@ -31,34 +31,33 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)get_names.c	5.9 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: get_names.c,v 1.1 1994/07/16 09:42:14 florian Exp florian $";
-#endif /* not lint */
+/*
+ * From: @(#)get_names.c	5.9 (Berkeley) 3/1/91
+ */
+char gn_rcsid[] = 
+  "$Id: get_names.c,v 1.4 1996/07/20 20:59:41 dholland Exp $";
 
 #include <sys/param.h>
 #include <sys/socket.h>
 #include <protocols/talkd.h>
 #include <pwd.h>
+#include <unistd.h>
 #include <string.h>
 #include "talk.h"
 
-char	*getlogin();
-char	*ttyname();
-char	*rindex();
 extern	CTL_MSG msg;
 
 /*
  * Determine the local and remote user, tty, and machines
  */
-get_names(argc, argv)
-	int argc;
-	char *argv[];
+void
+get_names(int argc, char *argv[])
 {
 	char hostname[MAXHOSTNAMELEN];
 	char *his_name, *my_name;
 	char *my_machine_name, *his_machine_name;
-	char *my_tty, *his_tty;
+	/*char *my_tty;*/
+	char *his_tty;
 	register char *cp;
 	char *names;
 

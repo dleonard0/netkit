@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)ext.h	5.7 (Berkeley) 3/1/91
- *	$Id: ext.h,v 1.1 1994/05/23 09:11:55 rzsfl Exp rzsfl $
+ *	$Id: ext.h,v 1.4 1996/07/16 09:23:26 dholland Exp $
  */
 
 /*
@@ -124,7 +124,7 @@ extern void
 #ifdef DIAGNOSTICS
 	printoption P((char *, int)),
 	printdata P((char *, char *, int)),
-	printsub P((int, unsigned char *, int)),
+	printsub(int, unsigned char *, int),
 #endif
 	ptyflush P((void)),
 	putchr P((int)),
@@ -139,7 +139,7 @@ extern void
 	sendbrk P((void)),
 	sendsusp P((void)),
 	set_termbuf P((void)),
-	start_login P((char *, int, char *)),
+	start_login P((const char *, int, char *)),
 	start_slc P((int)),
 #if	defined(AUTHENTICATE)
 	start_slave P((char *)),
@@ -199,7 +199,7 @@ extern char	*nclearto;
  * the relationship between various variables.
  */
 
-extern struct {
+extern struct _clocks {
     int
 	system,			/* what the current time is */
 	echotoggle,		/* last time user entered echo character */

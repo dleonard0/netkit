@@ -1,0 +1,41 @@
+#if 0
+void auth_encrypt_connect(void);
+void auth_encrypt_init(void);
+#endif
+
+void Exit(int);
+void ExitString(const char *, int);
+int NetClose(int fd);
+int SetSockOpt(int, int, int, int);
+int TerminalAutoFlush(void);
+void TerminalDefaultChars(void);
+int TerminalSpecialChars(int);
+void TerminalSpeeds(long *ispeed, long *ospeed);
+int TerminalWindowSize(long *rows, long *cols);
+int TerminalWrite(const char *buf, int n);
+void auth_encrypt_user(char *);
+void auth_name(unsigned char *, int);
+void auth_printsub(unsigned char *, int, unsigned char *, int);
+void cmdrc(char *m1, char *m2);
+void env_init(void);
+int getconnmode(void);
+void init_network(void);
+void init_sys(void);
+void init_telnet(void);
+void init_terminal(void);
+int is_unique(char *name, char **as, char **ae);
+int netflush(void);
+void optionstatus(void);
+int process_rings(int, int, int, int, int, int);
+void quit(void);
+int ring_at_mark(Ring *ring);
+int rlogin_susp(void);
+int send_tncmd(int (*func)(int, int), char *cmd, char *name);
+void sendeof(void);
+void sendsusp(void);
+void set_escape_char(char *);
+int stilloob(void);
+void tel_leave_binary(int);
+int telrcv(void);
+int tn(int argc, char *argv[]);
+int ttyflush(int);

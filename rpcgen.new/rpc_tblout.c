@@ -28,9 +28,11 @@
  * Mountain View, California  94043
  */
 
-#ifndef lint
-static char sccsid[] = "@(#)rpc_tblout.c 1.4 89/02/22 (C) 1988 SMI";
-#endif
+/* 
+ * From: @(#)rpc_tblout.c 1.4 89/02/22 (C) 1988 SMI
+ */
+char tblout_rcsid[] = 
+  "$Id: rpc_tblout.c,v 1.2 1996/07/15 19:31:27 dholland Exp $";
 
 /*
  * rpc_tblout.c, Dispatch table outputter for the RPC protocol compiler
@@ -39,6 +41,7 @@ static char sccsid[] = "@(#)rpc_tblout.c 1.4 89/02/22 (C) 1988 SMI";
 #include <string.h>
 #include "rpc_parse.h"
 #include "rpc_util.h"
+#include "proto.h"
 
 #define TABSIZE		8
 #define TABCOUNT	5
@@ -56,8 +59,11 @@ static char null_entry[] = "\n\t(char *(*)())0,\n\
 
 static char tbl_nproc[] = "int %s_nproc =\n\tsizeof(%s_table)/sizeof(%s_table[0]);\n\n";
 
+static void write_table(definition *def);
+static void printit(char *prefix, char *type);
+
 void
-write_tables()
+write_tables(void)
 {
 	list *l;
 	definition *def;
@@ -71,9 +77,8 @@ write_tables()
 	}
 }
 
-static
-write_table(def)
-	definition *def;
+static void
+write_table(definition *def)
 {
 	version_list *vp;
 	proc_list *proc;
@@ -138,10 +143,8 @@ write_table(def)
 	}
 }
 
-static
-printit(prefix, type)
-	char *prefix;
-	char *type;
+static void
+printit(char *prefix, char *type)
 {
 	int len;
 	int tabs;
