@@ -319,6 +319,7 @@ talk(nflag, omask, pid, rem)
 	register int cc, wc;
 	register char *bp;
 	fd_set readfrom, rembits;
+	int rfd2_ok, rem_ok;
 	char buf[BUFSIZ];
 
 	FD_ZERO(&rembits);
@@ -366,11 +367,14 @@ done:
 		exit(0);
 	}
 
+	rfd2_ok = rem_ok = 1;
 	(void)sigsetmask(omask);
-	do {
+	while (rfd2_ok || rem_ok) {
 		FD_ZERO(&readfrom);
-		FD_SET(rfd2, &readfrom);
-		FD_SET(rem, &readfrom);
+		if (rfd2_ok)
+			FD_SET(rfd2, &readfrom);
+		if (rem_ok)
+			FD_SET(rem, &readfrom);
 		if (select(16, &readfrom, 0, 0, 0) < 0) {
 			if (errno != EINTR) {
 				(void)fprintf(stderr,
@@ -389,11 +393,10 @@ done:
 #endif
 #endif
 				cc = read(rfd2, buf, sizeof buf);
-			if (cc <= 0) {
-				if (errno != EWOULDBLOCK)
-					FD_CLR(rfd2, &readfrom);
-			} else
+			if (cc > 0)
 				(void)write(2, buf, cc);
+			else if (cc == 0 || errno != EWOULDBLOCK)
+				rfd2_ok = 0;
 		}
 		if (FD_ISSET(rem, &readfrom)) {
 			errno = 0;
@@ -405,13 +408,12 @@ done:
 #endif
 #endif
 				cc = read(rem, buf, sizeof buf);
-			if (cc <= 0) {
-				if (errno != EWOULDBLOCK)
-					FD_CLR(rem, &readfrom);
-			} else
+			if (cc > 0)
 				(void)write(1, buf, cc);
+			else if (cc == 0 || errno != EWOULDBLOCK)
+				rem_ok = 0;
 		}
-	} while (FD_ISSET(rem, &readfrom) || FD_ISSET(rfd2, &readfrom));
+	}
 }
 
 void

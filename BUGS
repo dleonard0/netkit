@@ -50,4 +50,16 @@ seems necessary to me.
   rpcinfo from my source collection.
   I couldn't find newer versions with archie. Where are they?
 
+* bug report in german. I am too lazy to translate at the moment...
+  in unserem kleinen lokalen linux-netzwerk sind alle benutzer ueber yp
+  verwaltet. keine eintrage in der passwd (fuer benuzter).
+  wenn ich nun finger <username> aufrufe, bekomme ich "no such user".
+  finger -m <username> klappt.
+  grund: ohne -m wird mit getpwent die passwortliste durchgegangen.
+  ich weiss nicht, ob "getpwent" auch yp-maps durchstoebern sollte, aber
+  offensichtlich tut's das auf jeden fall nicht.
+  ich hab' fuer uns hier das problem dadurch geloest, dass ich in finger.c
+  (wenn ohne -m gesucht wird) nach dem while(...getpwent...) nochmal
+  fuer alle nicht gefundenen ueber getpwnam() suche.
+
 Florian  La Roche   flla@stud.uni-sb.de

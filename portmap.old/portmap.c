@@ -38,7 +38,8 @@ char copyright[] =
 #endif /* not lint */
 
 #ifndef lint
-static char sccsid[] = "@(#)portmap.c	5.4 (Berkeley) 4/19/91";
+/*static char sccsid[] = "from: @(#)portmap.c	5.4 (Berkeley) 4/19/91";*/
+static char rcsid[] = "$Id: portmap.c,v 1.1 1994/05/23 09:07:19 rzsfl Exp rzsfl $";
 #endif /* not lint */
 
 /*
@@ -81,34 +82,19 @@ static char sccsid[] = "@(#)portmap.c 1.32 87/08/06 Copyr 1984 Sun Micro";
  */
 
 #include <rpc/rpc.h>
+#include <rpc/pmap_clnt.h>
 #include <rpc/pmap_prot.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <syslog.h>
+#include <unistd.h>
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <sys/signal.h>
-#include <sys/time.h>
 #include <sys/resource.h>
-#ifdef SYSV40
-#include <netinet/in.h>
-#endif
-
-extern char *strerror();
-extern char *malloc();
-
-#ifndef LOG_PERROR
-#define LOG_PERROR 0
-#endif
-
-#ifndef LOG_DAEMON
-#define LOG_DAEMON 0
-#endif
-
-#ifndef svc_getcaller		/* SYSV4 */
-#  define svc_getcaller svc_getrpccaller
-#endif
 
 void reg_service();
 void reap();
@@ -116,8 +102,6 @@ static void callit();
 struct pmaplist *pmaplist;
 int debugging = 0;
 extern int errno;
-
-#include "pmap_check.h"
 
 main(argc, argv)
 	int argc;
@@ -129,21 +113,15 @@ main(argc, argv)
 	int len = sizeof(struct sockaddr_in);
 	register struct pmaplist *pml;
 
-	while ((c = getopt(argc, argv, "dv")) != EOF) {
+	while ((c = getopt(argc, argv, "d")) != EOF) {
 		switch (c) {
 
 		case 'd':
 			debugging = 1;
 			break;
 
-		case 'v':
-			verboselog = 1;
-			break;
-
 		default:
-			(void) fprintf(stderr, "usage: %s [-dv]\n", argv[0]);
-			(void) fprintf(stderr, "-d: debugging mode\n");
-			(void) fprintf(stderr, "-v: verbose logging\n");
+			(void) fprintf(stderr, "usage: %s [-d]\n", argv[0]);
 			exit(1);
 		}
 	}
@@ -153,18 +131,15 @@ main(argc, argv)
 		exit(1);
 	}
 
-#ifdef LOG_MAIL
 	openlog("portmap", debugging ? LOG_PID | LOG_PERROR : LOG_PID,
-	    FACILITY);
-#else
-	openlog("portmap", debugging ? LOG_PID | LOG_PERROR : LOG_PID);
-#endif
+	    LOG_DAEMON);
 
 	if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
 		syslog(LOG_ERR, "cannot create udp socket: %m");
 		exit(1);
 	}
 
+	bzero((char *)&addr, sizeof addr);
 	addr.sin_addr.s_addr = 0;
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(PMAPPORT);
@@ -210,13 +185,7 @@ main(argc, argv)
 
 	(void)svc_register(xprt, PMAPPROG, PMAPVERS, reg_service, FALSE);
 
-	/* additional initializations */
-	check_startup();
-#ifdef IGNORE_SIGCHLD			/* Lionel Cons <cons@dxcern.cern.ch> */
-	(void)signal(SIGCHLD, SIG_IGN);
-#else
 	(void)signal(SIGCHLD, reap);
-#endif
 	svc_run();
 	syslog(LOG_ERR, "run_svc returned unexpectedly");
 	abort();
@@ -264,13 +233,6 @@ reg_service(rqstp, xprt)
 	int ans, port;
 	caddr_t t;
 	
-	/*
-	 * Later wrappers change the logging severity on the fly. Reset to
-	 * defaults before handling the next request.
-	 */
-	allow_severity = LOG_INFO;
-	deny_severity = LOG_WARNING;
-
 	if (debugging)
 		(void) fprintf(stderr, "server: about do a switch\n");
 	switch (rqstp->rq_proc) {
@@ -279,8 +241,6 @@ reg_service(rqstp, xprt)
 		/*
 		 * Null proc call
 		 */
-		/* remote host authorization check */
-		check_default(svc_getcaller(xprt), rqstp->rq_proc, (u_long) 0);
 		if (!svc_sendreply(xprt, xdr_void, (caddr_t)0) && debugging) {
 			abort();
 		}
@@ -293,12 +253,6 @@ reg_service(rqstp, xprt)
 		if (!svc_getargs(xprt, xdr_pmap, &reg))
 			svcerr_decode(xprt);
 		else {
-			/* reject non-local requests, protect priv. ports */
-			if (!check_setunset(svc_getcaller(xprt), 
-			    rqstp->rq_proc, reg.pm_prog, reg.pm_port)) {
-				ans = 0;
-				goto done;
-			} 
 			/*
 			 * check to see if already used
 			 * find_service returns a hit even if
@@ -348,10 +302,6 @@ reg_service(rqstp, xprt)
 			svcerr_decode(xprt);
 		else {
 			ans = 0;
-			/* reject non-local requests */
-			if (!check_setunset(svc_getcaller(xprt), 
-			    rqstp->rq_proc, reg.pm_prog, (u_long) 0))
-				goto done;
 			for (prevpml = NULL, pml = pmaplist; pml != NULL; ) {
 				if ((pml->pml_map.pm_prog != reg.pm_prog) ||
 					(pml->pml_map.pm_vers != reg.pm_vers)) {
@@ -361,14 +311,6 @@ reg_service(rqstp, xprt)
 					continue;
 				}
 				/* found it; pml moves forward, prevpml stays */
-				/* privileged port check */
-				if (!check_privileged_port(svc_getcaller(xprt), 
-				    rqstp->rq_proc, 
-				    reg.pm_prog, 
-				    pml->pml_map.pm_port)) {
-					ans = 0;
-					break;
-				}
 				ans = 1;
 				t = (caddr_t)pml;
 				pml = pml->pml_next;
@@ -393,13 +335,6 @@ reg_service(rqstp, xprt)
 		if (!svc_getargs(xprt, xdr_pmap, &reg))
 			svcerr_decode(xprt);
 		else {
-			/* remote host authorization check */
-			if (!check_default(svc_getcaller(xprt), 
-			    rqstp->rq_proc, 
-			    reg.pm_prog)) {
-				ans = 0;
-				goto done;
-			}
 			fnd = find_service(reg.pm_prog, reg.pm_vers, reg.pm_prot);
 			if (fnd)
 				port = fnd->pml_map.pm_port;
@@ -420,16 +355,8 @@ reg_service(rqstp, xprt)
 		if (!svc_getargs(xprt, xdr_void, NULL))
 			svcerr_decode(xprt);
 		else {
-			/* remote host authorization check */
-			struct pmaplist *p;
-			if (!check_default(svc_getcaller(xprt), 
-			    rqstp->rq_proc, (u_long) 0)) {
-				p = 0;	/* send empty list */
-			} else {
-				p = pmaplist;
-			}
 			if ((!svc_sendreply(xprt, xdr_pmaplist,
-			    (caddr_t)&p)) && debugging) {
+			    (caddr_t)&pmaplist)) && debugging) {
 				(void) fprintf(stderr, "svc_sendreply\n");
 				abort();
 			}
@@ -448,8 +375,6 @@ reg_service(rqstp, xprt)
 		break;
 
 	default:
-		/* remote host authorization check */
-		check_default(svc_getcaller(xprt), rqstp->rq_proc, (u_long) 0);
 		svcerr_noproc(xprt);
 		break;
 	}
@@ -462,7 +387,7 @@ reg_service(rqstp, xprt)
 #define ARGSIZE 9000
 
 struct encap_parms {
-	u_long arglen;
+	u_int arglen;
 	char *args;
 };
 
@@ -577,10 +502,6 @@ callit(rqstp, xprt)
 	timeout.tv_usec = 0;
 	a.rmt_args.args = buf;
 	if (!svc_getargs(xprt, xdr_rmtcall_args, &a))
-		return;
-	/* host and service access control */
-	if (!check_callit(svc_getcaller(xprt), 
-	    rqstp->rq_proc, a.rmt_prog, a.rmt_proc))
 		return;
 	if ((pml = find_service(a.rmt_prog, a.rmt_vers,
 	    (u_long)IPPROTO_UDP)) == NULL)

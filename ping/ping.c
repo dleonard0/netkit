@@ -80,7 +80,7 @@ static char rcsid[] = "$Id: ping.c,v 1.1 1994/05/23 09:07:13 rzsfl Exp rzsfl $";
 #include <errno.h>
 #include <string.h>
 
-#define ICMP_MINLEN	32
+#define ICMP_MINLEN	28
 
 #define	DEFDATALEN	(64 - 8)	/* default data length */
 #define	MAXIPLEN	60
@@ -551,7 +551,7 @@ pr_pack(buf, cc, from)
 	/* Check the IP header */
 	ip = (struct iphdr *)buf;
 	hlen = ip->ip_hl << 2;
-	if (cc < hlen + ICMP_MINLEN) {
+	if (cc < datalen + ICMP_MINLEN) {
 		if (options & F_VERBOSE)
 			(void)fprintf(stderr,
 			  "ping: packet too short (%d bytes) from %s\n", cc,

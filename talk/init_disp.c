@@ -70,7 +70,7 @@ init_display()
 	signal(SIGINT, sig_sent);
 	signal(SIGPIPE, sig_sent);
 	/* curses takes care of ^Z */
-	signal(SIGTSTP, SIG_IGN);	/* No, it doesn't. */
+	signal(SIGTSTP, SIG_DFL);	/* No, it doesn't. */
 	my_win.x_nlines = LINES / 2;
 	my_win.x_ncols = COLS;
 	my_win.x_win = newwin(my_win.x_nlines, my_win.x_ncols, 0, 0);

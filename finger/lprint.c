@@ -149,7 +149,7 @@ lprint(pn)
 			tp = localtime(&w->loginat);
 			t = asctime(tp);
 			tzset();
-			tzn = tzname[1 - daylight];
+			tzn = tzname[daylight];
 			cpr = printf("On since %.16s (%s) on %s",
 			    t, tzn, w->tty);
 			if (*w->host) {
@@ -166,7 +166,7 @@ lprint(pn)
 				if (*w->host)
 				    putchar('\n');
 				cpr += printf("%-*s",
-				    maxlen - strlen(w->tty) + 3);
+				    maxlen - strlen(w->tty) + 3, "");
 				if (delta->tm_yday > 0) {
 					cpr += printf("%d day%s ",
 					   delta->tm_yday,
@@ -205,7 +205,7 @@ lprint(pn)
 			tp = localtime(&w->loginat);
 			t = asctime(tp);
 			tzset();
-			tzn = tzname[1 - daylight];
+			tzn = tzname[daylight];
 			if (now - w->loginat > SECSPERDAY * DAYSPERNYEAR / 2)
 				cpr =
 				    printf("Last login %.16s %.4s (%s) on %s",
@@ -231,20 +231,20 @@ lprint(pn)
 			tp = localtime(&pn->mailrecv);
 			t = asctime(tp);
 			tzset();
-			tzn = tzname[1 - daylight];
+			tzn = tzname[daylight];
 			printf("New mail received %.16s %.4s (%s)\n", t,
 			       t + 20, tzn);
 			tp = localtime(&pn->mailread);
 			t = asctime(tp);
 			tzset();
-			tzn = tzname[1 - daylight];
+			tzn = tzname[daylight];
 			printf("     Unread since %.16s %.4s (%s)\n", t,
 			       t + 20, tzn);
 		} else {
 			tp = localtime(&pn->mailread);
 			t = asctime(tp);
 			tzset();
-			tzn = tzname[1 - daylight];
+			tzn = tzname[daylight];
 			printf("Mail last read %.16s %.4s (%s)\n", t,
 			       t + 20, tzn);
 		}
