@@ -44,11 +44,9 @@
 
 #include <stdio.h>
 #include <setjmp.h>
-#ifndef	FILIO_H
-#include <sys/ioctl.h>
-#else
-#include <sys/filio.h>
-#endif
+#include <linux/ioctl.h>
+#include <features.h>
+#include <termios.h>
 #ifdef	USE_TERMIO
 # ifndef	VINTR
 #  ifdef SYSV_TERMIO

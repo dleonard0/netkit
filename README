@@ -23,6 +23,9 @@
   that they should be incorporated into the source packages that need them.
   (Only tcpdump and maybe few others.)
 
+* If you have to remove #include <lastlog.h> somewhere, please read the last
+  point again...
+
 * Check the configuration options in the toplevel Makefile.
 
 * Do a "make" to compile everything. Maybe use "make 2>&1 | less" to check

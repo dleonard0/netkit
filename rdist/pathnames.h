@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 1983 Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1989, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,41 +30,10 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	from: @(#)af.h	5.7 (Berkeley) 6/1/90
- *	$Id: af.h,v 1.1 1994/05/23 09:08:11 rzsfl Exp rzsfl $
+ *	from: @(#)pathnames.h	8.1 (Berkeley) 6/9/93
+ *	$Id: pathnames.h,v 1.3 1994/03/07 05:05:39 cgd Exp $
  */
 
-/*
- * Routing table management daemon.
- */
+#include <paths.h>
 
-#ifndef AF_MAX
-#define AF_MAX 3	/* AF_UNIX + AF_INET */
-#endif
-
-/*
- * Per address family routines.
- */
-struct afswitch {
-	int	(*af_hash)();		/* returns keys based on address */
-	int	(*af_netmatch)();	/* verifies net # matching */
-	int	(*af_output)();		/* interprets address for sending */
-	int	(*af_portmatch)();	/* packet from some other router? */
-	int	(*af_portcheck)();	/* packet from privileged peer? */
-	int	(*af_checkhost)();	/* tells if address is valid */
-	int	(*af_rtflags)();	/* get flags for route (host or net) */
-	int	(*af_sendroute)();	/* check bounds of subnet broadcast */
-	int	(*af_canon)();		/* canonicalize address for compares */
-	char	*(*af_format)();	/* convert address to string */
-};
-
-/*
- * Structure returned by af_hash routines.
- */
-struct afhash {
-	u_int	afh_hosthash;		/* host based hash */
-	u_int	afh_nethash;		/* network based hash */
-};
-
-extern struct	afswitch afswitch[AF_MAX];	/* table proper */
-extern int	af_max;			/* number of entries in table */
+#define	_PATH_RDIST	"rdist"

@@ -107,4 +107,7 @@ seems necessary to me.
   rpcinfo from my source collection.
   I couldn't find newer versions with archie. Where are they?
 
+* Vesa Ruokonen has suggested to use ncurses instead of bsd curses for talk.
+  I will do that after the next version of ncurses is released.
+
 Florian  La Roche   flla@stud.uni-sb.de

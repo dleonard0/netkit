@@ -33,7 +33,7 @@
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)table.c	5.7 (Berkeley) 2/26/91";*/
-static char rcsid[] = "$Id: table.c,v 1.1 1994/05/23 09:11:43 rzsfl Exp rzsfl $";
+static char rcsid[] = "$Id: table.c,v 1.1 1994/07/16 09:59:02 florian Exp florian $";
 #endif /* not lint */
 
 /*
@@ -74,7 +74,7 @@ struct table_entry {
 TABLE_ENTRY *table = NIL;
 CTL_MSG *find_request();
 CTL_MSG *find_match();
-static void delete();
+static void delete (TABLE_ENTRY *ptr);
 
 /*
  * Look in the table for an invitation that matches the current

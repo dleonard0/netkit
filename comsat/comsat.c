@@ -39,7 +39,7 @@ char copyright[] =
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)comsat.c	5.24 (Berkeley) 2/25/91";*/
-static char rcsid[] = "$Id: comsat.c,v 1.2 1993/08/01 18:31:05 mycroft Exp $";
+static char rcsid[] = "$Id: comsat.c,v 1.1 1994/07/15 23:51:03 florian Exp florian $";
 #endif /* not lint */
 
 #include <sys/param.h>
@@ -59,7 +59,10 @@ static char rcsid[] = "$Id: comsat.c,v 1.2 1993/08/01 18:31:05 mycroft Exp $";
 #include <syslog.h>
 #include <ctype.h>
 #include <string.h>
+#include <pwd.h>
 #include <paths.h>
+#include <unistd.h>
+#include <stdlib.h>
 
 int	debug = 0;
 #define	dsyslog	if (debug) syslog
@@ -71,8 +74,12 @@ struct	utmp *utmp = NULL;
 time_t	lastmsgtime, time();
 int	nutmp, uf;
 
+static void mailfor(char *name);
+static void notify(struct utmp *utp, off_t offset);
+static void jkfprintf(FILE *tp, char name[], off_t offset);
+
 /* ARGSUSED */
-main(argc, argv)
+int main(argc, argv)
 	int argc;
 	char **argv;
 {
@@ -96,7 +103,7 @@ main(argc, argv)
 		exit(1);
 	}
 	if ((uf = open(_PATH_UTMP, O_RDONLY, 0)) < 0) {
-		syslog(LOG_ERR, ".main: %s: %m", _PATH_UTMP);
+		syslog(LOG_ERR, "main: %s: %m", _PATH_UTMP);
 		(void) recv(0, msgbuf, sizeof(msgbuf) - 1, 0);
 		exit(1);
 	}
@@ -117,7 +124,7 @@ main(argc, argv)
 		if (!nutmp)		/* no one has logged in yet */
 			continue;
 		sigblock(sigmask(SIGALRM));
-		msgbuf[cc] = 0;
+		msgbuf[cc] = '\0';
 		(void)time(&lastmsgtime);
 		mailfor(msgbuf);
 		sigsetmask(0L);
@@ -137,7 +144,6 @@ onalrm()
 	static u_int utmpmtime;		/* last modification time for utmp */
 	struct stat statbf;
 	off_t lseek();
-	char *malloc(), *realloc();
 
 	if (time((time_t *)NULL) - lastmsgtime >= MAXIDLE)
 		exit(0);
@@ -161,7 +167,7 @@ onalrm()
 	}
 }
 
-mailfor(name)
+static void mailfor(name)
 	char *name;
 {
 	register struct utmp *utp = &utmp[nutmp];
@@ -179,18 +185,22 @@ mailfor(name)
 
 static char *cr;
 
-notify(utp, offset)
+static void notify(utp, offset)
 	register struct utmp *utp;
 	off_t offset;
 {
-	static char tty[20] = _PATH_DEV;
-	struct sgttyb gttybuf;
-	struct stat stb;
 	FILE *tp;
-	char name[sizeof(utmp[0].ut_name) + 1];
+	struct stat stb;
+	struct sgttyb gttybuf;
+	char tty[20], name[sizeof(utmp[0].ut_name) + 1];
 
-	(void)strncpy(tty + sizeof(_PATH_DEV) - 1, utp->ut_line,
-	    sizeof(utp->ut_line));
+	(void)snprintf(tty, sizeof(tty), "%s%.*s",
+	    _PATH_DEV, (int)sizeof(utp->ut_line), utp->ut_line);
+	if (index(tty + sizeof(_PATH_DEV) - 1, '/')) {
+		/* A slash is an attempt to break security... */
+		syslog(LOG_AUTH | LOG_NOTICE, "'/' in \"%s\"", tty);
+		return;
+	}
 	if (stat(tty, &stb) || !(stb.st_mode & S_IEXEC)) {
 		dsyslog(LOG_DEBUG, "%s: wrong mode on %s", utp->ut_name, tty);
 		return;
@@ -210,13 +220,13 @@ notify(utp, offset)
 	(void)strncpy(name, utp->ut_name, sizeof(utp->ut_name));
 	name[sizeof(name) - 1] = '\0';
 	(void)fprintf(tp, "%s\007New mail for %s@%.*s\007 has arrived:%s----%s",
-	    cr, name, sizeof(hostname), hostname, cr, cr);
+	    cr, name, (int)sizeof(hostname), hostname, cr, cr);
 	jkfprintf(tp, name, offset);
 	(void)fclose(tp);
 	_exit(0);
 }
 
-jkfprintf(tp, name, offset)
+static void jkfprintf(tp, name, offset)
 	register FILE *tp;
 	char name[];
 	off_t offset;
@@ -224,7 +234,19 @@ jkfprintf(tp, name, offset)
 	register char *cp, ch;
 	register FILE *fi;
 	register int linecnt, charcnt, inheader;
+	register struct passwd *p;
 	char line[BUFSIZ];
+
+	/* Set effective uid to user in case mail drop is on nfs */
+	if ((p = getpwnam(name)) == NULL) {
+		/*
+		 * If user is not in passwd file, assume that it's
+		 * an attempt to break security...
+		 */
+		syslog(LOG_AUTH | LOG_NOTICE, "%s not in passwd file", name);
+		return;
+	} else
+		(void) setuid(p->pw_uid);
 
 	if ((fi = fopen(name, "r")) == NULL)
 		return;
@@ -244,12 +266,13 @@ jkfprintf(tp, name, offset)
 				continue;
 			}
 			if (line[0] == ' ' || line[0] == '\t' ||
-			    strncmp(line, "From:", 5) &&
-			    strncmp(line, "Subject:", 8))
+			    (strncmp(line, "From:", 5) &&
+			    strncmp(line, "Subject:", 8)))
 				continue;
 		}
 		if (linecnt <= 0 || charcnt <= 0) {
 			(void)fprintf(tp, "...more...%s", cr);
+			fclose(fi);
 			return;
 		}
 		/* strip weird stuff so can't trojan horse stupid terminals */
@@ -263,4 +286,5 @@ jkfprintf(tp, name, offset)
 		--linecnt;
 	}
 	(void)fprintf(tp, "----%s\n", cr);
+	fclose(fi);
 }

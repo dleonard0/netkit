@@ -33,7 +33,7 @@
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)ctl.c	5.7 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: ctl.c,v 1.1 1994/05/23 09:11:40 rzsfl Exp rzsfl $";
+static char rcsid[] = "$Id: ctl.c,v 1.1 1994/07/16 09:38:38 florian Exp florian $";
 #endif /* not lint */
 
 /*
@@ -49,7 +49,7 @@ static char rcsid[] = "$Id: ctl.c,v 1.1 1994/05/23 09:11:40 rzsfl Exp rzsfl $";
 #include "talk.h"
 #include "talk_ctl.h"
 
-#ifdef __linux__
+#ifdef	__linux__
 struct sockaddr_in daemon_addr = { AF_INET };
 struct sockaddr_in ctl_addr = { AF_INET };
 struct sockaddr_in my_addr = { AF_INET };
