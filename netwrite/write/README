@@ -1,0 +1,74 @@
+This code is copyrighted by multiple parties.  Please see the file
+COPYING for copyright and distribution information.
+
+
+This is a network-aware replacement for write(1). It is derived from
+code found in the Project Athena "OLC" source tree. It has been
+heavily modified and enhanced, but should remain more or less
+compatible with the original. 
+
+This code is presently being maintained by myself, David A. Holland,
+dholland@hcs.harvard.edu. To my knowledge, nobody is maintaining the
+MIT code, which was last modified in 1991.
+
+I do not know what the RFC status of the protocol used by this code
+is. I suspect there is nothing at all. Nonetheless, the MIT code has a
+fairly wide distribution and seems to be a de facto standard. The
+protocol is rather in need of improvement anyhow, as it is quite
+trivial to spoof.
+
+There appears to be a different network write protocol in use by AIX
+and OSF/1 (aka Digital Unix). Information about this protocol would be
+welcome.
+
+
+Installation:
+
+1. Edit the makefile to set compiler flags and such. Be sure to set
+the tty group (the group that owns tty devices, if your tty devices
+are mode 620) correctly.
+
+If your system sets tty devices to mode 622 and/or does not set the
+group ownership to a special tty group, please ask your vendor to
+rectify the situation. (You may not think it will do any good, but if
+enough people ask things do eventually happen.) While everything will
+work, anybody can write to anybody else's terminal, which has
+reasonably serious security implications.
+
+
+2. make. Linux, Ultrix, Irix, OSF/1, HP-UX 9, and Solaris are known to
+work out of the box. Others may require minor tweaking. Send me
+patches. You may need gcc on systems where the native compiler is
+feeble.
+
+
+3. make install. Check that all the modes are correct:
+-rwxr-sr-x   1 root     tty         40631 Apr 29  1996 write
+-rwxr-xr-x   1 root     root         1660 Apr 29  1996 writed
+
+
+4. Edit /etc/services (or the equivalent if your services file is
+distributed via NIS) and add the following line if it's not there
+already:
+
+write           811/tcp				# network write daemon
+
+
+5. Edit /etc/inetd.conf and add one of the the following lines, or
+some variation (as appropriate) if none there already:
+
+write	stream	tcp	nowait	root  /usr/sbin/tcpd /usr/local/sbin/in.writed
+write	stream	tcp	nowait	root  /usr/local/sbin/in.writed
+
+It is necessary at present for writed to be run as root, although
+arranging to permit another user is a reasonably simple patch.
+
+
+6. Send inetd a hangup signal to make it reload, if necessary.
+
+
+7. Test. Write to yourself and to yourself@localhost. If it doesn't
+work, and you can figure out why, please let me know. Please be sure
+to include enough information to give me a chance to fix the problem.
+Bug reports like "it crashes" really aren't very useful, I'm afraid.
+

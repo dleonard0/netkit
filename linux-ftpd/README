@@ -1,0 +1,28 @@
+This is a port of the OpenBSD ftp daemon.
+The source was retrieved from ftp.openbsd.org on Mon May 19 06:20:58 EDT 1997,
+including the files
+	extern.h	ftpcmd.y	ftpd.8		ftpd.c
+	logutmp.c	logwtmp.c	pathnames.h	popen.c
+
+These came from src/libexec/ftpd.
+The support files came from various sources, including OpenBSD's libc,
+NetKit 0.09, and sendmail 8.7.4. (8.7.4 because it was handy, not for
+any particular reason.) Others were written for this port.
+
+This version does not put ftp users in utmp; the utmp code is #if'd out.
+This means the -U option does not work.
+
+Send bug reports and whatnot to me, not to OpenBSD, as the OpenBSD
+organization doesn't have anything official to do with this port.
+I'll forward them if necessary.
+
+Please don't use linux-ftpd-0.09 any longer as it's rather broken and
+this version is in all respects superior.
+
+To install, edit MCONFIG, make, and make install. For configuration
+instructions, read the man page, keeping in mind that it's for OpenBSD
+and hasn't been edited for Linux. (This will be fixed eventually.)
+
+
+David A. Holland	dholland@hcs.harvard.edu
+								19-May-1997

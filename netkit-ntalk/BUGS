@@ -1,0 +1,16 @@
+talk:
+	- long-standing curses bugs associated with going off right side of
+	  screen. (These appear to no longer happen now though.)
+	- support word-wrap.
+	- handle backspacing intelligently.
+	- there are reports that it sometimes goes into a one-line-only 
+	  mode where it only prints to the top line of the screen. I can't 
+	  reproduce this, I'm afraid... insight welcome.
+	- talk should behave more intelligently on systems with multiple
+	  interfaces. 
+
+talkd:
+	- talk request messages should check for 8 bit tty and not 
+	  clear to 7 bits.
+	- doesn't log flash attempts. 
+
