@@ -3,10 +3,12 @@ all: tftp
 include ../MCONFIG
 include ../MRULES
 
-CFLAGS += -Dsin=x_sin
+OBJS = tftp.o main.o tftpsubs.o
 
-tftp: tftp.o main.o tftpsubs.o
+tftp: $(OBJS)
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
+
+$(OBJS): tftpsubs.h
 
 install: tftp
 	install -s tftp /usr/bin

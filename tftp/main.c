@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)main.c	5.10 (Berkeley) 3/1/91
  */
 char main_rcsid[] = 
-  "$Id: main.c,v 1.4 1996/07/20 21:04:16 dholland Exp $";
+  "$Id: main.c,v 1.6 1996/08/15 05:30:59 dholland Exp $";
 
 /* Many bug fixes are from Jim Guyton <guyton@rand-unix> */
 
@@ -65,23 +65,27 @@ char main_rcsid[] =
 
 #define	TIMEOUT		5		/* secs between rexmt's */
 
-struct	sockaddr_in s_in;
-int	f;
-short   port;
-int	trace;
-int	verbose;
-int	connected;
-char	mode[32];
-char	line[200];
-int	margc;
-char	*margv[20];
-char	*prompt = "tftp";
-sigjmp_buf	toplevel;
-void	intr();
-struct	servent *sp;
+struct sockaddr_in s_inn;
+int f;
+int trace;
+int verbose;
+int rexmtval = TIMEOUT;
+int maxtimeout = 5 * TIMEOUT;
+sigjmp_buf toplevel;
+void sendfile(int fd, char *name, char *modestr);
+void recvfile(int fd, char *name, char *modestr);
 
-void sendfile(int fd, char *name, char *mode);
-void recvfile(int fd, char *name, char *mode);
+
+static int connected;
+static short port;
+static char mode[32];
+static char line[200];
+static int margc;
+static char *margv[20];
+static const char *prompt = "tftp";
+static struct servent *sp;
+
+static void intr(int);
 
 void makeargv(void);
 void command(int top);
@@ -105,9 +109,9 @@ void getusage(const char *s);
 #define HELPINDENT (sizeof("connect"))
 
 struct cmd {
-	char	*name;
-	char	*help;
-	void	(*handler)(int, char *[]);
+	const char *name;
+	const char *help;
+	void (*handler)(int, char *[]);
 };
 
 char	vhelp[] = "toggle verbose mode";
@@ -141,10 +145,8 @@ struct cmd cmdtab[] = {
 	{ 0 }
 };
 
-struct	cmd *getcmd();
-char	*tail();
-char	*index();
-char	*rindex();
+static struct cmd *getcmd(const char *name);
+static char *tail(char *filename);
 
 int
 main(int argc, char *argv[])
@@ -180,7 +182,7 @@ main(int argc, char *argv[])
 		command(top);
 }
 
-char    hostname[100];
+static char hostname[100];
 
 void
 setpeer(int argc, char *argv[])
@@ -201,13 +203,15 @@ setpeer(int argc, char *argv[])
 	}
 	host = gethostbyname(argv[1]);
 	if (host) {
-		s_in.sin_family = host->h_addrtype;
-		memcpy(&s_in.sin_addr, host->h_addr, host->h_length);
-		strcpy(hostname, host->h_name);
-	} else {
-		s_in.sin_family = AF_INET;
-		s_in.sin_addr.s_addr = inet_addr(argv[1]);
-		if (s_in.sin_addr.s_addr == -1) {
+		s_inn.sin_family = host->h_addrtype;
+		memcpy(&s_inn.sin_addr, host->h_addr, host->h_length);
+		strncpy(hostname, host->h_name, sizeof(hostname));
+		hostname[sizeof(hostname)-1] = 0;
+	} 
+	else {
+		s_inn.sin_family = AF_INET;
+		s_inn.sin_addr.s_addr = inet_addr(argv[1]);
+		if (s_inn.sin_addr.s_addr == (unsigned long)-1) {
 			connected = 0;
 			printf("%s: unknown host\n", argv[1]);
 			return;
@@ -228,14 +232,14 @@ setpeer(int argc, char *argv[])
 }
 
 struct	modes {
-	char *m_name;
-	char *m_mode;
+	const char *m_name;
+	const char *m_mode;
 } modes[] = {
 	{ "ascii",	"netascii" },
 	{ "netascii",   "netascii" },
 	{ "binary",     "octet" },
 	{ "image",      "octet" },
-	{ "octet",     "octet" },
+	{ "octet",      "octet" },
 /*      { "mail",       "mail" },       */
 	{ 0,		0 }
 };
@@ -244,7 +248,7 @@ void
 modecmd(int argc, char *argv[])
 {
 	register struct modes *p;
-	char *sep;
+	const char *sep;
 
 	if (argc < 2) {
 		printf("Using %s mode to transfer files.\n", mode);
@@ -276,12 +280,16 @@ modecmd(int argc, char *argv[])
 void
 setbinary(int argc, char *argv[])
 {
+	(void)argc;
+	(void)argv;
 	setmode("octet");
 }
 
 void
 setascii(int argc, char *argv[])
 {
+	(void)argc;
+	(void)argv;
 	setmode("netascii");
 }
 
@@ -302,7 +310,7 @@ put(int argc, char *argv[])
 {
 	int fd;
 	register int n;
-	register char *cp, *targ;
+	register char *ccp, *targ;
 
 	if (argc < 2) {
 		strcpy(line, "send ");
@@ -335,35 +343,37 @@ put(int argc, char *argv[])
 			herror((char *)NULL);
 			return;
 		}
-		bcopy(hp->h_addr, (caddr_t)&s_in.sin_addr, hp->h_length);
-		s_in.sin_family = hp->h_addrtype;
+		bcopy(hp->h_addr, (caddr_t)&s_inn.sin_addr, hp->h_length);
+		s_inn.sin_family = hp->h_addrtype;
 		connected = 1;
-		strcpy(hostname, hp->h_name);
+		strncpy(hostname, hp->h_name, sizeof(hostname));
+		hostname[sizeof(hostname)-1] = 0;
 	}
 	if (!connected) {
 		printf("No target machine specified.\n");
 		return;
 	}
 	if (argc < 4) {
-		cp = argc == 2 ? tail(targ) : argv[1];
-		fd = open(cp, O_RDONLY);
+		ccp = argc == 2 ? tail(targ) : argv[1];
+		fd = open(ccp, O_RDONLY);
 		if (fd < 0) {
-			fprintf(stderr, "tftp: "); perror(cp);
+			fprintf(stderr, "tftp: "); 
+			perror(ccp);
 			return;
 		}
 		if (verbose)
 			printf("putting %s to %s:%s [%s]\n",
-				cp, hostname, targ, mode);
-		s_in.sin_port = port;
+				ccp, hostname, targ, mode);
+		s_inn.sin_port = port;
 		sendfile(fd, targ, mode);
 		return;
 	}
 				/* this assumes the target is a directory */
 				/* on a remote unix system.  hmmmm.  */
-	cp = index(targ, '\0'); 
-	*cp++ = '/';
+	ccp = targ+strlen(targ);
+	*ccp++ = '/';
 	for (n = 1; n < argc - 1; n++) {
-		strcpy(cp, tail(argv[n]));
+		strcpy(ccp, tail(argv[n]));
 		fd = open(argv[n], O_RDONLY);
 		if (fd < 0) {
 			fprintf(stderr, "tftp: "); perror(argv[n]);
@@ -372,7 +382,7 @@ put(int argc, char *argv[])
 		if (verbose)
 			printf("putting %s to %s:%s [%s]\n",
 				argv[n], hostname, targ, mode);
-		s_in.sin_port = port;
+		s_inn.sin_port = port;
 		sendfile(fd, targ, mode);
 	}
 }
@@ -425,13 +435,14 @@ get(int argc, char *argv[])
 			hp = gethostbyname(argv[n]);
 			if (hp == NULL) {
 				fprintf(stderr, "tftp: %s: ", argv[n]);
-				herror((char *)NULL);
+				herror(NULL);
 				continue;
 			}
-			bcopy(hp->h_addr, (caddr_t)&s_in.sin_addr, hp->h_length);
-			s_in.sin_family = hp->h_addrtype;
+			memcpy(&s_inn.sin_addr, hp->h_addr, hp->h_length);
+			s_inn.sin_family = hp->h_addrtype;
 			connected = 1;
-			strcpy(hostname, hp->h_name);
+			strncpy(hostname, hp->h_name, sizeof(hostname));
+			hostname[sizeof(hostname)-1] = 0;
 		}
 		if (argc < 4) {
 			cp = argc == 3 ? argv[2] : tail(src);
@@ -443,7 +454,7 @@ get(int argc, char *argv[])
 			if (verbose)
 				printf("getting from %s:%s to %s [%s]\n",
 					hostname, src, cp, mode);
-			s_in.sin_port = port;
+			s_inn.sin_port = port;
 			recvfile(fd, src, mode);
 			break;
 		}
@@ -456,7 +467,7 @@ get(int argc, char *argv[])
 		if (verbose)
 			printf("getting from %s:%s to %s [%s]\n",
 				hostname, src, cp, mode);
-		s_in.sin_port = port;
+		s_inn.sin_port = port;
 		recvfile(fd, src, mode);
 	}
 }
@@ -468,7 +479,6 @@ getusage(const char *s)
 	printf("       %s file file ... file if connected\n", s);
 }
 
-int	rexmtval = TIMEOUT;
 
 void
 setrexmt(int argc, char *argv[])
@@ -493,8 +503,6 @@ setrexmt(int argc, char *argv[])
 	else
 		rexmtval = t;
 }
-
-int	maxtimeout = 5 * TIMEOUT;
 
 void
 settimeout(int argc, char *argv[])
@@ -523,6 +531,9 @@ settimeout(int argc, char *argv[])
 void
 status(int argc, char *argv[])
 {
+	(void)argc;
+	(void)argv;
+
 	if (connected)
 		printf("Connected to %s.\n", hostname);
 	else
@@ -533,29 +544,32 @@ status(int argc, char *argv[])
 		rexmtval, maxtimeout);
 }
 
+static
 void
 intr(int ignore)
 {
+	(void)ignore;
+
 	signal(SIGALRM, SIG_IGN);
 	alarm(0);
 	siglongjmp(toplevel, -1);
 }
 
+static
 char *
-tail(filename)
-	char *filename;
+tail(char *filename)
 {
 	register char *s;
 	
 	while (*filename) {
-		s = rindex(filename, '/');
+		s = strrchr(filename, '/');
 		if (s == NULL)
 			break;
 		if (s[1])
 			return (s + 1);
 		*s = '\0';
 	}
-	return (filename);
+	return filename;
 }
 
 /*
@@ -594,12 +608,11 @@ command(int top)
 }
 
 struct cmd *
-getcmd(name)
-	register char *name;
+getcmd(const char *name)
 {
-	register char *p, *q;
-	register struct cmd *c, *found;
-	register int nmatches, longest;
+	const char *p, *q;
+	struct cmd *c, *found;
+	int nmatches, longest;
 
 	longest = 0;
 	nmatches = 0;
@@ -651,6 +664,8 @@ makeargv(void)
 void
 quit(int ign1, char *ign2[])
 {
+	(void)ign1;
+	(void)ign2;
 	exit(0);
 }
 
@@ -684,6 +699,8 @@ help(int argc, char *argv[])
 void
 settrace(int ign1, char *ign2[])
 {
+	(void)ign1;
+	(void)ign2;
 	trace = !trace;
 	printf("Packet tracing %s.\n", trace ? "on" : "off");
 }
@@ -691,6 +708,8 @@ settrace(int ign1, char *ign2[])
 void
 setverbose(int ign1, char *ign2[])
 {
+	(void)ign1;
+	(void)ign2;
 	verbose = !verbose;
 	printf("Verbose mode %s.\n", verbose ? "on" : "off");
 }

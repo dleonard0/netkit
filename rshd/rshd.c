@@ -42,7 +42,7 @@ char copyright[] =
 /*
  * From: @(#)rshd.c	5.38 (Berkeley) 3/2/91
  */
-char rcsid[] = "$Id: rshd.c,v 1.8 1996/07/26 05:05:41 dholland Exp $";
+char rcsid[] = "$Id: rshd.c,v 1.11 1996/08/17 17:57:17 dholland Exp $";
 
 /*
  * remote shell server:
@@ -95,12 +95,11 @@ static void usage(void);
 static void doit(struct sockaddr_in *fromp);
 static void getstr(char *buf, int cnt, const char *err);
 
+extern int _check_rhosts_file;
 
 int
 main(int argc, char *argv[])
 {
-	extern int opterr, optind;
-	extern int _check_rhosts_file;
 	struct linger linger;
 	int ch, on = 1, fromlen;
 	struct sockaddr_in from;
@@ -186,13 +185,14 @@ extern	char	**environ;
 static void
 doit(struct sockaddr_in *fromp)
 {
-	char cmdbuf[ARG_MAX+1], *cp;
+	char cmdbuf[ARG_MAX+1];
+	const char *theshell, *shellname;
 	char locuser[16], remuser[16];
 	struct passwd *pwd;
 	int sock = -1;
 	struct hostent *hp;
 	const char *hostname, *errorhost;
-	char *errorstr = NULL;
+	const char *errorstr = NULL;
 	u_short port;
 	int pv[2], pid, cc;
 	int nfd;
@@ -387,19 +387,19 @@ doit(struct sockaddr_in *fromp)
        }
         (void) pam_set_item (pamh, PAM_RUSER, remuser);
         (void) pam_set_item (pamh, PAM_RHOST, hostname);
-        (void) pam_set_item (pamh, PAM_TTY,   "/dev/tty");
+        (void) pam_set_item (pamh, PAM_TTY, "tty");
 	retcode = pam_authenticate(pamh, 0);
 	if (retcode == PAM_SUCCESS)
 	  retcode = pam_acct_mgmt(pamh, 0);
 	if (retcode == PAM_SUCCESS) {
 	  if (setgid(pwd->pw_gid) != 0) {
-	    fprintf(stderr, "Permission denied.\n");
+	    error("Permission denied.\n");
 	    pam_end(pamh,PAM_SYSTEM_ERR);
 	    exit (1);
 	  }
 
 	  if (initgroups(locuser, pwd->pw_gid) != 0) {
-	    fprintf(stderr, "Permission denied.\n");
+	    error("Permission denied.\n");
 	    pam_end(pamh,PAM_SYSTEM_ERR);
 	    exit (1);
 	  }
@@ -409,6 +409,7 @@ doit(struct sockaddr_in *fromp)
 	if (retcode == PAM_SUCCESS)
 	  retcode = pam_open_session(pamh,0);
 	if (retcode != PAM_SUCCESS) {
+		error("Permission denied.\n");
 		pam_end(pamh,retcode);
 		exit (1);
 	}
@@ -491,36 +492,41 @@ doit(struct sockaddr_in *fromp)
 		dup2(pv[1], 2);
 		close(pv[1]);
 	}
-	if (*pwd->pw_shell == '\0')
-		pwd->pw_shell = _PATH_BSHELL;
+	theshell = pwd->pw_shell;
+	if (!theshell || !*theshell) {
+	    /* shouldn't we deny access? */
+	    theshell = _PATH_BSHELL;
+	}
+
 #if	BSD > 43
 	if (setlogin(pwd->pw_name) < 0)
 		syslog(LOG_ERR, "setlogin() failed: %m");
 #endif
-	(void) setgid((gid_t)pwd->pw_gid);
+	setgid((gid_t)pwd->pw_gid);
 #ifndef USE_PAM
 	/* if PAM, already done */
 	initgroups(pwd->pw_name, pwd->pw_gid);
 #endif
-	(void) setuid((uid_t)pwd->pw_uid);
+	setuid((uid_t)pwd->pw_uid);
 	environ = envinit;
 	strncat(homedir, pwd->pw_dir, sizeof(homedir)-6);
+	homedir[sizeof(homedir)-1] = 0;
 	strcat(path, _PATH_DEFPATH);
-	strncat(shell, pwd->pw_shell, sizeof(shell)-7);
+	strncat(shell, theshell, sizeof(shell)-7);
+	shell[sizeof(shell)-1] = 0;
 	strncat(username, pwd->pw_name, sizeof(username)-6);
-	cp = rindex(pwd->pw_shell, '/');
-	if (cp)
-		cp++;
-	else
-		cp = pwd->pw_shell;
+	username[sizeof(username)-1] = 0;
+	shellname = strrchr(theshell, '/');
+	if (shellname) shellname++;
+	else shellname = theshell;
 	endpwent();
 	if (paranoid || pwd->pw_uid == 0) {
 		    syslog(LOG_INFO|LOG_AUTH, "%s@%s as %s: cmd='%s'",
 			remuser, hostname, locuser, cmdbuf);
 	}
 
-	execl(pwd->pw_shell, cp, "-c", cmdbuf, 0);
-	perror(pwd->pw_shell);
+	execl(theshell, shellname, "-c", cmdbuf, 0);
+	perror(theshell);
 	exit(1);
 }
 

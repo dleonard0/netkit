@@ -21,59 +21,59 @@
  * From: @(#)authenc.c	5.1 (Berkeley) 3/1/91
  */
 char authenc_rcsid[] =
-  "$Id: authenc.c,v 1.3 1996/07/16 08:58:22 dholland Exp $";
+  "$Id: authenc.c,v 1.4 1996/08/15 08:35:08 dholland Exp $";
 
 #if	defined(ENCRYPT) || defined(AUTHENTICATE)
 #include "telnetd.h"
 #include <libtelnet/misc.h>
 
-	int
+int
 net_write(str, len)
-	unsigned char *str;
-	int len;
+    unsigned char *str;
+    int len;
 {
-	if (nfrontp + len < netobuf + BUFSIZ) {
-		bcopy((void *)str, (void *)nfrontp, len);
-		nfrontp += len;
-		return(len);
-	}
-	return(0);
+    if (nfrontp + len < netobuf + BUFSIZ) {
+	bcopy((void *)str, (void *)nfrontp, len);
+	nfrontp += len;
+	return(len);
+    }
+    return(0);
 }
 
-	void
+void
 net_encrypt()
 {
 #if	defined(ENCRYPT)
-	char *s = (nclearto > nbackp) ? nclearto : nbackp;
-	if (s < nfrontp && encrypt_output) {
-		(*encrypt_output)((unsigned char *)s, nfrontp - s);
-	}
-	nclearto = nfrontp;
+    char *s = (nclearto > nbackp) ? nclearto : nbackp;
+    if (s < nfrontp && encrypt_output) {
+	(*encrypt_output)((unsigned char *)s, nfrontp - s);
+    }
+    nclearto = nfrontp;
 #endif
 }
 
-	int
+int
 telnet_spin()
 {
-	ttloop();
-	return(0);
+    ttloop();
+    return(0);
 }
 
-	char *
+char *
 telnet_getenv(val)
-	char *val;
+    char *val;
 {
-	extern char *getenv();
-	return(getenv(val));
+    extern char *getenv();
+    return(getenv(val));
 }
 
-	char *
+char *
 telnet_gets(prompt, result, length, echo)
-	char *prompt;
-	char *result;
-	int length;
-	int echo;
+    char *prompt;
+    char *result;
+    int length;
+    int echo;
 {
-	return((char *)0);
+    return((char *)0);
 }
 #endif

@@ -31,18 +31,18 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)talk.h	5.7 (Berkeley) 3/1/91
- *	$Id: talk.h,v 1.2 1996/07/16 03:30:46 dholland Exp $
+ *	$Id: talk.h,v 1.4 1996/08/23 00:09:05 dholland Exp $
  */
 
-#include <ncurses/curses.h>
+#include <curses.h>
 #include <protocols/talkd.h>
 
-extern	int sockt;
-extern	int curses_initialized;
-extern	int invitation_waiting;
+extern int sockt;
+extern int curses_initialized;
+extern int invitation_waiting;
 
-extern	char *current_state;
-extern	int current_line;
+extern const char *current_state;
+extern int current_line;
 
 typedef struct xwin {
 	WINDOW	*x_win;
@@ -59,9 +59,9 @@ extern	xwin_t my_win;
 extern	xwin_t his_win;
 extern	WINDOW *line_win;
 
-void p_error(char *string);
+void p_error(const char *string);
 void quit(void);
-void message(char *msg);
+void message(const char *mesg);
 void get_names(int argc, char *argv[]);
 void get_addrs(char *, char *);
 void init_display(void);

@@ -4,9 +4,12 @@ include ../MCONFIG
 include ../MRULES
 
 CFLAGS += -I ../include
+OBJS = rwhod.o daemon.o
 
-rwhod: rwhod.o
-	$(CC) $(LDFLAGS) $^ $(LIBS) -lbsd -o $@
+rwhod: $(OBJS)
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
+
+$(OBJS): daemon.h
 
 install: rwhod
 	install -s -m744 rwhod /usr/sbin/

@@ -26,32 +26,34 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef lint
-static char rcsid[] = "$Id: rusersd.c,v 1.1 1996/07/15 17:51:05 dholland Exp $";
-#endif /* not lint */
+char rusersd_rcsid[] = 
+  "$Id: rusersd.c,v 1.4 1996/08/15 06:54:14 dholland Exp $";
 
 #include <stdio.h>
-#include <rpc/rpc.h>
 #include <signal.h>
 #include <syslog.h>
-#include <rpcsvc/rusers.h>	/* New version */
-#include <rpcsvc/rnusers.h>	/* Old version */
+#include <rpc/rpc.h>
+#include <rpc/pmap_clnt.h>
+#include "rusers.h"
 
-extern void rusers_service();
+void rusers_service(struct svc_req *rqstp, SVCXPRT *transp);
+int daemon(int, int);
 
 int from_inetd = 1;
 
+static
 void
-cleanup()
+cleanup(int ignore)
 {
-        (void) pmap_unset(RUSERSPROG, RUSERSVERS_3);
-        (void) pmap_unset(RUSERSPROG, RUSERSVERS_IDLE);
+	(void)ignore;
+
+        pmap_unset(RUSERSPROG, RUSERSVERS_3);
+        pmap_unset(RUSERSPROG, RUSERSVERS_IDLE);
         exit(0);
 }
 
-main(argc, argv)
-        int argc;
-        char *argv[];
+int
+main(void)
 {
 	SVCXPRT *transp;
         int sock = 0;
@@ -71,12 +73,12 @@ main(argc, argv)
         if (!from_inetd) {
                 daemon(0, 0);
 
-                (void) pmap_unset(RUSERSPROG, RUSERSVERS_3);
-                (void) pmap_unset(RUSERSPROG, RUSERSVERS_IDLE);
+                pmap_unset(RUSERSPROG, RUSERSVERS_3);
+                pmap_unset(RUSERSPROG, RUSERSVERS_IDLE);
 
-		(void) signal(SIGINT, cleanup);
-		(void) signal(SIGTERM, cleanup);
-		(void) signal(SIGHUP, cleanup);
+		signal(SIGINT, cleanup);
+		signal(SIGTERM, cleanup);
+		signal(SIGHUP, cleanup);
         }
 
         openlog("rpc.rusersd", LOG_CONS|LOG_PID, LOG_DAEMON);

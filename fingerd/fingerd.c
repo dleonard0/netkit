@@ -39,7 +39,7 @@ char copyright[] =
  * from: @(#)fingerd.c	5.6 (Berkeley) 6/1/90"
  */
 char rcsid[] = 
-  "$Id: fingerd.c,v 1.4 1996/07/22 08:37:41 dholland Exp $";
+  "$Id: fingerd.c,v 1.9 1996/08/16 21:58:17 dholland Exp $";
 
 
 #include <pwd.h>
@@ -53,6 +53,7 @@ char rcsid[] =
 #include <getopt.h>
 #include <netinet/in.h>
 #include <sys/utsname.h>
+#include <sys/wait.h>
 
 #include "pathnames.h"
 
@@ -64,11 +65,12 @@ char rcsid[] =
 #define _ALT_PATH_FINGER_2 "/usr/ucb/finger"
 #define _ALT_PATH_FINGER_3 "/usr/bin/finger"
 
+static
 void
-fatal(const char *msg, int logging)
+fatal(const char *msg, int logit)
 {
 	const char *err = strerror(errno);
-	if (logging) syslog(LOG_ERR, "%s: %s:\n", msg, err);
+	if (logit) syslog(LOG_ERR, "%s: %s:\n", msg, err);
 	fprintf(stderr, "fingerd: %s: %s\r\n", msg, err);
 	exit(1);
 }
@@ -77,45 +79,55 @@ fatal(const char *msg, int logging)
 int
 main(int argc, char *argv[])
 {
-	extern int opterr, optind;
 	struct passwd *pw;
 	FILE *fp;
 	int ch, ca;
 	int p[2];
-	char *av[ENTRIES + 1], line[1024];
-	int welcome = 0, logging = 0;
-	int k, pid;
+	const char *av[ENTRIES + 1];
+	char line[1024];
+	int welcome = 0, heavylogging = 0, nouserlist = 0;
+	int k, pid, nusers;
 	char *s, *t;
+	const char *fingerpath = NULL;
 
 
-	struct sockaddr_in sin;
-	int sval = sizeof(sin);
-	if (getpeername(0, (struct sockaddr *) &sin, &sval) < 0) {
+	struct sockaddr_in sn;
+	int sval = sizeof(sn);
+	if (getpeername(0, (struct sockaddr *) &sn, &sval) < 0) {
 		fatal("getpeername", 0);
 	}
 
+	if ((pw = getpwnam("nobody")) != NULL) {
+	        setgid(pw->pw_gid);
+		setuid(pw->pw_uid);
+	}
+
 	opterr = 0;
-	while ((ca = getopt(argc, argv, "wlh?")) != EOF) {
+	while ((ca = getopt(argc, argv, "wlLuh?")) != EOF) {
 		switch(ca) {
 		  case 'w':
 			welcome = 1;
 			break;
 		  case 'l':
-		        logging = 1;
+		        heavylogging = 1;
+			break;
+		  case 'L':
+		        fingerpath = optarg;
+			break;
+		  case 'u':
+		        nouserlist = 1;
 			break;
 		  case '?':
 		  case 'h':
 		  default:
-			syslog(LOG_ERR, "usage: fingerd [-lw]");
+			syslog(LOG_ERR, "usage: fingerd [-lLwu]");
 			exit(1);
 		}
 	}
 	argc -= optind;
 	argv += optind;
 
-	if (logging) {
-		openlog("fingerd", LOG_PID, LOG_DAEMON);
-	}
+	openlog("fingerd", LOG_PID, LOG_DAEMON);
 
 	if (!fgets(line, sizeof(line), stdin))
 		exit(1);
@@ -135,46 +147,65 @@ main(int argc, char *argv[])
 		printf("\r\nWelcome to %s version %s at %s !\r\n\n",
 				utsname.sysname, utsname.release, buf);
 		fflush(stdout);
-		system(_PATH_UPTIME);
+		switch (fork()) {
+		 case -1: /* fork failed, oh well */
+		     break;
+		 case 0: /* child */
+		     execl(_PATH_UPTIME, _PATH_UPTIME, NULL);
+		     _exit(1);
+		 default: /* parent */
+		     wait(NULL);
+		     break;
+		}
 		fflush(stdout);
 		printf("\r\n");
 		fflush(stdout);
 	}
 
-	k = 0;
+	k = nusers = 0;
 	av[k++] = "finger";
 	for (s = strtok(line, WS); s && k<ENTRIES; s = strtok(NULL, WS)) {
 		/* RFC742: "/[Ww]" == "-l" */
 		if (!strncasecmp(s, "/w", 2)) memcpy(s, "-l", 2);
 		t = strchr(s, '@');
 		if (t) {
-			fprintf(stderr, "fingerd: fowarding not allowed\n");
-			if (logging) syslog(LOG_WARNING, "rejected %s\n", s);
+			fprintf(stderr, "fingerd: fowarding not allowed\r\n");
+			syslog(LOG_WARNING, "rejected %s\n", s);
 			exit(1);
 		}
-		if (logging) syslog(LOG_INFO, "fingered %s\n", s);
+		if (heavylogging) {
+		    if (*s=='-') syslog(LOG_INFO, "option %s\n", s);
+		    else syslog(LOG_INFO, "fingered %s\n", s);
+		}
 		av[k++] = s;
+		if (*s!='-') nusers++;
 	}
 	av[k] = NULL;
-
-	if (pipe(p) < 0) fatal("pipe", logging);
-
-	if ((pw = getpwnam("nobody")) != NULL) {
-	        setgid(pw->pw_gid);
-		setuid(pw->pw_uid);
+	if (nusers==0) {
+		/* finger @host */
+		if (nouserlist) {
+			syslog(LOG_WARNING, "rejected finger @host\n");
+			printf("Please supply a username\r\n");
+			return 0;
+		}
+		if (heavylogging) syslog(LOG_INFO, "fingered @host\n");
 	}
-	
+
+	if (pipe(p) < 0) fatal("pipe", 1);
+
 	pid = fork();
-	if (pid<0) fatal("fork", logging);
+	if (pid<0) fatal("fork", 1);
 	if (pid==0) {
 		/* child */
 		close(p[0]);
 		dup2(p[1], 1);
 		if (p[1]!=1) close(p[1]);
-		execv(_PATH_FINGER, av);
-		execv(_ALT_PATH_FINGER_1, av);
-		execv(_ALT_PATH_FINGER_2, av);
-		execv(_ALT_PATH_FINGER_3, av);
+
+		if (fingerpath) execv(fingerpath, (char **)av);
+		execv(_PATH_FINGER, (char **)av);
+		execv(_ALT_PATH_FINGER_1, (char **)av);
+		execv(_ALT_PATH_FINGER_2, (char **)av);
+		execv(_ALT_PATH_FINGER_3, (char **)av);
 		_exit(1);
 	}
 	/* parent */
@@ -182,7 +213,7 @@ main(int argc, char *argv[])
 
 	/* convert \n to \r\n. This should be an option to finger... */
 	fp = fdopen(p[0], "r");
-	if (!fp) fatal("fdopen", logging);
+	if (!fp) fatal("fdopen", 1);
 
 	while ((ch = getc(fp)) != EOF) {
 		if (ch == '\n')	putchar('\r');

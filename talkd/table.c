@@ -35,7 +35,7 @@
  * From: @(#)table.c	5.7 (Berkeley) 2/26/91
  */
 char table_rcsid[] = 
-  "$Id: table.c,v 1.3 1996/07/16 05:01:32 dholland Exp $";
+  "$Id: table.c,v 1.4 1996/08/15 03:44:13 dholland Exp $";
 
 /*
  * Routines to handle insertion, deletion, etc on the table
@@ -193,7 +193,7 @@ new_id(void)
  * Delete the invitation with id 'id_num'
  */
 int
-delete_invite(int id_num)
+delete_invite(unsigned id_num)
 {
 	TABLE_ENTRY *ptr;
 

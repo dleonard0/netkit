@@ -27,7 +27,8 @@
  */
 
 #ifndef lint
-static char rcsid[] = "$Id: rusers.c,v 1.2 1996/07/15 21:29:53 dholland Exp $";
+char rusers_rcsid[] = 
+  "$Id: rusers.c,v 1.6 1996/08/15 07:54:48 dholland Exp $";
 #endif /* not lint */
 
 #include <sys/types.h>
@@ -37,6 +38,7 @@ static char rcsid[] = "$Id: rusers.c,v 1.2 1996/07/15 21:29:53 dholland Exp $";
 #include <stdio.h>
 #include <strings.h>
 #include <rpc/rpc.h>
+#include <rpc/pmap_clnt.h>
 #include <arpa/inet.h>
 #include <utmp.h>
 #include <stdlib.h>
@@ -46,7 +48,9 @@ static char rcsid[] = "$Id: rusers.c,v 1.2 1996/07/15 21:29:53 dholland Exp $";
  * version is 3 (rusers.h), but only Solaris and NetBSD seem
  * to support it currently.
  */
-#include <rpcsvc/rnusers.h>	/* Old version */
+/*#include <rpcsvc/rnusers.h>*/	/* Old version */
+
+#include "rusers.h"  /* get the one we just built with rpcgen */
 
 #define MAX_INT 0x7fffffff
 #define HOST_WIDTH 20
@@ -62,6 +66,7 @@ struct host_list {
 	struct in_addr addr;
 } *hosts;
 
+static
 int
 search_host(struct in_addr addr)
 {
@@ -77,6 +82,7 @@ search_host(struct in_addr addr)
 	return(0);
 }
 
+static
 void
 remember_host(struct in_addr addr)
 {
@@ -91,10 +97,11 @@ remember_host(struct in_addr addr)
 	hosts = hp;
 }
 
+static
 int
 rusers_reply(char *replyp, struct sockaddr_in *raddrp)
 {
-	int x, idle;
+	int x, idlee;
 	char date[32], idle_time[64], remote[64], local[64];
 	struct hostent *hp;
 	struct utmpidlearr *up = (struct utmpidlearr *)replyp;
@@ -122,27 +129,27 @@ rusers_reply(char *replyp, struct sockaddr_in *raddrp)
 			&(ctime((time_t *)&(up->uia_arr[x]->ui_utmp.ut_time))[4]),
 			sizeof(date)-1);
 
-		idle = up->uia_arr[x]->ui_idle;
-		sprintf(idle_time, "   :%02d", idle);
-		if (idle == MAX_INT)
+		idlee = up->uia_arr[x]->ui_idle;
+		sprintf(idle_time, "   :%02d", idlee);
+		if (idlee == MAX_INT)
 			strcpy(idle_time, "??");
-		else if (idle == 0)
+		else if (idlee == 0)
 			strcpy(idle_time, "");
 		else {
-			seconds = idle;
+			seconds = idlee;
 			days = seconds/(60*60*24);
 			seconds %= (60*60*24);
 			hours = seconds/(60*60);
 			seconds %= (60*60);
 			minutes = seconds/60;
 			seconds %= 60;
-			if (idle > 60)
+			if (idlee > 60)
 				sprintf(idle_time, "%2d:%02d",
 					minutes, seconds);
-			if (idle >= (60*60))
+			if (idlee >= (60*60))
 				sprintf(idle_time, "%2d:%02d:%02d",
 					hours, minutes, seconds);
-			if (idle >= (24*60*60))
+			if (idlee >= (24*60*60))
 				sprintf(idle_time, "%d days, %d:%02d:%02d",
 					days, hours, minutes, seconds);
 		}
@@ -155,6 +162,7 @@ rusers_reply(char *replyp, struct sockaddr_in *raddrp)
 
 		if (longopt) {
 			strncpy(local, host, sizeof(local));
+			local[sizeof(local)-1] = 0;
 			local[HOST_WIDTH + LINE_WIDTH + 1 -
 			    strlen(up->uia_arr[x]->ui_utmp.ut_line) - 1] = 0;
 			strcat(local, ":");
@@ -167,7 +175,7 @@ rusers_reply(char *replyp, struct sockaddr_in *raddrp)
 			    idle_time,
 			    remote);
 		} else
-			printf("%0.8s ",
+			printf("%.8s ",
 			    up->uia_arr[x]->ui_utmp.ut_name);
 	}
 	if (!longopt)
@@ -177,6 +185,7 @@ rusers_reply(char *replyp, struct sockaddr_in *raddrp)
 	return(0);
 }
 
+static
 void
 onehost(char *host)
 {
@@ -199,8 +208,8 @@ onehost(char *host)
 	}
 
 	bzero((char *)&up, sizeof(up));
-	if (clnt_call(rusers_clnt, RUSERSPROC_NAMES, xdr_void, NULL,
-	    xdr_utmpidlearr, &up, timeout) != RPC_SUCCESS) {
+	if (clnt_call(rusers_clnt, RUSERSPROC_NAMES, (xdrproc_t)xdr_void, NULL,
+	    (xdrproc_t) xdr_utmpidlearr, &up, timeout) != RPC_SUCCESS) {
 		clnt_perror(rusers_clnt, argv0);
 		exit(1);
 	}
@@ -208,6 +217,7 @@ onehost(char *host)
 	rusers_reply((char *)&up, &addr);
 }
 
+static
 void
 allhosts(void)
 {
@@ -216,14 +226,18 @@ allhosts(void)
 
 	bzero((char *)&up, sizeof(up));
 	clnt_stat = clnt_broadcast(RUSERSPROG, RUSERSVERS_IDLE,
-	    RUSERSPROC_NAMES, xdr_void, NULL, xdr_utmpidlearr,
-	    &up, rusers_reply);
+				   RUSERSPROC_NAMES, 
+				   (xdrproc_t) xdr_void, NULL, 
+				   (xdrproc_t) xdr_utmpidlearr,
+				   (char *) &up, 
+				   (resultproc_t) rusers_reply);
 	if (clnt_stat != RPC_SUCCESS && clnt_stat != RPC_TIMEDOUT) {
 		fprintf(stderr, "%s: %s\n", argv0, clnt_sperrno(clnt_stat));
 		exit(1);
 	}
 }
 
+static
 void usage(void)
 {
 	fprintf(stderr, "Usage: %s [-la] [hosts ...]\n", argv0);
@@ -233,7 +247,6 @@ void usage(void)
 void main(int argc, char *argv[])
 {
 	int ch;
-	extern int optind;
 	
 	if (!(argv0 = rindex(argv[0], '/')))
 		argv0 = argv[0];

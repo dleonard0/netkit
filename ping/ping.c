@@ -40,7 +40,7 @@ char copyright[] =
 /*
  * From: @(#)ping.c	5.9 (Berkeley) 5/12/91
  */
-char rcsid[] = "$Id: ping.c,v 1.4 1996/07/15 00:22:46 dholland Exp $";
+char rcsid[] = "$Id: ping.c,v 1.9 1996/08/22 22:41:30 dholland Exp $";
 
 /*
  *			P I N G . C
@@ -159,9 +159,6 @@ static void pr_retip(struct iphdr *ip);
 int
 main(int argc, char *argv[])
 {
-	extern int optind;
-	extern char *optarg;
-
 	struct timeval timeout;
 	struct hostent *hp;
 	struct sockaddr_in *to;
@@ -175,6 +172,9 @@ main(int argc, char *argv[])
 #ifdef IP_OPTIONS
 	char rspace[3 + 4 * NROUTES + 1];	/* record route space */
 #endif
+
+	static char *null = NULL;
+	__environ = &null;
 
 	preload = 0;
 	datap = &outpack[8 + sizeof(struct timeval)];
@@ -210,6 +210,11 @@ main(int argc, char *argv[])
 			options |= F_INTERVAL;
 			break;
 		case 'l':
+			if (getuid()) {
+				(void)fprintf(stderr,
+				    "ping: %s\n", strerror(EPERM));
+				exit(1);
+			}
 			preload = atoi(optarg);
 			if (preload < 0) {
 				(void)fprintf(stderr,
@@ -313,7 +318,7 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	if (datalen >= sizeof(struct timeval))	/* can we time transfer */
+	if (datalen >= (int)sizeof(struct timeval)) /* can we time transfer */
 		timing = 1;
 	packlen = datalen + MAXIPLEN + MAXICMPLEN;
 	packet = malloc((u_int)packlen);
@@ -342,6 +347,9 @@ main(int argc, char *argv[])
 	if (options & F_SO_DONTROUTE)
 		(void)setsockopt(s, SOL_SOCKET, SO_DONTROUTE, (char *)&hold,
 		    sizeof(hold));
+
+	/* this is necessary for broadcast pings to work */
+	setsockopt(s, SOL_SOCKET, SO_BROADCAST, (char *)&hold, sizeof(hold));
 
 	/* record route option */
 	if (options & F_RROUTE) {
@@ -457,6 +465,7 @@ catcher(int ignore)
 {
 	int waittime;
 
+	(void)ignore;
 	pinger();
 	(void)signal(SIGALRM, catcher);
 	if (!npackets || ntransmitted < npackets)
@@ -785,6 +794,8 @@ tvsub(register struct timeval *out, register struct timeval *in)
 static void
 finish(int ignore)
 {
+	(void)ignore;
+
 	(void)signal(SIGINT, SIG_IGN);
 	(void)putchar('\n');
 	(void)fflush(stdout);
@@ -1003,7 +1014,7 @@ static char *
 pr_addr(u_long l)
 {
 	struct hostent *hp;
-	static char buf[80];
+	static char buf[256];
 
 	if ((options & F_NUMERIC) ||
 	    !(hp = gethostbyaddr((char *)&l, 4, AF_INET)))

@@ -35,7 +35,7 @@
  * From: @(#)get_names.c	5.9 (Berkeley) 3/1/91
  */
 char gn_rcsid[] = 
-  "$Id: get_names.c,v 1.4 1996/07/20 20:59:41 dholland Exp $";
+  "$Id: get_names.c,v 1.5 1996/08/15 03:40:50 dholland Exp $";
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -56,8 +56,7 @@ get_names(int argc, char *argv[])
 	char hostname[MAXHOSTNAMELEN];
 	char *his_name, *my_name;
 	char *my_machine_name, *his_machine_name;
-	/*char *my_tty;*/
-	char *his_tty;
+	const char *his_tty;
 	register char *cp;
 	char *names;
 

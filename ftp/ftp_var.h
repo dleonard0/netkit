@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)ftp_var.h	5.9 (Berkeley) 6/1/90
- *	$Id: ftp_var.h,v 1.5 1996/07/20 19:50:27 dholland Exp $
+ *	$Id: ftp_var.h,v 1.6 1996/08/14 23:27:28 dholland Exp $
  */
 
 /*
@@ -107,8 +107,6 @@ Extern char	line[200];	/* input line buffer */
 Extern char	*stringbase;	/* current scan point in line buffer */
 Extern char	argbuf[200];	/* argument storage buffer */
 Extern char	*argbase;	/* current storage point in arg buffer */
-Extern int	margc;		/* count of arguments on input line */
-Extern char	*margv[20];	/* args parsed from input line */
 Extern int	cpend;		/* flag: if != 0, then pending server reply */
 Extern int	mflag;		/* flag: if != 0, then active multi command */
 
@@ -118,12 +116,16 @@ Extern int	options;	/* used during socket creation */
  * Format of command table.
  */
 struct cmd {
-	char	*c_name;	/* name of command */
-	char	*c_help;	/* help string */
-	char	c_bell;		/* give bell when command completes */
-	char	c_conn;		/* must be connected to use command */
-	char	c_proxy;	/* proxy server may execute */
-	void	(*c_handler)(int, char *[]);	/* function to call */
+	const char *c_name;	/* name of command */
+	const char *c_help;	/* help string */
+	char c_bell;		/* give bell when command completes */
+	char c_conn;		/* must be connected to use command */
+	char c_proxy;		/* proxy server may execute */
+
+        /* Exactly one of these should be non-NULL. */
+	void (*c_handler_v)(int, char **); /* function to call */
+	void (*c_handler_0)(void);
+	void (*c_handler_1)(const char *);
 };
 
 struct macel {
@@ -136,23 +138,21 @@ Extern int macnum;			/* number of defined macros */
 Extern struct macel macros[16];
 Extern char macbuf[4096];
 
-extern	char *tail();
-extern	char *remglob();
-extern	char *mktemp();
-
-void makeargv(void);
+char *hookup(char *host, int port);
+struct cmd *getcmd(const char *);
+char **makeargv(int *pargc, char **parg);
 int login(const char *host);
 int command(const char *fmt, ...);
-void sendrequest(char *cmd, char *local, char *remote, int printnames);
+void sendrequest(const char *cmd, char *local, char *remote, int printnames);
+void recvrequest(const char *cmd, char *local, char *remote, 
+		 const char *lmode, int printnames);
 int another(int *pargc, char ***pargv, const char *prompt);
 void blkfree(char **av0);
 void fatal(const char *msg);
 int getreply(int expecteof);
 void domacro(int argc, char *argv[]);
 void pswitch(int flag);
-void recvrequest(char *cmd, char *local, char *remote, 
-		 char *lmode, int printnames);
 int xruserpass(const char *host, char **aname, char **apass, char **aacct);
 void setpeer(int argc, char *argv[]);
-void quit(int argc, char *argv[]);
+void quit(void);
 void changetype(int newtype, int show);

@@ -4,8 +4,12 @@
 # Do you want to have GNU readline and history support in 'ftp'. Use
 # cursor keys to get your last commands.
 # There are a number of versions of GNU readline floating around. 
-# The one from the current version of bash should work; so should
-# readline-2.0, which is available separately on GNU ftp sites.
+# The recommended one at the moment is readline-2.0, which is
+# available separately on GNU ftp sites. 
+#
+# *** You will need to apply the enclosed patch to get correct ^C 
+# handling from ftp. 
+#
 # The ftp makefile assumes the headers are installed in 
 # /usr/include/readline (or /usr/local/include/readline) and the 
 # readline library itself is someplace where the linker can find it.
@@ -14,19 +18,13 @@
 # Note: some versions of readline don't install tilde.h, which is
 # needed. Install it manually if necessary. 
 #
-# Further note: the readline library messes around with signals in a 
-# way that causes ftp to misbehave (eg, exit on ^C while logged in.)
-# Compiling readline with -D__USE_BSD_SIGNAL should fix this but may
-# break other things... sigh.
-#
-# To resolve these problems future versions of this package will probably
-# include a private copy of readline.
 USE_GNU_READLINE=1
+
 
 #
 # Do you want to use the PAM (Pluggable Authentication Modules) system
-# for password lookups? Uncomment this if so. This may or may not actually
-# work in this release.
+# for password lookups? Uncomment this if so. This is believed to work
+# in the current release.
 #USE_PAM=1
 
 
@@ -36,6 +34,12 @@ USE_GNU_READLINE=1
 # Or, better yet, don't install rexecd, as it's not very useful and not
 # a very secure protocol.
 # HAVE_TCP_WRAPPER_LIBRARY=true
+
+
+#
+# If you don't want to see the exact options being passed to the compiler,
+# set this to 1.
+QUIET=0
 
 
 ####
@@ -51,11 +55,35 @@ USE_GNU_READLINE=1
 # to /usr/include/ncurses/unctrl.h, fix /usr/include/ncurses/curses.h to
 # include <ncurses/unctrl.h> instead of <unctrl.h>, or hack around the 
 # problem by putting -I/usr/include/ncurses in the CFLAGS.
+#
+# Note: if talk breaks on "ospeed", chances are your /usr/include/curses.h
+# is BSD curses. Try adding -I/usr/include/ncurses to CFLAGS. This seems
+# to apply to recent Slackware.
+
+WARNINGS=-Wall -W -Wpointer-arith -Wbad-function-cast -Wcast-qual \
+	 -Wstrict-prototypes -Wmissing-prototypes \
+	 -Wmissing-declarations -Wnested-externs -Winline -Wcast-align
+
+# /usr/include isn't clean with these.
+# -Wredundant-decls      (there are a number of such in /usr/include)
+# -Wshadow               (this, C++, stat(), and struct stat don't get along)
+# -Wwrite-strings        (arpa/telnet.h and protocols/timed.h fail)
 
 CC=gcc
-CFLAGS=-O2 -Wall -D__USE_BSD_SIGNAL
+CFLAGS=-O2 $(WARNINGS) -D__USE_BSD_SIGNAL
 LDFLAGS=
 LIBS=
-
-# You could also use "YACC=yacc", if you have the BSD yacc.
+# You could also use "YACC=yacc", if you have BSD yacc.
 YACC=bison -y
+
+
+# 
+# Choose which curses and termcap libraries to use. The makefiles in
+# directories that use curses or termcap reference these settings.
+
+LIBCURSES=-lncurses
+LIBTERMCAP=-lncurses
+#LIBCURSES=-lcurses -ltermcap
+#LIBTERMCAP=-ltermcap
+
+

@@ -1,0 +1,60 @@
+This patch can be applied to /usr/include/rpcsvc/rusers.x to fix some 
+compile warnings. Hopefully it will have been integrated into the most recent 
+libcs.
+
+*** rusers.x	Sun Aug  4 18:11:42 1996
+--- rusers.x.orig	Thu Aug 24 23:35:56 1995
+***************
+*** 166,170 ****
+  %{
+  %	if (!xdr_reference(xdrs, (char **) objpp, sizeof (struct ru_utmp), 
+! %			   (xdrproc_t) xdr_utmp)) {
+  %		return (FALSE);
+  %	}
+--- 166,170 ----
+  %{
+  %	if (!xdr_reference(xdrs, (char **) objpp, sizeof (struct ru_utmp), 
+! %			   xdr_utmp)) {
+  %		return (FALSE);
+  %	}
+***************
+*** 178,183 ****
+  %{
+  %	if (!xdr_array(xdrs, (char **)&objp->uta_arr, (u_int *)&objp->uta_cnt,
+! %		       MAXUSERS, sizeof(struct ru_utmp *), 
+! %		       (xdrproc_t) xdr_utmpptr)) {
+  %		return (FALSE);
+  %	}
+--- 178,182 ----
+  %{
+  %	if (!xdr_array(xdrs, (char **)&objp->uta_arr, (u_int *)&objp->uta_cnt,
+! %		       MAXUSERS, sizeof(struct ru_utmp *), xdr_utmpptr)) {
+  %		return (FALSE);
+  %	}
+***************
+*** 205,209 ****
+  %{
+  %	if (!xdr_reference(xdrs, (char **) objpp, sizeof (struct utmpidle), 
+! %			   (xdrproc_t) xdr_utmpidle)) {
+  %		return (FALSE);
+  %	}
+--- 204,208 ----
+  %{
+  %	if (!xdr_reference(xdrs, (char **) objpp, sizeof (struct utmpidle), 
+! %			   xdr_utmpidle)) {
+  %		return (FALSE);
+  %	}
+***************
+*** 217,222 ****
+  %{
+  %	if (!xdr_array(xdrs, (char **)&objp->uia_arr, (u_int *)&objp->uia_cnt,
+! %		       MAXUSERS, sizeof(struct utmpidle *), 
+! %		       (xdrproc_t) xdr_utmpidleptr)) {
+  %		return (FALSE);
+  %	}
+--- 216,220 ----
+  %{
+  %	if (!xdr_array(xdrs, (char **)&objp->uia_arr, (u_int *)&objp->uia_cnt,
+! %		       MAXUSERS, sizeof(struct utmpidle *), xdr_utmpidleptr)) {
+  %		return (FALSE);
+  %	}

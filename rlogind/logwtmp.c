@@ -31,13 +31,13 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/types.h>
-#include <sys/file.h>
-#include <sys/time.h>
-#include <sys/stat.h>
-#include <unistd.h>
 #include <string.h>
+#include <unistd.h>
 #include <utmp.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+
+#include "logwtmp.h"
 
 void
 logwtmp(const char *line, const char *name, const char *host)
@@ -56,8 +56,7 @@ logwtmp(const char *line, const char *name, const char *host)
 		strncpy(ut.ut_name, name, sizeof(ut.ut_name));
 		strncpy(ut.ut_host, host, sizeof(ut.ut_host));
 		time(&ut.ut_time);
-		if (write(fd, (char *)&ut, sizeof(struct utmp)) !=
-		    sizeof(struct utmp))
+		if (write(fd, &ut, sizeof(struct utmp)) != sizeof(struct utmp))
 			ftruncate(fd, buf.st_size);
 	}
 	close(fd);

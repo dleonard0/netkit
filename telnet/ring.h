@@ -31,76 +31,81 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)ring.h	5.2 (Berkeley) 3/1/91
- *	$Id: ring.h,v 1.1 1996/07/16 05:17:22 dholland Exp $
+ *	$Id: ring.h,v 1.13 1996/08/13 08:43:28 dholland Exp $
  */
 
-#if defined(P)
-# undef P
-#endif
-
-#if defined(__STDC__) || defined(LINT_ARGS)
-# define	P(x)	x
-#else
-# define	P(x)	()
-#endif
+class datasink {
+ public:
+    virtual ~datasink() {}
+    virtual int write(const char *buf, int len) = 0;
+    virtual int writeurg(const char *buf, int len) = 0;
+};
 
 /*
  * This defines a structure for a ring buffer.
- *
- * The circular buffer has two parts:
- *(((
- *	full:	[consume, supply)
- *	empty:	[supply, consume)
- *]]]
- *
  */
-typedef struct {
-    unsigned char	*consume,	/* where data comes out of */
-			*supply,	/* where data comes in to */
-			*bottom,	/* lowest address in buffer */
-			*top,		/* highest address+1 in buffer */
-			*mark;		/* marker (user defined) */
-#if	defined(ENCRYPT)
-    unsigned char	*clearto;	/* Data to this point is clear text */
-    unsigned char	*encryyptedto;	/* Data is encrypted to here */
-#endif
-    int		size;		/* size in bytes of buffer */
-    u_long	consumetime,	/* help us keep straight full, empty, etc. */
-		supplytime;
-} Ring;
+class ringbuf {
+ public:
+    class source {
+     public:
+	virtual ~source() {}
+	virtual int read(char *buf, int len) = 0;
+    };
+ protected:
+    datasink *binding;
+    source *srcbinding;
 
-/* Here are some functions and macros to deal with the ring buffer */
+    char *buf;
+    int size;   /* total size of buffer */
+    int head;   /* next input character goes here */
+    int tail;   /* next output character comes from here */
+    int count;  /* chars presently stored in buffer */
+    // The buffer is empty when head==tail.
 
-/* Initialization routine */
-extern int
-	ring_init P((Ring *ring, unsigned char *buffer, int count));
+    int marked;   /* this character is marked */
 
-/* Data movement routines */
-extern void
-	ring_supply_data P((Ring *ring, unsigned char *buffer, int count));
-#ifdef notdef
-extern void
-	ring_consume_data P((Ring *ring, unsigned char *buffer, int count));
-#endif
+ public:
+    /////// consume end
 
-/* Buffer state transition routines */
-extern void
-	ring_supplied P((Ring *ring, int count)),
-	ring_consumed P((Ring *ring, int count));
+    // manual consume
+    int gets(char *buf, int max);
+    int getch(int *ch);
+    void ungetch(int ch);
+    int full_count() {
+	return count;
+    }
 
-/* Buffer state query routines */
-extern int
-	ring_empty_count P((Ring *ring)),
-	ring_empty_consecutive P((Ring *ring)),
-	ring_full_count P((Ring *ring)),
-	ring_full_consecutive P((Ring *ring));
+    // automatic consume
+    int flush();
 
-#if	defined(ENCRYPT)
-extern void
-	ring_encrypt P((Ring *ring, void (*func)())),
-	ring_clearto P((Ring *ring));
-#endif
+    /////// supply end
 
-extern void
-    ring_clear_mark(),
-    ring_mark();
+    // manual supply
+    void putch(char c) { write(&c, 1); }
+    void write(const char *buffer, int ct);
+    void printf(const char *format, ...);
+    int empty_count() { return size - count; }
+
+    // automatic supply
+    int read_source();
+
+    /////// others
+    void clear_mark() { marked = -1; }
+    void set_mark() { marked = head; }
+
+    int init(int size, datasink *sink, source *src);
+
+    datasink *setsink(datasink *nu) {
+	datasink *old = binding;
+	binding = nu;
+	return old;
+    }
+
+};
+
+extern datasink *netsink, *ttysink, *nullsink;
+extern ringbuf::source *netsrc, *ttysrc;
+
+#define	NETADD(c)	{ netoring.putch(c); }
+#define	NET2ADD(c1,c2)	{ NETADD(c1); NETADD(c2); }
+

@@ -41,7 +41,7 @@ char copyright[] =
  *     Exp Locker: kfall
  */
 char rcsid[] = 
-  "$Id: rlogin.c,v 1.10 1996/07/22 01:08:04 dholland Exp $";
+  "$Id: rlogin.c,v 1.12 1996/08/22 22:43:58 dholland Exp $";
 
 
 /*
@@ -103,7 +103,7 @@ static int eight, litout, rem;
 static int noescape;
 static u_char escapechar = '~';
 
-static char *speeds[] = {
+static const char *speeds[] = {
 	"0",    "50",   "75",    "110", 
 	"134",  "150",  "200",   "300", 
 	"600",  "1200", "1800",  "2400", 
@@ -150,8 +150,6 @@ static u_char getescape(const char *p);
 int
 main(int argc, char **argv)
 {
-	extern char *optarg;
-	extern int optind;
 	struct passwd *pw;
 	struct servent *sp;
 	struct termios tios;
@@ -159,6 +157,8 @@ main(int argc, char **argv)
 	long omask;
 	int argoff, ch, dflag, one, uid;
 	char *host, *p, *user, term[1024];
+	const char *t;
+	char *null = NULL;
 
 	argoff = dflag = 0;
 	one = 1;
@@ -231,13 +231,15 @@ main(int argc, char **argv)
 		exit(1);
 	}
 
-	p = getenv("TERM");
-	if (!p) p = "network";
+	t = getenv("TERM");
+	if (!t) t = "network";
   	if (tcgetattr(0, &tios) == 0) {
 		speed_t speed = cfgetispeed(&tios);
-		snprintf(term, sizeof(term), "%.256s/%s", p, speeds[speed]);
+		snprintf(term, sizeof(term), "%.256s/%s", t, speeds[speed]);
   	}
-	else snprintf(term, sizeof(term), "%.256s", p);
+	else snprintf(term, sizeof(term), "%.256s", t);
+
+	__environ = &null;
 
 	get_window_size(0, &winsize);
 
@@ -369,7 +371,7 @@ done(int status)
 }
 
 int dosigwinch;
-void sigwinch();
+void sigwinch(int);
 
 /*
  * This is called when the reader process gets the out-of-band (urgent)
@@ -378,6 +380,8 @@ void sigwinch();
 static void
 writeroob(int ignore)
 {
+	(void)ignore;
+
 	if (dosigwinch == 0) {
 		sendwindow();
 		signal(SIGWINCH, sigwinch);
@@ -391,6 +395,7 @@ catch_child(int ignore)
 	union wait status;
 	int pid;
 
+	(void)ignore;
 	for (;;) {
 		pid = wait3(&status,
 		    WNOHANG|WUNTRACED, (struct rusage *)0);
@@ -493,14 +498,15 @@ stop(char cmdc)
 	kill(cmdc == defsusp ? 0 : getpid(), SIGTSTP);
 	signal(SIGCHLD, catch_child);
 	mode(1);
-	sigwinch();			/* check for size changes */
+	sigwinch(SIGWINCH);		/* check for size changes */
 }
 
 void
-sigwinch()
+sigwinch(int signum)
 {
 	struct winsize ws;
 
+	(void)signum;
 	if (dosigwinch && get_window_size(0, &ws) == 0 &&
 	    bcmp(&ws, &winsize, sizeof(ws))) {
 		winsize = ws;
@@ -539,9 +545,9 @@ sendwindow(void)
 #define	READING	1
 #define	WRITING	2
 
-sigjmp_buf rcvtop;
-int ppid, rcvcnt, rcvstate;
-char rcvbuf[8 * 1024];
+static sigjmp_buf rcvtop;
+static int ppid, rcvcnt, rcvstate;
+static char rcvbuf[8 * 1024];
 
 static void
 oob_real(void)
@@ -561,9 +567,9 @@ oob_real(void)
 			 * to send it yet if we are blocked for output and
 			 * our input buffer is full.
 			 */
-			if (rcvcnt < sizeof(rcvbuf)) {
+			if (rcvcnt < (int)sizeof(rcvbuf)) {
 				n = read(rem, rcvbuf + rcvcnt,
-				    sizeof(rcvbuf) - rcvcnt);
+					 sizeof(rcvbuf) - rcvcnt);
 				if (n <= 0)
 					return;
 				rcvd += n;
@@ -632,6 +638,8 @@ oob_real(void)
 
 static void oob(int ignore)
 {
+	(void)ignore;
+
 	oob_real();
 #ifdef SUN_KLUDGE
 	signal(SIGURG,oob);
@@ -764,6 +772,8 @@ mode(int f)
 static void
 lostpeer(int ignore)
 {
+	(void)ignore;
+
 	signal(SIGPIPE, SIG_IGN);
 	msg("\007connection closed.");
 	done(1);
@@ -773,6 +783,8 @@ lostpeer(int ignore)
 void
 copytochild(int ignore)
 {
+	(void)ignore;
+
 	kill(childpid, SIGURG);
 #ifdef SUN_KLUDGE
 	signal(SIGCHLD,copytochild);

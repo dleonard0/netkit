@@ -35,10 +35,10 @@
  * From: @(#)master.c	5.1 (Berkeley) 5/11/93
  */
 char master_rcsid[] =
-  "$Id: master.c,v 1.2 1996/07/20 19:45:38 dholland Exp $";
+  "$Id: master.c,v 1.3 1996/08/15 05:56:12 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.2 $"
+#ident "$Revision: 1.3 $"
 #endif
 
 #include "globals.h"
@@ -57,7 +57,7 @@ char master_rcsid[] =
 
 #ifdef __linux__
 /* from libbsd.a */
-void logwtmp(char *, char *, char *);
+void logwtmp(const char *, const char *, const char *);
 #endif
 
 extern int measure_delta;
@@ -861,7 +861,7 @@ traceon(void)
 
 
 void
-traceoff(char *msg)
+traceoff(const char *msg)
 {
 	get_goodgroup(1);
 	setstatus();

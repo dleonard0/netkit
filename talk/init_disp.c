@@ -35,7 +35,7 @@
  * From: @(#)init_disp.c	5.4 (Berkeley) 6/1/90
  */
 char id_rcsid[] = 
-  "$Id: init_disp.c,v 1.4 1996/07/20 20:59:41 dholland Exp $";
+  "$Id: init_disp.c,v 1.5 1996/08/15 03:40:50 dholland Exp $";
 
 /*
  * Initialization code for the display package,
@@ -49,7 +49,7 @@ char id_rcsid[] =
 
 #include "talk.h"
 
-void sig_sent();
+static void sig_sent(int);
 
 /* 
  * Set up curses, catch the appropriate signals,
@@ -133,8 +133,9 @@ set_edit_chars(void)
 }
 
 void
-sig_sent(void)
+sig_sent(int signum)
 {
+	(void)signum;
 	message("Connection closing. Exiting");
 	quit();
 }

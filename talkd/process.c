@@ -35,7 +35,7 @@
  * From: @(#)process.c	5.10 (Berkeley) 2/26/91
  */
 char rcsid[] = 
-  "$Id: process.c,v 1.2 1996/07/16 05:01:32 dholland Exp $";
+  "$Id: process.c,v 1.3 1996/08/15 03:44:13 dholland Exp $";
 
 /*
  * process.c handles the requests, which can be of three types:
@@ -60,12 +60,12 @@ char rcsid[] =
 
 static void do_announce(CTL_MSG *mp, CTL_RESPONSE *rp);
 static int find_user(char *name, char *tty);
+extern int debug;
 
 void
 process_request(CTL_MSG *mp, CTL_RESPONSE *rp)
 {
 	CTL_MSG *ptr;
-	extern int debug;
 
 	rp->vers = TALK_VERSION;
 	rp->type = mp->type;

@@ -35,7 +35,7 @@
  * From: @(#)utility.c	5.8 (Berkeley) 3/22/91
  */
 char util_rcsid[] = 
-  "$Id: utility.c,v 1.4 1996/07/22 08:37:05 dholland Exp $";
+  "$Id: utility.c,v 1.5 1996/08/15 04:51:15 dholland Exp $";
 
 #define PRINTOPTIONS
 
@@ -60,10 +60,9 @@ char util_rcsid[] =
  * too full.
  */
 
-    void
-ttloop()
+void
+ttloop(void)
 {
-    void netflush();
 
     DIAG(TD_REPORT, {sprintf(nfrontp, "td: ttloop\r\n");
 		     nfrontp += strlen(nfrontp);});
@@ -147,9 +146,9 @@ ptyflush()
  * if the current address is a TELNET IAC ("I Am a Command")
  * character.
  */
-    char *
-nextitem(current)
-    char	*current;
+static
+char *
+nextitem(char *current)
 {
     if ((*current&0xff) != IAC) {
 	return current+1;
@@ -247,11 +246,11 @@ netclear()
  *		Send as much data as possible to the network,
  *	handling requests for urgent data.
  */
-    void
-netflush()
+extern int not42;
+void
+netflush(void)
 {
     int n;
-    extern int not42;
 
     if ((n = nfrontp - nbackp) > 0) {
 	DIAG(TD_REPORT,
@@ -347,10 +346,8 @@ writenet(ptr, len)
  */
 
 
-	void
-fatal(f, msg)
-	int f;
-	char *msg;
+void
+fatal(int f, const char *msg)
 {
 	char buf[BUFSIZ];
 
@@ -370,27 +367,21 @@ fatal(f, msg)
 	exit(1);
 }
 
-	void
-fatalperror(f, msg)
-	int f;
-	char *msg;
+void
+fatalperror(int f, const char *msg)
 {
-	char buf[BUFSIZ], *strerror();
-
-	(void) sprintf(buf, "%s: %s\r\n", msg, strerror(errno));
+	char buf[BUFSIZ];
+	snprintf(buf, sizeof(buf), "%s: %s\r\n", msg, strerror(errno));
 	fatal(f, buf);
 }
 
 char editedhost[32];
 struct utsname kerninfo;
 
-	void
-edithost(pat, host)
-	register char *pat;
-	register char *host;
+void
+edithost(const char *pat, const char *host)
 {
-	register char *res = editedhost;
-	char *strncpy();
+	char *res = editedhost;
 
 	uname(&kerninfo);
 
@@ -429,13 +420,11 @@ edithost(pat, host)
 
 static char *putlocation;
 
-	void
-putstr(s)
-	register char *s;
+static 
+void
+putstr(const char *s)
 {
-
-	while (*s)
-		putchr(*s++);
+    while (*s) putchr(*s++);
 }
 
 	void
@@ -445,22 +434,14 @@ putchr(cc)
 	*putlocation++ = cc;
 }
 
-/*
- * This is split on two lines so that SCCS will not see the M
- * between two % signs and expand it...
- */
-static char fmtstr[] = { "%H:%M\
- on %A, %d %B %Y" };
+static char fmtstr[] = { "%H:%M on %A, %d %B %Y" };
 
-	void
-putf(cp, where)
-	register char *cp;
-	char *where;
+void
+putf(const char *cp, char *where)
 {
 	char *slash;
 	time_t t;
 	char db[100];
-	extern char *rindex();
 
 	if (where)
 	putlocation = where;
@@ -568,10 +549,8 @@ putf(cp, where)
 /*
  * Print telnet options and commands in plain text, if possible.
  */
-	void
-printoption(fmt, option)
-	register char *fmt;
-	register int option;
+void
+printoption(const char *fmt, int option)
 {
 	if (TELOPT_OK(option))
 		sprintf(nfrontp, "%s %s\r\n", fmt, TELOPT(option));
@@ -583,11 +562,11 @@ printoption(fmt, option)
 	return;
 }
 
-    void
-printsub(direction, pointer, length)
-    char		direction;	/* '<' or '>' */
-    unsigned char	*pointer;	/* where suboption data sits */
-    int			length;		/* length of suboption data */
+/* direction: '<' or '>' */
+/* pointer: where suboption data sits */
+/* length: length of suboption data */
+void
+printsub(char direction, unsigned char *pointer, int length)
 {
     register int i = -1;
 #ifdef AUTHENTICATE
@@ -863,7 +842,7 @@ printsub(direction, pointer, length)
 	    break;
 
 	case TELOPT_STATUS: {
-	    register char *cp;
+	    const char *cp;
 	    register int j, k;
 
 	    sprintf(nfrontp, "STATUS");
@@ -1211,11 +1190,8 @@ printsub(direction, pointer, length)
 /*
  * Dump a data buffer in hex and ascii to the output data stream.
  */
-	void
-printdata(tag, ptr, cnt)
-	register char *tag;
-	register char *ptr;
-	register int cnt;
+void
+printdata(const char *tag, const char *ptr, int cnt)
 {
 	register int i;
 	char xbuf[30];

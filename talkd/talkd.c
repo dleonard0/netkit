@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)talkd.c	5.8 (Berkeley) 2/26/91
  */
 char talkd_rcsid[] = 
-  "$Id: talkd.c,v 1.2 1996/07/16 05:01:32 dholland Exp $";
+  "$Id: talkd.c,v 1.3 1996/08/15 03:44:13 dholland Exp $";
 
 /*
  * The top level of the daemon, the format is heavily borrowed
@@ -121,7 +121,9 @@ main(int argc, char *argv[])
 void
 timeout(int ignore)
 {
-	if (time(0) - lastmsgtime >= MAXIDLE)
+	(void)ignore;
+
+	if (time(NULL) - lastmsgtime >= MAXIDLE)
 		_exit(0);
 	signal(SIGALRM, timeout);
 	alarm(TIMEOUT);

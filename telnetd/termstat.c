@@ -35,7 +35,7 @@
  * From: @(#)termstat.c	5.10 (Berkeley) 3/22/91
  */
 char termstat_rcsid[] = 
-  "$Id: termstat.c,v 1.2 1996/07/16 08:58:22 dholland Exp $";
+  "$Id: termstat.c,v 1.3 1996/08/15 04:51:15 dholland Exp $";
 
 #include "telnetd.h"
 
@@ -366,8 +366,6 @@ done:
 clientstat(code, parm1, parm2)
 	register int code, parm1, parm2;
 {
-	void netflush();
-
 	/*
 	 * Get a copy of terminal characteristics.
 	 */

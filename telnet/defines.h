@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)defines.h	5.1 (Berkeley) 9/14/90
- *	$Id: defines.h,v 1.2 1996/07/16 05:37:02 dholland Exp $
+ *	$Id: defines.h,v 1.5 1996/08/04 23:44:43 dholland Exp $
  */
 
 #define ENV_VAR NEW_ENV_VAR
@@ -40,25 +40,11 @@
 
 #define	settimer(x)	clocks.x = clocks.system++
 
-#if	!defined(TN3270)
-
+#if !defined(TN3270)
 #define	SetIn3270()
+#endif
 
-#endif	/* !defined(TN3270) */
-
-#define	NETADD(c)	{ *netoring.supply = c; ring_supplied(&netoring, 1); }
-#define	NET2ADD(c1,c2)	{ NETADD(c1); NETADD(c2); }
-#define	NETBYTES()	(ring_full_count(&netoring))
-#define	NETROOM()	(ring_empty_count(&netoring))
-
-#define	TTYADD(c)	if (!(SYNCHing||flushout)) { \
-				*ttyoring.supply = c; \
-				ring_supplied(&ttyoring, 1); \
-			}
-#define	TTYBYTES()	(ring_full_count(&ttyoring))
-#define	TTYROOM()	(ring_empty_count(&ttyoring))
-
-/*	Various modes */
+/* Various modes */
 #define	MODE_LOCAL_CHARS(m)	((m)&(MODE_EDIT|MODE_TRAPSIG))
 #define	MODE_LOCAL_ECHO(m)	((m)&MODE_ECHO)
 #define	MODE_COMMAND_LINE(m)	((m)==-1)

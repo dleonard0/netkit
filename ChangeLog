@@ -1,3 +1,33 @@
+New in 0.08: (?-Aug-1996)
+- fixed some minor makefile bugs in the .07A release
+- no longer distribute the broken lpr sources, or old rpcgen or slattach.
+- massive hacking on telnet
+- telnet honors the -E flag (was broken in .07, .07A)
+- telnetd intercepts ENV environment variable
+- ping -l (preload flood) requires uid 0
+- rpcgen now puts some standard includes in its generated c.
+- fixed rusers to use the right .x files with rpcgen.
+- fixed rusers and rwall to use rpcgen correctly.
+- fingerd uses fork instead of system for running uptime (with -w flag).
+- fingerd supports -L flag to run alternate finger client.
+- fixed some memory allocation bugs in ftp.
+- fixed rexecd to use fd_sets correctly.
+- fixed possible DNS spoofing buffer overrun vulnerability in tftp.
+- merged libtelnet into telnet and telnetd dirs.
+- fixed rwhod not to need -lbsd.
+- fixed possible buffer overrun hole in rwhod.
+- clear environment in setuid programs to protect against library bugs.
+- (almost) everything now compiles with lots of warnings turned on.
+- telnetd now sets idle tty devices to root.root mode 600.
+- fingerd now accepts a new -u flag to reject "finger @host" queries.
+- fix bug in finger that prevented matching full names
+  (fix from James Jones <james@richland.cc.il.us>.)
+- talk now beeps correctly with ncurses (fix from Marek Rouchal
+  <marek@btfmd1.fs.uni-bayreuth.de>.)
+- fix assorted bugs in timed 
+  (from Clause Heine <Clause_Heine@ac2.maus.de>.) 
+- ping sets SO_BROADCAST so pinging the broadcast address works.
+
 New in 0.07A: (25-Jul-1996)
 - fixed the top-level makefile.
 - removed old versions of rpcgen and slattach.

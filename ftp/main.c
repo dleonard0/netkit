@@ -39,7 +39,7 @@ char copyright[] =
  * from: @(#)main.c	5.18 (Berkeley) 3/1/91
  */
 char main_rcsid[] = 
-  "$Id: main.c,v 1.8 1996/07/21 09:28:33 dholland Exp $";
+  "$Id: main.c,v 1.9 1996/08/14 23:27:28 dholland Exp $";
 
 
 /*
@@ -67,15 +67,20 @@ char main_rcsid[] =
 
 #define Extern
 #include "ftp_var.h"
+int trace = 0;   /* potential conflict with ncurses */
+const char *home = "/";
 
-uid_t	getuid(void);
-void	intr(int), lostpeer(int);
-extern	char *home;
-char	*getlogin(void);
+extern FILE *cout;
+extern int data;
+extern struct cmd cmdtab[];
+extern int NCMDS;
 
-static void cmdscanner(int top);
+void intr(int);
+void lostpeer(int);
 void help(int argc, char *argv[]);
 
+static void cmdscanner(int top);
+static char *slurpstring(void);
 
 int
 main(volatile int argc, char **volatile argv)
@@ -162,8 +167,9 @@ main(volatile int argc, char **volatile argv)
 	if (pw == NULL)
 		pw = getpwuid(getuid());
 	if (pw != NULL) {
+		strncpy(homedir, pw->pw_dir, sizeof(homedir));
+		homedir[sizeof(homedir)-1] = 0;
 		home = homedir;
-		(void) strcpy(home, pw->pw_dir);
 	}
 	if (argc > 0) {
 		if (sigsetjmp(toplevel, 1))
@@ -186,24 +192,24 @@ main(volatile int argc, char **volatile argv)
 void
 intr(int ignore)
 {
+	(void)ignore;
 	siglongjmp(toplevel, 1);
 }
 
 void
 lostpeer(int ignore)
 {
-	extern FILE *cout;
-	extern int data;
+	(void)ignore;
 
 	if (connected) {
 		if (cout != NULL) {
-			(void) shutdown(fileno(cout), 1+1);
-			(void) fclose(cout);
+			shutdown(fileno(cout), 1+1);
+			fclose(cout);
 			cout = NULL;
 		}
 		if (data >= 0) {
-			(void) shutdown(data, 1+1);
-			(void) close(data);
+			shutdown(data, 1+1);
+			close(data);
 			data = -1;
 		}
 		connected = 0;
@@ -211,8 +217,8 @@ lostpeer(int ignore)
 	pswitch(1);
 	if (connected) {
 		if (cout != NULL) {
-			(void) shutdown(fileno(cout), 1+1);
-			(void) fclose(cout);
+			shutdown(fileno(cout), 1+1);
+			fclose(cout);
 			cout = NULL;
 		}
 		connected = 0;
@@ -244,9 +250,11 @@ tail(filename)
 static void
 cmdscanner(int top)
 {
+	int margc;
+	char *marg;
+	char **margv;
 	register struct cmd *c;
 	register int l;
-	struct cmd *getcmd();
 #ifdef __USE_READLINE__
 	char *lineread;
 #endif
@@ -265,10 +273,10 @@ cmdscanner(int top)
 #ifdef __USE_READLINE__
 		if (!fromatty) {
 			if (fgets(line, sizeof line, stdin) == NULL)
-				quit(0, NULL);
+				quit();
 		} else {
 			if (!lineread) {
-				quit(0, NULL);
+				quit();
 				break;
 			}
 			strcpy(line, lineread);
@@ -277,7 +285,7 @@ cmdscanner(int top)
                 }
 #else
 		if (fgets(line, sizeof line, stdin) == NULL)
-			quit(0, NULL);
+			quit();
 #endif
 		l = strlen(line);
 		if (l == 0)
@@ -286,13 +294,14 @@ cmdscanner(int top)
 			if (l == 0)
 				break;
 			line[l] = '\0';
-		} else if (l == sizeof(line) - 2) {
+		} 
+		else if (l == sizeof(line) - 2) {
 			printf("sorry, input line too long\n");
 			while ((l = getchar()) != '\n' && l != EOF)
 				/* void */;
 			break;
 		} /* else it was a line without a newline */
-		makeargv();
+		margv = makeargv(&margc, &marg);
 		if (margc == 0) {
 			continue;
 		}
@@ -301,7 +310,7 @@ cmdscanner(int top)
 			printf("?Ambiguous command\n");
 			continue;
 		}
-		if (c == 0) {
+		if (c == NULL) {
 			printf("?Invalid command\n");
 			continue;
 		}
@@ -309,10 +318,12 @@ cmdscanner(int top)
 			printf("Not connected.\n");
 			continue;
 		}
-		(*c->c_handler)(margc, margv);
-		if (bell && c->c_bell)
-			(void) putchar('\007');
-		if (c->c_handler != help)
+		if (c->c_handler_v) c->c_handler_v(margc, margv);
+		else if (c->c_handler_0) c->c_handler_0();
+		else c->c_handler_1(marg);
+
+		if (bell && c->c_bell) putchar('\007');
+		if (c->c_handler_v != help)
 			break;
 	}
 	(void) signal(SIGINT, intr);
@@ -320,13 +331,11 @@ cmdscanner(int top)
 }
 
 struct cmd *
-getcmd(name)
-	register char *name;
+getcmd(const char *name)
 {
-	extern struct cmd cmdtab[];
-	register char *p, *q;
-	register struct cmd *c, *found;
-	register int nmatches, longest;
+	const char *p, *q;
+	struct cmd *c, *found;
+	int nmatches, longest;
 
 	longest = 0;
 	nmatches = 0;
@@ -355,19 +364,23 @@ getcmd(name)
 
 int slrflag;
 
-void
-makeargv(void)
+char **
+makeargv(int *pargc, char **parg)
 {
+	static char *rargv[20];
+	int rargc = 0;
 	char **argp;
-	char *slurpstring();
 
-	margc = 0;
-	argp = margv;
+	argp = rargv;
 	stringbase = line;		/* scan from first of buffer */
 	argbase = argbuf;		/* store from first of buffer */
 	slrflag = 0;
 	while ((*argp++ = slurpstring())!=NULL)
-		margc++;
+		rargc++;
+
+	*pargc = rargc;
+	if (parg) *parg = altarg;
+	return rargv;
 }
 
 /*
@@ -375,9 +388,12 @@ makeargv(void)
  * implemented with FSM to
  * handle quoting and strings
  */
+static
 char *
-slurpstring()
+slurpstring(void)
 {
+	static char excl[] = "!", dols[] = "$";
+
 	int got_one = 0;
 	register char *sb = stringbase;
 	register char *ap = argbase;
@@ -388,7 +404,7 @@ slurpstring()
 			case 0:
 				slrflag++;
 				stringbase++;
-				return ((*sb == '!') ? "!" : "$");
+				return ((*sb == '!') ? excl : dols);
 				/* NOTREACHED */
 			case 1:
 				slrflag++;
@@ -485,12 +501,12 @@ OUT:
 			break;
 		case 1:
 			slrflag++;
-			altarg = (char *) 0;
+			altarg = NULL;
 			break;
 		default:
 			break;
 	}
-	return((char *)0);
+	return NULL;
 }
 
 #define HELPINDENT (sizeof ("directory"))
@@ -502,13 +518,12 @@ OUT:
 void
 help(int argc, char *argv[])
 {
-	extern struct cmd cmdtab[];
-	register struct cmd *c;
+	struct cmd *c;
 
 	if (argc == 1) {
-		register int i, j, w, k;
+		int i, j, w;
+		unsigned k;
 		int columns, width = 0, lines;
-		extern int NCMDS;
 
 		printf("Commands may be abbreviated.  Commands are:\n\n");
 		for (c = cmdtab; c < &cmdtab[NCMDS]; c++) {
@@ -552,7 +567,7 @@ help(int argc, char *argv[])
 		c = getcmd(arg);
 		if (c == (struct cmd *)-1)
 			printf("?Ambiguous help command %s\n", arg);
-		else if (c == (struct cmd *)0)
+		else if (c == NULL)
 			printf("?Invalid help command %s\n", arg);
 		else
 			printf("%-*s\t%s\n", HELPINDENT,

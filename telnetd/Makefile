@@ -5,15 +5,18 @@ include ../MRULES
 
 # -DAUTHENTICATE
 
-CFLAGS += '-DISSUE_FILE="/etc/issue.net"' -I.. \
+# If having unused tty devices root.root and mode 600 bugs you,
+# take out -DPARANOID_TTYS.
+
+CFLAGS += '-DISSUE_FILE="/etc/issue.net"' -DPARANOID_TTYS \
 	-DTERMCAP -DUSE_TERMIO -DKLUDGELINEMODE -DDIAGNOSTICS
-LIBS += -lbsd -ltermcap
+LIBS += -lbsd $(LIBTERMCAP)
 
 OBJS = telnetd.o state.o termstat.o slc.o sys_term.o utility.o \
 	global.o authenc.o logwtmp.o
 
 telnetd: $(OBJS)
-	$(CC) $(LDFLAGS) $^ $(LIBS) -L../libtelnet -ltelnet -o $@
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 $(OBJS): defs.h ext.h pathnames.h telnetd.h
 

@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)inetd.c	5.30 (Berkeley) 6/3/91
  */
 char rcsid[] = 
-  "$Id: inetd.c,v 1.5 1996/07/20 20:46:09 dholland Exp $";
+  "$Id: inetd.c,v 1.6 1996/08/14 23:54:14 dholland Exp $";
 
 
 /*
@@ -148,11 +148,17 @@ char rcsid[] =
 #include <grp.h>
 #include <stdio.h>
 #include <string.h>
+
 #ifdef RPC
+/* work around a compiler warning in rpc.h */
+#define __wait __wait_foo
 #include <rpc/rpc.h>
 #include <rpc/pmap_clnt.h>
+#undef __wait
 #endif
+
 #include "pathnames.h"
+#include "inetd.h"
 
 #ifndef MIN
 #define MIN(a, b)	((a) < (b) ? (a) : (b))
@@ -164,10 +170,12 @@ char rcsid[] =
 
 #define	SIGBLOCK	(sigmask(SIGCHLD)|sigmask(SIGHUP)|sigmask(SIGALRM))
 
-int daemon(int, int);
-
-void	config(), reapchild(), retry(), goaway();
-char	*index();
+struct servtab *getconfigent(void);
+struct servtab *enter(struct servtab *);
+static void config(int);
+static void reapchild(int);
+static void retry(int);
+static void goaway(int);
 
 static int	debug = 0;
 static int	nsock, maxsock;
@@ -251,11 +259,11 @@ static int bump_nofile(void);
 
 
 struct biltin {
-	char	*bi_service;		/* internally provided service name */
-	int	bi_socktype;		/* type of socket supported */
-	short	bi_fork;		/* 1 if should fork before call */
-	short	bi_wait;		/* 1 if should wait for child */
-	void	(*bi_fn)(int, struct servtab *); /* fn which performs it */
+	const char *bi_service;		/* internally provided service name */
+	int bi_socktype;		/* type of socket supported */
+	short bi_fork;		/* 1 if should fork before call */
+	short bi_wait;		/* 1 if should wait for child */
+	void (*bi_fn)(int, struct servtab *); /* fn which performs it */
 } biltins[] = {
 	/* Echo received data */
 	{ "echo",		SOCK_STREAM,	1, 0,	echo_stream, },
@@ -281,10 +289,10 @@ struct biltin {
 };
 
 #define NUMINT	(sizeof(intab) / sizeof(struct inent))
-char	*CONFIG = _PATH_INETDCONF;
-char	**Argv;
-char 	*LastArg;
-char	*progname;
+static const char *CONFIG = _PATH_INETDCONF;
+static char **Argv;
+static char *LastArg;
+static char *progname;
 
 #ifdef sun
 /*
@@ -301,12 +309,10 @@ _rpc_dtablesize()
 int
 main(int argc, char *argv[], char *envp[])
 {
-	extern char *optarg;
-	extern int optind;
-	register struct servtab *sep;
-	register struct passwd *pwd;
-	register struct group *grp = NULL;
-	register int tmpint;
+	struct servtab *sep;
+	struct passwd *pwd;
+	struct group *grp = NULL;
+	int tmpint;
 	struct sigaction sa;
 	int ch, pid, dofork;
 	char buf[50];
@@ -353,7 +359,7 @@ main(int argc, char *argv[], char *envp[])
 	}
 #endif
 
-	config();
+	config(0);
 	memset(&sa, 0, sizeof(sa));
 	sa.sa_mask = SIGBLOCK;
 	sa.sa_handler = retry;
@@ -533,12 +539,13 @@ main(int argc, char *argv[], char *envp[])
 }
 
 void
-reapchild()
+reapchild(int signum)
 {
 	int status;
 	int pid;
 	register struct servtab *sep;
 
+	(void)signum;
 	for (;;) {
 		pid = wait3(&status, WNOHANG, (struct rusage *)0);
 		if (pid <= 0)
@@ -565,14 +572,14 @@ reapchild()
 	}
 }
 
-void
-config()
+static void
+config(int signum)
 {
 	register struct servtab *sep, *cp, **sepp;
-	struct servtab *getconfigent(), *enter();
 	long omask;
-	int n;
+	unsigned n;
 
+	(void)signum;
 	if (!setconfig()) {
 		syslog(LOG_ERR, "%s: %m", CONFIG);
 		return;
@@ -631,8 +638,8 @@ config()
 				break;
 			(void)unlink(sep->se_service);
 			n = strlen(sep->se_service);
-			if (n > sizeof sep->se_ctrladdr_un.sun_path - 1) 
-				n = sizeof sep->se_ctrladdr_un.sun_path - 1;
+			if (n > sizeof(sep->se_ctrladdr_un.sun_path) - 1) 
+				n = sizeof(sep->se_ctrladdr_un.sun_path) - 1;
 			strncpy(sep->se_ctrladdr_un.sun_path, sep->se_service, n);
 			sep->se_ctrladdr_un.sun_family = AF_UNIX;
 			sep->se_ctrladdr_size = n +
@@ -718,11 +725,12 @@ config()
 	(void) sigsetmask(omask);
 }
 
-void
-retry()
+static void
+retry(int signum)
 {
 	register struct servtab *sep;
 
+	(void)signum;
 	timingout = 0;
 	for (sep = servtab; sep; sep = sep->se_next) {
 		if (sep->se_fd == -1) {
@@ -738,11 +746,12 @@ retry()
 	}
 }
 
-void
-goaway()
+static void
+goaway(int signum)
 {
 	register struct servtab *sep;
 
+	(void)signum;
 	for (sep = servtab; sep; sep = sep->se_next) {
 		if (sep->se_fd == -1)
 			continue;
@@ -809,7 +818,7 @@ register_rpc(struct servtab *sep)
 {
 #ifdef RPC
 	int n;
-	struct sockaddr_in sin;
+	struct sockaddr_in sn;
 	struct protoent *pp;
 
 	if ((pp = getprotobyname(sep->se_proto+4)) == NULL) {
@@ -817,8 +826,8 @@ register_rpc(struct servtab *sep)
 		    sep->se_proto);
 		return;
 	}
-	n = sizeof sin;
-	if (getsockname(sep->se_fd, (struct sockaddr *)&sin, &n) < 0) {
+	n = sizeof(sn);
+	if (getsockname(sep->se_fd, (struct sockaddr *)&sn, &n) < 0) {
 		syslog(LOG_ERR, "%s/%s: getsockname: %m",
 		    sep->se_service, sep->se_proto);
 		return;
@@ -827,11 +836,11 @@ register_rpc(struct servtab *sep)
 	for (n = sep->se_rpcversl; n <= sep->se_rpcversh; n++) {
 		if (debug)
 			fprintf(stderr, "pmap_set: %u %u %u %u\n",
-			sep->se_rpcprog, n, pp->p_proto, ntohs(sin.sin_port));
+			sep->se_rpcprog, n, pp->p_proto, ntohs(sn.sin_port));
 		(void)pmap_unset(sep->se_rpcprog, n);
-		if (!pmap_set(sep->se_rpcprog, n, pp->p_proto, ntohs(sin.sin_port)))
+		if (!pmap_set(sep->se_rpcprog, n, pp->p_proto, ntohs(sn.sin_port)))
 			syslog(LOG_ERR, "pmap_set: %u %u %u %u: %m",
-			sep->se_rpcprog, n, pp->p_proto, ntohs(sin.sin_port));
+			sep->se_rpcprog, n, pp->p_proto, ntohs(sn.sin_port));
 	}
 #endif /* RPC */
 }
@@ -855,8 +864,7 @@ unregister_rpc(struct servtab *sep)
 
 
 struct servtab *
-enter(cp)
-	struct servtab *cp;
+enter(struct servtab *cp)
 {
 	register struct servtab *sep;
 	long omask;
@@ -876,10 +884,12 @@ enter(cp)
 	return (sep);
 }
 
-FILE	*fconfig = NULL;
-struct	servtab serv;
-char	line[256];
-char	*skip(), *nextline();
+static FILE *fconfig = NULL;
+static struct servtab serv;
+static char line[256];
+static char *skip(char **);
+static char *nextline(FILE *);
+static char *newstr(char *);
 
 static int
 setconfig()
@@ -903,11 +913,11 @@ endconfig(void)
 }
 
 struct servtab *
-getconfigent()
+getconfigent(void)
 {
 	register struct servtab *sep = &serv;
 	int argc;
-	char *cp, *arg, *newstr();
+	char *cp, *arg;
 
 more:
 #ifdef MULOG
@@ -970,26 +980,26 @@ more:
 		sep->se_family = AF_INET;
 		if (strncmp(sep->se_proto, "rpc/", 4) == 0) {
 #ifdef RPC
-			char *cp, *ccp;
-			cp = index(sep->se_service, '/');
-			if (cp == 0) {
+			char *cp1, *ccp;
+			cp1 = index(sep->se_service, '/');
+			if (cp1 == NULL) {
 				syslog(LOG_ERR, "%s: no rpc version",
 				    sep->se_service);
 				goto more;
 			}
-			*cp++ = '\0';
+			*cp1++ = '\0';
 			sep->se_rpcversl =
-				sep->se_rpcversh = strtol(cp, &ccp, 0);
-			if (ccp == cp) {
+				sep->se_rpcversh = strtol(cp1, &ccp, 0);
+			if (ccp == cp1) {
 		badafterall:
 				syslog(LOG_ERR, "%s/%s: bad rpc version",
-				    sep->se_service, cp);
+				    sep->se_service, cp1);
 				goto more;
 			}
 			if (*ccp == '-') {
-				cp = ccp + 1;
-				sep->se_rpcversh = strtol(cp, &ccp, 0); 
-				if (ccp == cp)
+				cp1 = ccp + 1;
+				sep->se_rpcversh = strtol(cp1, &ccp, 0); 
+				if (ccp == cp1)
 					goto badafterall;
 			}
 #else
@@ -1093,8 +1103,7 @@ freeconfig(struct servtab *cp)
 }
 
 char *
-skip(cpp)
-	char **cpp;
+skip(char **cpp)
 {
 	register char *cp = *cpp;
 	char *start;
@@ -1113,8 +1122,8 @@ again:
 		if (c == ' ' || c == '\t')
 			if ((cp = nextline(fconfig))!=NULL)
 				goto again;
-		*cpp = (char *)0;
-		return ((char *)0);
+		*cpp = NULL;
+		return NULL;
 	}
 	start = cp;
 	while (*cp && *cp != ' ' && *cp != '\t')
@@ -1126,8 +1135,7 @@ again:
 }
 
 char *
-nextline(fd)
-	FILE *fd;
+nextline(FILE *fd)
 {
 	char *cp;
 
@@ -1140,8 +1148,7 @@ nextline(fd)
 }
 
 char *
-newstr(cp)
-	char *cp;
+newstr(char *cp)
 {
 	cp = strdup(cp ? cp : "");
 	if (cp)	return(cp);
@@ -1150,18 +1157,18 @@ newstr(cp)
 	exit(-1);
 }
 
-void
+static void
 setproctitle(char *a, int s)
 {
 	int size;
 	register char *cp;
-	struct sockaddr_in sin;
+	struct sockaddr_in sn;
 	char buf[80];
 
 	cp = Argv[0];
-	size = sizeof(sin);
-	if (getpeername(s, (struct sockaddr *)&sin, &size) == 0)
-		(void) sprintf(buf, "-%s [%s]", a, inet_ntoa(sin.sin_addr)); 
+	size = sizeof(sn);
+	if (getpeername(s, (struct sockaddr *)&sn, &size) == 0)
+		(void) sprintf(buf, "-%s [%s]", a, inet_ntoa(sn.sin_addr)); 
 	else
 		(void) sprintf(buf, "-%s", a); 
 	strncpy(cp, buf, LastArg - cp);
@@ -1237,14 +1244,15 @@ echo_stream(int s, struct servtab *sep)
 }
 
 /* ARGSUSED */
+/* Echo service -- echo data back */
 void
-echo_dg(s, sep)			/* Echo service -- echo data back */
-	int s;
-	struct servtab *sep;
+echo_dg(int s, struct servtab *sep)
 {
 	char buffer[BUFSIZE];
 	int i, size;
 	struct sockaddr sa;
+
+	(void)sep;
 
 	size = sizeof(sa);
 	if ((i = recvfrom(s, buffer, sizeof(buffer), 0, &sa, &size)) < 0)
@@ -1267,14 +1275,13 @@ discard_stream(int s, struct servtab *sep)
 }
 
 /* ARGSUSED */
+/* Discard service -- ignore data */
 void
-discard_dg(s, sep)		/* Discard service -- ignore data */
-	int s;
-	struct servtab *sep;
+discard_dg(int s, struct servtab *sep)
 {
 	char buffer[BUFSIZE];
-
-	(void) read(s, buffer, sizeof(buffer));
+	(void)sep;
+	read(s, buffer, sizeof(buffer));
 }
 
 #include <ctype.h>
@@ -1282,8 +1289,8 @@ discard_dg(s, sep)		/* Discard service -- ignore data */
 char ring[128];
 char *endring;
 
-void
-initring()
+static void
+initring(void)
 {
 	register int i;
 
@@ -1328,15 +1335,16 @@ chargen_stream(int s, struct servtab *sep)
 }
 
 /* ARGSUSED */
+/* Character generator */
 void
-chargen_dg(s, sep)		/* Character generator */
-	int s;
-	struct servtab *sep;
+chargen_dg(int s, struct servtab *sep)
 {
 	struct sockaddr sa;
 	static char *rs;
 	int len, size;
 	char text[LINESIZ+2];
+
+	(void)sep;
 
 	if (endring == 0) {
 		initring();
@@ -1368,8 +1376,8 @@ chargen_dg(s, sep)		/* Character generator */
  * some seventy years Bell Labs was asleep.
  */
 
-long
-machtime()
+static long
+machtime(void)
 {
 	struct timeval tv;
 
@@ -1380,27 +1388,23 @@ machtime()
 	return (htonl((long)tv.tv_sec + 2208988800UL));
 }
 
-/* ARGSUSED */
 void
-machtime_stream(s, sep)
-	int s;
-	struct servtab *sep;
+machtime_stream(int s, struct servtab *sep)
 {
 	long result;
+	(void)sep;
 
 	result = machtime();
-	(void) write(s, (char *) &result, sizeof(result));
+	write(s, (char *) &result, sizeof(result));
 }
 
-/* ARGSUSED */
 void
-machtime_dg(s, sep)
-	int s;
-	struct servtab *sep;
+machtime_dg(int s, struct servtab *sep)
 {
 	long result;
 	struct sockaddr sa;
 	int size;
+	(void)sep;
 
 	size = sizeof(sa);
 	if (recvfrom(s, (char *)&result, sizeof(result), 0, &sa, &size) < 0)
@@ -1409,41 +1413,37 @@ machtime_dg(s, sep)
 	(void) sendto(s, (char *) &result, sizeof(result), 0, &sa, sizeof(sa));
 }
 
-/* ARGSUSED */
+/* Return human-readable time of day */
 void
-daytime_stream(s, sep)		/* Return human-readable time of day */
-	int s;
-	struct servtab *sep;
+daytime_stream(int s, struct servtab *sep)
 {
 	char buffer[256];
-	time_t time(), clock;
-	char *ctime();
+	time_t clocc;
 
-	clock = time((time_t *) 0);
+	(void)sep;
 
-	(void) sprintf(buffer, "%.24s\r\n", ctime(&clock));
-	(void) write(s, buffer, strlen(buffer));
+	clocc = time(NULL);
+	sprintf(buffer, "%.24s\r\n", ctime(&clocc));
+	write(s, buffer, strlen(buffer));
 }
 
-/* ARGSUSED */
+/* Return human-readable time of day */
 void
-daytime_dg(s, sep)		/* Return human-readable time of day */
-	int s;
-	struct servtab *sep;
+daytime_dg(int s, struct servtab *sep)
 {
 	char buffer[256];
-	time_t time(), clock;
+	time_t clocc;
 	struct sockaddr sa;
 	int size;
-	char *ctime();
 
-	clock = time((time_t *) 0);
+	(void)sep;
 
+	clocc = time(NULL);
 	size = sizeof(sa);
 	if (recvfrom(s, buffer, sizeof(buffer), 0, &sa, &size) < 0)
 		return;
-	(void) sprintf(buffer, "%.24s\r\n", ctime(&clock));
-	(void) sendto(s, buffer, strlen(buffer), 0, &sa, sizeof(sa));
+	sprintf(buffer, "%.24s\r\n", ctime(&clocc));
+	sendto(s, buffer, strlen(buffer), 0, &sa, sizeof(sa));
 }
 
 /*

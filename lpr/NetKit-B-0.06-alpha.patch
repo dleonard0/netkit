@@ -1,9 +1,0 @@
---- NetKit-B-0.06/lpr/Makefile.erik	Thu Oct 19 21:51:02 1995
-+++ NetKit-B-0.06/lpr/Makefile	Thu Oct 19 21:51:05 1995
-@@ -1,5 +1,5 @@
- CFLAGS	+= -I../common_source
--LDFLAGS	+= -N
-+#LDFLAGS	+= -N
- LDLIBS += -lcommon -L ../common_source
- 
- SUBDIRS	= common_source filters lpc lpd lpq lpr lprm lptest pac

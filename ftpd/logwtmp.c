@@ -29,49 +29,44 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
  */
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)logwtmp.c	5.7 (Berkeley) 2/25/91";*/
-static char rcsid[] = "$Id: logwtmp.c,v 1.2 1996/07/14 20:24:23 dholland Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)logwtmp.c	5.7 (Berkeley) 2/25/91
+ */
+static char logwtmp_rcsid[] = 
+  "$Id: logwtmp.c,v 1.3 1996/08/15 07:15:59 dholland Exp $";
 
-#include <sys/types.h>
-#include <sys/time.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <utmp.h>
-#include <unistd.h>
 #include <string.h>
+#include <unistd.h>
+#include <utmp.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
-static int fd = -1;
 
 /*
  * Modified version of logwtmp that holds wtmp file open
  * after first call, for use with ftp (which may chroot
  * after login, but before logout).
  */
-logwtmp(line, name, host)
-	char *line, *name, *host;
+void
+logwtmp(const char *line, const char *name, const char *host)
 {
 	struct utmp ut;
 	struct stat buf;
-	time_t time();
-	char *strncpy();
+	static int fd = -1;
 
 	if (fd < 0 && (fd = open(_PATH_WTMP, O_WRONLY|O_APPEND, 0)) < 0)
 		return;
 	if (fstat(fd, &buf) == 0) {
-		ut.ut_type = (name[0] != '\0')? USER_PROCESS : DEAD_PROCESS;
 		ut.ut_pid = getpid();
-		(void)strncpy(ut.ut_id, "", 2);
-		(void)strncpy(ut.ut_line, line, sizeof(ut.ut_line));
-		(void)strncpy(ut.ut_name, name, sizeof(ut.ut_name));
-		(void)strncpy(ut.ut_host, host, sizeof(ut.ut_host));
-		(void)time(&ut.ut_time);
-		if (write(fd, (char *)&ut, sizeof(struct utmp)) !=
-		    sizeof(struct utmp))
-			(void)ftruncate(fd, buf.st_size);
+		ut.ut_type = (name[0] != '\0')? USER_PROCESS : DEAD_PROCESS;
+		strncpy(ut.ut_id, "", 2);
+		strncpy(ut.ut_line, line, sizeof(ut.ut_line));
+		strncpy(ut.ut_name, name, sizeof(ut.ut_name));
+		strncpy(ut.ut_host, host, sizeof(ut.ut_host));
+		time(&ut.ut_time);
+		if (write(fd, &ut, sizeof(struct utmp)) != sizeof(struct utmp))
+			ftruncate(fd, buf.st_size);
 	}
 }

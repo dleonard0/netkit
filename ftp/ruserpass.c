@@ -35,10 +35,10 @@
  * from: @(#)ruserpass.c	5.3 (Berkeley) 3/1/91
  */
 char ruserpass_rcsid[] = 
-  "$Id: ruserpass.c,v 1.2 1996/07/14 09:16:00 dholland Exp $";
+  "$Id: ruserpass.c,v 1.3 1996/08/14 23:27:28 dholland Exp $";
 
-#include <sys/types.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <utmp.h>
 #include <ctype.h>
 #include <sys/stat.h>
@@ -47,10 +47,8 @@ char ruserpass_rcsid[] =
 #include <unistd.h>
 #include "ftp_var.h"
 
-char	*renvlook(), *malloc(), *index(), *getenv(), *getpass(), *getlogin();
-char	*strcpy();
-struct	utmp *getutmp();
-static	FILE *cfile;
+static FILE *cfile;
+static int token(void);
 
 #define	DEFAULT	1
 #define	LOGIN	2
@@ -63,7 +61,7 @@ static	FILE *cfile;
 static char tokval[100];
 
 static struct toktab {
-	char *tokstr;
+	const char *tokstr;
 	int tval;
 } toktab[]= {
 	{ "default",	DEFAULT },
@@ -79,16 +77,17 @@ static struct toktab {
 int
 xruserpass(const char *host, char **aname, char **apass, char **aacct)
 {
-	char *hdir, buf[BUFSIZ], *tmp;
-	char myname[MAXHOSTNAMELEN], *mydomain;
+	const char *hdir;
+	char buf[BUFSIZ], *tmp;
+	char myname[MAXHOSTNAMELEN];
+	const char *mydomain;
 	int t, i, c, usedefault = 0;
 	struct stat stb;
-	static int token();
 
 	hdir = getenv("HOME");
 	if (hdir == NULL)
 		hdir = ".";
-	(void) sprintf(buf, "%s/.netrc", hdir);
+	snprintf(buf, sizeof(buf), "%s/.netrc", hdir);
 	cfile = fopen(buf, "r");
 	if (cfile == NULL) {
 		if (errno != ENOENT)
@@ -97,7 +96,7 @@ xruserpass(const char *host, char **aname, char **apass, char **aacct)
 	}
 	if (gethostname(myname, sizeof(myname)) < 0)
 		myname[0] = '\0';
-	if ((mydomain = index(myname, '.')) == NULL)
+	if ((mydomain = strchr(myname, '.')) == NULL)
 		mydomain = "";
 next:
 	while ((t = token())) switch(t) {
@@ -242,8 +241,9 @@ bad:
 	return(-1);
 }
 
-static int
-token()
+static 
+int
+token(void)
 {
 	char *cp;
 	int c;

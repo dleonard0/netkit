@@ -38,7 +38,7 @@ char copyright[] =
 /*
  * From: @(#)rcp.c	5.32 (Berkeley) 2/25/91
  */
-char rcsid[] = "$Id: rcp.c,v 1.5 1996/07/22 01:01:36 dholland Exp $";
+char rcsid[] = "$Id: rcp.c,v 1.7 1996/08/22 22:49:59 dholland Exp $";
 
 /*
  * rcp
@@ -72,6 +72,7 @@ u_short	port;
 uid_t	userid;
 int errs, rem;
 int pflag, iamremote, iamrecursive, targetshouldbedirectory;
+static char **saved_environ;
 
 #define	CMDNEEDS	64
 char cmd[CMDNEEDS];		/* must hold "rcp -r -p -d\0" */
@@ -93,18 +94,21 @@ static void sink(int argc, char *argv[]);
 static BUF *allocbuf(BUF *bp, int fd, int blksize);
 static void nospace(void);
 static void usage(void);
-static void toremote(char *targ, int argc, char *argv[]);
+static void toremote(const char *targ, int argc, char *argv[]);
 static void tolocal(int argc, char *argv[]);
 static void error(const char *fmt, ...);
 
 int
 main(int argc, char *argv[])
 {
-	extern int optind;
-	extern char *optarg;
 	struct servent *sp;
 	int ch, fflag, tflag;
-	char *targ, *shell;
+	char *targ;
+	const char *shell;
+	char *null = NULL;
+
+	saved_environ = __environ;
+	__environ = &null;
 
 	fflag = tflag = 0;
 	while ((ch = getopt(argc, argv, OPTIONS)) != EOF)
@@ -176,8 +180,11 @@ main(int argc, char *argv[])
 
 	(void)signal(SIGPIPE, lostconn);
 
-	if ((targ = colon(argv[argc - 1]))!=NULL)
-		toremote(targ, argc, argv);	/* destination is remote host */
+	if ((targ = colon(argv[argc - 1]))!=NULL) {
+		/* destination is remote host */
+		*targ++ = 0;
+		toremote(targ, argc, argv);
+	}
 	else {
 		tolocal(argc, argv);		/* destination is local host */
 		if (targetshouldbedirectory)
@@ -187,12 +194,11 @@ main(int argc, char *argv[])
 }
 
 static void
-toremote(char *targ, int argc, char *argv[])
+toremote(const char *targ, int argc, char *argv[])
 {
 	int i, len, tos;
 	char *bp, *host, *src, *suser, *thost, *tuser;
 
-	*targ++ = 0;
 	if (*targ == 0)
 		targ = ".";
 
@@ -212,9 +218,10 @@ toremote(char *targ, int argc, char *argv[])
 	for (i = 0; i < argc - 1; i++) {
 		src = colon(argv[i]);
 		if (src) {			/* remote to remote */
+			static char dot[] = ".";
 			*src++ = 0;
 			if (*src == 0)
-				src = ".";
+				src = dot;
 			host = strchr(argv[i], '@');
 			len = strlen(_PATH_RSH) + strlen(argv[i]) +
 			    strlen(src) + (tuser ? strlen(tuser) : 0) +
@@ -272,6 +279,7 @@ toremote(char *targ, int argc, char *argv[])
 static void
 tolocal(int argc, char *argv[])
 {
+ 	static char dot[] = ".";
 	int i, len, tos;
 	char *bp, *host, *src, *suser;
 
@@ -290,7 +298,7 @@ tolocal(int argc, char *argv[])
 		}
 		*src++ = 0;
 		if (*src == 0)
-			src = ".";
+			src = dot;
 		host = strchr(argv[i], '@');
 		if (host) {
 			*host++ = 0;
@@ -379,8 +387,13 @@ susystem(const char *s)
 	sighandler istat, qstat;
 
 	if ((pid = vfork()) == 0) {
+		const char *args[4];
 		(void)setuid(userid);
-		execl(_PATH_BSHELL, "sh", "-c", s, NULL);
+		args[0] = "sh";
+		args[1] = "-c";
+		args[2] = s;
+		args[3] = NULL;
+		execve(_PATH_BSHELL, (char **)args, saved_environ);
 		_exit(127);
 	}
 	istat = signal(SIGINT, SIG_IGN);
@@ -564,6 +577,8 @@ response(void)
 static void
 lostconn(int ignore)
 {
+	(void)ignore;
+
 	if (!iamremote)
 		(void)fprintf(stderr, "rcp: lost connection\n");
 	exit(1);
@@ -579,7 +594,8 @@ sink(int argc, char *argv[])
 	enum { YES, NO, DISPLAYED } wrerr;
 	BUF *bp;
 	off_t i, j;
-	char ch, *targ, *why;
+	char ch, *targ;
+	const char *why;
 	int amt, count, exists, first, mask, mode;
 	int ofd, setimes, size, targisdir;
 	char *np, *vect[1], buf[BUFSIZ];
@@ -681,7 +697,7 @@ sink(int argc, char *argv[])
 		if (targisdir) {
 			static char *namebuf;
 			static int cursize;
-			size_t need;
+			int need;
 
 			need = strlen(targ) + strlen(cp) + 250;
 			if (need > cursize) {
@@ -791,7 +807,7 @@ static BUF *
 allocbuf(BUF *bp, int fd, int blksize)
 {
 	struct stat stb;
-	size_t size;
+	int size;
 
 	if (fstat(fd, &stb) < 0) {
 		error("rcp: fstat: %s\n", strerror(errno));

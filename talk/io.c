@@ -35,7 +35,7 @@
  * From: @(#)io.c	5.6 (Berkeley) 3/1/91
  */
 char io_rcsid[] = 
-  "$Id: io.c,v 1.3 1996/07/20 20:59:41 dholland Exp $";
+  "$Id: io.c,v 1.6 1996/08/20 20:26:00 dholland Exp $";
 
 /*
  * This file contains the I/O handling and the exchange of 
@@ -66,7 +66,10 @@ talk(void)
 	char buf[BUFSIZ];
 	struct timeval wait;
 
-	message("Connection established\007\007\007");
+	message("Connection established");
+	beep();
+	wrefresh(curscr);
+
 	current_line = 0;
 	sockt_mask = (1<<sockt);
 
@@ -120,7 +123,7 @@ extern	int sys_nerr;
  * on the screen and then exits. (i.e. a curses version of perror)
  */
 void
-p_error(char *string) 
+p_error(const char *string) 
 {
 	wmove(my_win.x_win, current_line%my_win.x_nlines, 0);
 	wprintw(my_win.x_win, "[%s : %s (%d)]\n",
@@ -135,7 +138,7 @@ p_error(char *string)
  * Display string in the standard location
  */
 void
-message(char *string)
+message(const char *string)
 {
 
 	wmove(my_win.x_win, current_line%my_win.x_nlines, 0);

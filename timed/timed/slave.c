@@ -35,10 +35,10 @@
  * From: @(#)slave.c	5.1 (Berkeley) 5/11/93
  */
 char slave_rcsid[] =
-  "$Id: slave.c,v 1.2 1996/07/20 19:45:38 dholland Exp $";
+  "$Id: slave.c,v 1.3 1996/08/15 05:56:12 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.2 $"
+#ident "$Revision: 1.3 $"
 #endif
 
 #include "globals.h"
@@ -62,14 +62,14 @@ static void answerdelay(void);
 #ifdef sgi
 extern void logwtmp(struct timeval *, struct timeval *);
 #else
-extern void logwtmp(char *, char *, char *);
+extern void logwtmp(const char *, const char *, const char *);
 #endif /* sgi */
 
 int
-slave()
+slave(void)
 {
 	int tries;
-	long electiontime, refusetime, looktime, looptime, adjtime;
+	long electiontime, refusetime, looktime, looptime, adjtimes;
 	u_short seq;
 	long fastelection;
 #define FASTTOUT 3
@@ -81,7 +81,6 @@ slave()
 	struct timeval ntime, wait;
 	time_t tyme;
 	struct tsp *answer;
-	int timeout();
 	char olddate[32];
 	char newdate[32];
 	struct netinfo *ntp;
@@ -91,7 +90,7 @@ slave()
 	old_slavenet = 0;
 	seq = 0;
 	refusetime = 0;
-	adjtime = 0;
+	adjtimes = 0;
 
 	(void)gettimeofday(&ntime, 0);
 	electiontime = ntime.tv_sec + delay2;
@@ -236,7 +235,7 @@ loop:
 			 * is found.
 			 */
 			(void)gettimeofday(&otime, 0);
-			if (adjtime < otime.tv_sec)
+			if (adjtimes < otime.tv_sec)
 				looptime -= (looptime-otime.tv_sec)/2 + 1;
 
 			setmaster(msg);
@@ -247,7 +246,7 @@ loop:
 			(void)gettimeofday(&ntime, 0);
 			electiontime = ntime.tv_sec + delay2;
 			fastelection = ntime.tv_sec + FASTTOUT;
-			adjtime = ntime.tv_sec + SAMPLEINTVL*2;
+			adjtimes = ntime.tv_sec + SAMPLEINTVL*2;
 			break;
 
 		case TSP_SETTIME:

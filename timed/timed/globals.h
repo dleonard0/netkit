@@ -34,7 +34,7 @@
  */
 
 #ifdef sgi
-#ident "$Revision: 1.2 $"
+#ident "$Revision: 1.3 $"
 #endif
 
 #include <sys/param.h>
@@ -77,7 +77,16 @@ extern int sock;
 
 
 #define SAMPLEINTVL	240		/* synch() freq for master in sec */
-#define	MAXADJ		20		/* max adjtime() correction in sec */
+
+/* 
+ * max adjtime() correction in sec 
+ */
+#ifdef __linux__
+/* Apparently linux's adjtime corrects kind of slowly. */
+#define	MAXADJ		10
+#else
+#define	MAXADJ		20
+#endif
 
 #define MAX_TRIM	3000000		/* max drift in nsec/sec, 0.3% */
 #define BIG_ADJ		(MAX_TRIM/1000*SAMPLEINTVL*2)	/* max good adj */

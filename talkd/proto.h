@@ -11,5 +11,5 @@ CTL_MSG *find_match(CTL_MSG *request);
 int announce(CTL_MSG *request, const char *remote_machine);
 void process_request(CTL_MSG *mp, CTL_RESPONSE *rp);
 int new_id(void);
-int delete_invite(int id_num);
+int delete_invite(unsigned id_num);
 

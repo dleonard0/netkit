@@ -35,10 +35,10 @@
  * From: @(#)cmds.c	5.1 (Berkeley) 5/11/93
  */
 char cmds_rcsid[] =
-  "$Id: cmds.c,v 1.3 1996/07/20 19:45:11 dholland Exp $";
+  "$Id: cmds.c,v 1.6 1996/08/15 06:12:04 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.3 $"
+#ident "$Revision: 1.6 $"
 #endif
 
 #include "timedc.h"
@@ -73,6 +73,8 @@ struct hostent *hp;
 struct sockaddr_in server;
 struct sockaddr_in dayaddr;
 extern int measure_delta;
+
+extern int measure(u_long, u_long, char *, struct sockaddr_in*, int);
 
 void bytenetorder(struct tsp *);
 void bytehostorder(struct tsp *);
@@ -175,7 +177,6 @@ clockdiff(argc, argv)
 	char *argv[];
 {
 	int measure_status;
-	extern int measure(u_long, u_long, char *, struct sockaddr_in*, int);
 	register int avg_cnt;
 	register long avg;
 	struct servent *sp;
@@ -237,7 +238,7 @@ clockdiff(argc, argv)
 		 */
 		if (dayaddr.sin_port != 0) {
 			dayaddr.sin_family = hp->h_addrtype;
-			bcopy(hp->h_addr, &dayaddr.sin_addr.s_addr,
+			memcpy(&dayaddr.sin_addr.s_addr, hp->h_addr, 
 			      hp->h_length);
 			avg = daydiff(*argv);
 			if (avg > SECDAY) {
@@ -300,14 +301,14 @@ msite(int argc, char *argv[])
 	do {
 		tgtname = (i >= argc) ? myname : argv[i];
 		hp = gethostbyname(tgtname);
-		if (hp == 0) {
+		if (hp == NULL) {
 			fprintf(stderr, "timedc: %s: ", tgtname);
-			herror(0);
+			herror(NULL);
 			continue;
 		}
-		bcopy(hp->h_addr, &dest.sin_addr.s_addr, hp->h_length);
+		memcpy(&dest.sin_addr.s_addr, hp->h_addr, hp->h_length);
 
-		(void)strcpy(msg.tsp_name, myname);
+		strcpy(msg.tsp_name, myname);  /* can't overflow */
 		msg.tsp_type = TSP_MSITE;
 		msg.tsp_vers = TSPVERSION;
 		bytenetorder(&msg);
@@ -349,8 +350,10 @@ msite(int argc, char *argv[])
  * quits timedc
  */
 void
-quit()
+quit(int argc, char *argv[])
 {
+	(void)argc;
+	(void)argv;
 	exit(0);
 }
 
@@ -364,7 +367,7 @@ void
 testing(int argc, char *argv[])
 {
 	struct servent *srvp;
-	struct sockaddr_in sin;
+	struct sockaddr_in sn;
 	struct tsp msg;
 
 	if (argc < 2)  {
@@ -387,9 +390,9 @@ testing(int argc, char *argv[])
 			argc--; argv++;
 			continue;
 		}
-		sin.sin_port = srvp->s_port;
-		sin.sin_family = hp->h_addrtype;
-		bcopy(hp->h_addr, &sin.sin_addr.s_addr, hp->h_length);
+		sn.sin_port = srvp->s_port;
+		sn.sin_family = hp->h_addrtype;
+		memcpy(&sn.sin_addr.s_addr, hp->h_addr, hp->h_length);
 
 		msg.tsp_type = TSP_TEST;
 		msg.tsp_vers = TSPVERSION;
@@ -397,8 +400,8 @@ testing(int argc, char *argv[])
 		(void)strncpy(msg.tsp_name, myname, sizeof(msg.tsp_name));
 		bytenetorder(&msg);
 		if (sendto(sock, &msg, sizeof(struct tsp), 0,
-			   (struct sockaddr*)&sin,
-			   sizeof(struct sockaddr)) < 0) {
+			   (struct sockaddr*)&sn,
+			   sizeof(struct sockaddr_in)) < 0) {
 			perror("sendto");
 		}
 	}
@@ -436,7 +439,12 @@ tracing(int argc, char *argv[])
 
 	(void)gethostname(myname,sizeof(myname));
 	hp = gethostbyname(myname);
-	bcopy(hp->h_addr, &dest.sin_addr.s_addr, hp->h_length);
+	if (hp == NULL) {
+	    fprintf(stderr, "timedc: %s: ", myname);
+	    herror(NULL);
+	    return;
+	}
+	memcpy(&dest.sin_addr.s_addr, hp->h_addr, hp->h_length);
 
 	if (strcmp(argv[1], "on") == 0) {
 		msg.tsp_type = TSP_TRACEON;
@@ -484,7 +492,7 @@ int
 priv_resources()
 {
 	int port;
-	struct sockaddr_in sin;
+	struct sockaddr_in sn;
 
 	sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sock < 0) {
@@ -492,11 +500,11 @@ priv_resources()
 		return(-1);
 	}
 
-	sin.sin_family = AF_INET;
-	sin.sin_addr.s_addr = 0;
+	sn.sin_family = AF_INET;
+	sn.sin_addr.s_addr = 0;
 	for (port = IPPORT_RESERVED - 1; port > IPPORT_RESERVED / 2; port--) {
-		sin.sin_port = htons((u_short)port);
-		if (bind(sock, (struct sockaddr*)&sin, sizeof (sin)) >= 0)
+		sn.sin_port = htons((u_short)port);
+		if (bind(sock, (struct sockaddr*)&sn, sizeof(sn)) >= 0)
 			break;
 		if (errno != EADDRINUSE && errno != EADDRNOTAVAIL) {
 			perror("bind");

@@ -39,10 +39,10 @@ char copyright[] =
  * From: @(#)timedc.c	5.1 (Berkeley) 5/11/93
  */
 char timedc_rcsid[] =
-  "$Id: timedc.c,v 1.3 1996/07/20 21:08:13 dholland Exp $";
+  "$Id: timedc.c,v 1.5 1996/08/15 06:12:04 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.3 $"
+#ident "$Revision: 1.5 $"
 #endif
 
 #include "timedc.h"
@@ -107,7 +107,7 @@ main(int argc, char *argv[])
 			(void) fflush(stdout);
 		}
 		if (fgets(cmdline, sizeof(cmdline), stdin) == 0)
-			quit();
+			quit(0,NULL);
 		if (cmdline[0] == 0)
 			break;
 		makeargv();
@@ -132,23 +132,23 @@ main(int argc, char *argv[])
 }
 
 void
-intr(signo)
-	int signo;
+intr(int signum)
 {
-	if (!fromatty)
-		exit(0);
+	(void)signum;
+
+	if (!fromatty) exit(0);
 	siglongjmp(toplevel, 1);
 }
 
+extern struct cmd cmdtab[];
+extern int NCMDS;
 
 static struct cmd *
 getcmd(char *name)
 {
-	register char *p, *q;
-	register struct cmd *c, *found;
-	register int nmatches, longest;
-	extern struct cmd cmdtab[];
-	extern int NCMDS;
+	const char *p, *q;
+	struct cmd *c, *found;
+	int nmatches, longest;
 
 	longest = 0;
 	nmatches = 0;
@@ -209,12 +209,10 @@ help(argc, argv)
 	char *argv[];
 {
 	register struct cmd *c;
-	extern struct cmd cmdtab[];
 
 	if (argc == 1) {
 		register int i, j, w;
 		int columns, width = 0, lines;
-		extern int NCMDS;
 
 		printf("Commands may be abbreviated.  Commands are:\n\n");
 		for (c = cmdtab; c < &cmdtab[NCMDS]; c++) {

@@ -35,7 +35,7 @@
  * From: @(#)display.c	5.4 (Berkeley) 6/1/90
  */
 char display_rcsid[] = 
-  "$Id: display.c,v 1.2 1996/07/16 03:30:46 dholland Exp $";
+  "$Id: display.c,v 1.4 1996/08/20 20:25:55 dholland Exp $";
 
 /*
  * The window 'manager', initializes curses and handles the actual
@@ -56,7 +56,7 @@ int	curses_initialized = 0;
  * max HAS to be a function, it is called with
  * a argument of the form --foo at least once.
  */
-int
+static inline int
 max(int a, int b)
 {
 
@@ -70,10 +70,10 @@ max(int a, int b)
 void
 display(xwin_t *win, char *text, int size)
 {
-	register int i;
+	int j;
 	char cch;
 
-	for (i = 0; i < size; i++) {
+	for (j = 0; j < size; j++) {
 		if (*text == '\n') {
 			xscroll(win, 0);
 			text++;
@@ -129,6 +129,12 @@ display(xwin_t *win, char *text, int size)
 		if (*text == '\f') {
 			if (win == &my_win)
 				wrefresh(curscr);
+			text++;
+			continue;
+		}
+		if (*text == '\a') {
+			beep();
+			wrefresh(curscr);
 			text++;
 			continue;
 		}

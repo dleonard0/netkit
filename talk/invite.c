@@ -35,7 +35,7 @@
  * From: @(#)invite.c	5.8 (Berkeley) 3/1/91
  */
 char inv_rcsid[] = 
-  "$Id: invite.c,v 1.5 1996/07/20 20:59:41 dholland Exp $";
+  "$Id: invite.c,v 1.6 1996/08/15 03:40:50 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -127,6 +127,7 @@ invite_remote(void)
 void
 re_invite(int ignore)
 {
+	(void)ignore;
 	signal(SIGALRM, re_invite);
 
 	message("Ringing your party again");
@@ -137,7 +138,7 @@ re_invite(int ignore)
 	siglongjmp(invitebuf, 1);
 }
 
-static	char *answers[] = {
+static const char *answers[] = {
 	"answer #0",					/* SUCCESS */
 	"Your party is not logged on",			/* NOT_HERE */
 	"Target machine is too confused to talk to us",	/* FAILED */

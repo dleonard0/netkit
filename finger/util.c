@@ -36,7 +36,7 @@
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)util.c	5.14 (Berkeley) 1/17/91";*/
-char util_rcsid[] = "$Id: util.c,v 1.4 1996/07/13 22:32:43 dholland Exp $";
+char util_rcsid[] = "$Id: util.c,v 1.8 1996/08/16 22:03:09 dholland Exp $";
 #endif /* not lint */
 
 #include <sys/param.h>
@@ -59,14 +59,10 @@ static PERSON *htab[HSIZE];		/* the buckets */
 
 static int hash(const char *name);
 
-void
-find_idle_and_ttywrite(w)
-	register WHERE *w;
-{
-	extern time_t now;
-	extern int errno;
+extern time_t now;
+
+static void find_idle_and_ttywrite(register WHERE *w) {
 	struct stat sb;
-	char *strerror();
 
 	/* No device for X console. Utmp entry by XDM login (":0"). */
 	if (w->tty[0] == ':')
@@ -83,14 +79,9 @@ find_idle_and_ttywrite(w)
 	w->writable = ((sb.st_mode & TALKABLE) == TALKABLE);
 }
 
-void
-userinfo(pn, pw)
-	register PERSON *pn;
-	register struct passwd *pw;
-{
-	register char *p, *t;
+static void userinfo(PERSON *pn, struct passwd *pw) {
+	char *p, *t;
 	struct stat sb;
-	extern int errno;
 	char *bp, name[1024];
 
 	pn->realname = pn->office = pn->officephone = pn->homephone = NULL;
@@ -142,54 +133,64 @@ userinfo(pn, pw)
 int
 match(struct passwd *pw, const char *user)
 {
-	register char *p, *t;
+	char *p;
+	int i, j;
 	char name[1024];
 
-	/* why do we skip asterisks!?!? */
-	(void)strcpy(p = tbuf, pw->pw_gecos);
-	if (*p == '*')
-		++p;
+	strcpy(p = tbuf, pw->pw_gecos);
 
-	/* ampersands get replaced by the login name */
+	/* why do we skip asterisks!?!? */
+	if (*p == '*') ++p;
+
+	/* truncate the uninteresting stuff off the end of gecos */
 	p = strtok(p, ",");
 	if (!p)	return 0;
 
-	for (t = name; (*t = *p) != 0; ++p)
-		if (*t == '&') {
-			(void)strcpy(t, pw->pw_name);
-			while (*++t);
-		}
-		else
-			++t;
-	for (p = strtok(t, "\t "); p; p = strtok(NULL, "\t ")) {
+	/* ampersands get replaced by the login name */
+	for (i=j=0; p[i] && j < (int)sizeof(name)-1; p++) {
+	    if (p[i]=='&') {
+		strncpy(name+j, pw->pw_name, sizeof(name)-j);
+		name[sizeof(name)-1] = 0;
+		j += strlen(name+j);
+	    }
+	    else name[j++] = p[i];
+	}
+	name[j] = 0;
+
+	for (p = strtok(name, "\t "); p; p = strtok(NULL, "\t ")) {
 		if (!strcasecmp(p, user))
 			return 1;
 	}
 	return 0;
 }
 
-void
-enter_lastlog(PERSON *pn)
-{
-	register WHERE *w;
-	static int opened, fd;
-	struct lastlog ll;
-	char doit = 0;
-	off_t lseek();
+static int get_lastlog(int fd, uid_t uid, struct lastlog *ll) {
+    loff_t pos;
+    if (fd == -1) return -1;
+    pos = (long)uid * sizeof(*ll);
+    if (lseek(fd, pos, L_SET) != pos) return -1;
+    if (read(fd, ll, sizeof(*ll)) != sizeof(*ll)) return -1;
+    return 0;
+}
 
+void enter_lastlog(PERSON *pn) {
+	static int opened = 0, fd = -1;
+
+	WHERE *w;
+	struct lastlog ll;
+	int doit = 0;
+    
 	/* some systems may not maintain lastlog, don't report errors. */
 	if (!opened) {
 		fd = open(_PATH_LASTLOG, O_RDONLY, 0);
 		opened = 1;
 	}
-	if (fd == -1 ||
-	    lseek(fd, (long)pn->uid * sizeof(ll), L_SET) !=
-	    (long)pn->uid * sizeof(ll) ||
-	    read(fd, (char *)&ll, sizeof(ll)) != sizeof(ll)) {
-			/* as if never logged in */
-			ll.ll_line[0] = ll.ll_host[0] = '\0';
-			ll.ll_time = 0;
-		}
+	if (get_lastlog(fd, pn->uid, &ll)) {
+	    /* as if never logged in */
+	    ll.ll_line[0] = ll.ll_host[0] = '\0';
+	    ll.ll_time = 0;
+	}
+
 	if ((w = pn->whead) == NULL)
 		doit = 1;
 	else if (ll.ll_time != 0) {
@@ -218,9 +219,7 @@ enter_lastlog(PERSON *pn)
 	}
 }
 
-void
-enter_where(struct utmp *ut, PERSON *pn)
-{
+void enter_where(struct utmp *ut, PERSON *pn) {
 	register WHERE *w = walloc(pn);
 
 	w->info = LOGGEDIN;
@@ -232,9 +231,7 @@ enter_where(struct utmp *ut, PERSON *pn)
 	find_idle_and_ttywrite(w);
 }
 
-PERSON *
-enter_person(struct passwd *pw)
-{
+PERSON * enter_person(struct passwd *pw) {
 	register PERSON *pn, **pp;
 
 	for (pp = htab + hash(pw->pw_name);
@@ -259,9 +256,7 @@ enter_person(struct passwd *pw)
 	return(pn);
 }
 
-PERSON *
-find_person(const char *name)
-{
+PERSON *find_person(const char *name) {
 	register PERSON *pn;
 
 	/* name may be only UT_NAMESIZE long and not terminated */
@@ -272,9 +267,7 @@ find_person(const char *name)
 	return(pn);
 }
 
-static int
-hash(const char *name)
-{
+static int hash(const char *name) {
 	register int h, i;
 
 	h = 0;
@@ -284,9 +277,7 @@ hash(const char *name)
 	return(h);
 }
 
-PERSON *
-palloc()
-{
+PERSON *palloc(void) {
 	PERSON *p;
 
 	if ((p = (PERSON *)malloc((u_int) sizeof(PERSON))) == NULL) {
