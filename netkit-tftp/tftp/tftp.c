@@ -35,7 +35,7 @@
  * From: @(#)tftp.c	5.10 (Berkeley) 3/1/91
  */
 char tftp_rcsid[] = 
-  "$Id: tftp.c,v 1.8 1999/12/12 18:05:06 dholland Exp $";
+  "$Id: tftp.c,v 1.10 2000/07/22 19:06:29 dholland Exp $";
 
 /* Many bug fixes are from Jim Guyton <guyton@rand-unix> */
 
@@ -72,7 +72,6 @@ void sendfile(int fd, char *name, char *modestr);
 void recvfile(int fd, char *name, char *modestr);
 
 
-#define PKTSIZE    SEGSIZE+4
 static char ackbuf[PKTSIZE];
 static int timeout;
 static sigjmp_buf timeoutbuf;
@@ -108,13 +107,15 @@ sendfile(int fd, char *name, char *mode)
 {
 	register struct tftphdr *ap;       /* data and ack packets */
 	struct tftphdr *dp;
-	volatile int block = 0, size = 0;
+	volatile int size = 0;
+	volatile u_int16_t block = 0;
 	int n;
 	volatile unsigned long amount = 0;
 	struct sockaddr_in from;
 	socklen_t fromlen;
 	volatile int convert;            /* true if doing nl->crlf conversion */
 	FILE *file;
+	volatile int firsttrip = 1;
 
 	startclock();           /* start stat's clock */
 	dp = r_init();          /* reset fillbuf/read-ahead code */
@@ -122,10 +123,11 @@ sendfile(int fd, char *name, char *mode)
 	file = fdopen(fd, "r");
 	convert = !strcmp(mode, "netascii");
 
-	signal(SIGALRM, timer);
+	mysignal(SIGALRM, timer);
 	do {
-		if (block == 0)
+		if (firsttrip) {
 			size = makerequest(WRQ, name, dp, mode) - 4;
+		}
 		else {
 		/*      size = read(fd, dp->th_data, SEGSIZE);   */
 			size = readit(file, &dp, convert);
@@ -190,10 +192,14 @@ send_data:
 				}
 			}
 		}
-		if (block > 0)
+		if (firsttrip) {
+			firsttrip = 0;
+		}
+		else {
 			amount += size;
+		}
 		block++;
-	} while (size == SEGSIZE || block == 1);
+	} while (size == SEGSIZE);
 abort:
 	fclose(file);
 	stopclock();
@@ -209,7 +215,8 @@ recvfile(int fd, char *name, char *mode)
 {
 	register struct tftphdr *ap;
 	struct tftphdr *dp;
-	volatile int block = 1, size = 0;
+	volatile int size = 0;
+	volatile u_int16_t block = 1;
 	int n; 
 	volatile unsigned long amount = 0;
 	struct sockaddr_in from;
@@ -224,7 +231,7 @@ recvfile(int fd, char *name, char *mode)
 	file = fdopen(fd, "w");
 	convert = !strcmp(mode, "netascii");
 
-	signal(SIGALRM, timer);
+	mysignal(SIGALRM, timer);
 	do {
 		if (firsttrip) {
 			size = makerequest(RRQ, name, ap, mode);
@@ -394,11 +401,11 @@ tpacket(const char *s, struct tftphdr *tp, int n)
 		break;
 
 	case DATA:
-		printf("<block=%d, %d bytes>\n", ntohs(tp->th_block), n - 4);
+		printf("<block=%u, %d bytes>\n", ntohs(tp->th_block), n - 4);
 		break;
 
 	case ACK:
-		printf("<block=%d>\n", ntohs(tp->th_block));
+		printf("<block=%u>\n", ntohs(tp->th_block));
 		break;
 
 	case ERROR:

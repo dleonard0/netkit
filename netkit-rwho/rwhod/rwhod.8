@@ -30,17 +30,18 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)rwhod.8	6.5 (Berkeley) 3/16/91
-.\"	$Id: rwhod.8,v 1.10 1999/12/14 12:53:01 dholland Exp $
+.\"	$Id: rwhod.8,v 1.16 2000/07/30 23:57:06 dholland Exp $
 .\"
 .Dd May 13, 1997
 .Dt RWHOD 8
-.Os "Linux NetKit (0.16)"
+.Os "Linux NetKit (0.17)"
 .Sh NAME
 .Nm rwhod
 .Nd system status server
 .Sh SYNOPSIS
 .Nm rwhod
 .Op Fl bpa
+.Op Fl u Ar user
 .Sh DESCRIPTION
 .Nm Rwhod
 is the server which maintains the database used by the
@@ -76,6 +77,11 @@ flag is supplied, only point-to-point interfaces will be used. If the
 .Fl a
 flag is supplied, or no flags are supplied, all interfaces will be
 used.
+.Pp
+If the
+.Fl u
+flag is supplied, rwhod will run as the specified user instead of as
+root.
 .Pp
 The messages sent and received, are of the form:
 .Bd -literal -offset indent

@@ -40,7 +40,7 @@ char copyright[] =
  * From: @(#)rlogind.c	5.53 (Berkeley) 4/20/91
  */
 char rcsid[] = 
-  "$Id: rlogind.c,v 1.33 1999/10/02 21:50:52 dholland Exp $";
+  "$Id: rlogind.c,v 1.37 2000/07/23 03:07:58 dholland Exp $";
 #include "../version.h"
 
 /*
@@ -52,6 +52,7 @@ char rcsid[] =
  *	data
  */
 
+#include <sys/types.h>   /* for size_t */
 #include <sys/param.h>   /* for MAXPATHLEN */
 #include <sys/stat.h>    /* for chmod() */
 #include <sys/ioctl.h>   /* for TIOCPKT */
@@ -298,7 +299,7 @@ static void cleanup(int sig) {
     chown(line, 0, 0);
 
     /* all done */
-    exit(1);
+    exit(0);
 }
 
 
@@ -327,28 +328,29 @@ static void setup_term(int fd, const char *termtype) {
  */
 static void closeall(void) {
     int i;
-    for (i=3; i<OPEN_MAX; i++) close(i);
+    for (i = getdtablesize()-1; i > 2; i--) close(i);
 }
 
 
 static void child(const char *hname, const char *termtype,
 		  const char *localuser, int authenticated)
 {
-    char *termenv;
+    char *termenv[2];
 
     setup_term(0, termtype);
 
-    termenv = malloc(strlen(termtype)+6);
-    if (termenv) {   /* shouldn't ever fail, mind you */
-	strcpy(termenv, "TERM=");
-	strcat(termenv, termtype);
+    termenv[0] = malloc(strlen(termtype)+6);
+    if (termenv[0]) {   /* shouldn't ever fail, mind you */
+	strcpy(termenv[0], "TERM=");
+	strcat(termenv[0], termtype);
     }
+    termenv[1] = NULL;
 
     if (authenticated) {
 	auth_finish();
 	closeall();
 	execle(_PATH_LOGIN, "login", "-p",
-	       "-h", hname, "-f", localuser, NULL, termenv, NULL);
+	       "-h", hname, "-f", localuser, NULL, termenv);
     } 
     else {
 	if (localuser[0] == '-') {
@@ -358,7 +360,7 @@ static void child(const char *hname, const char *termtype,
 	auth_finish();
 	closeall();
 	execle(_PATH_LOGIN, "login", "-p",
-	       "-h", hname, localuser, NULL, termenv, NULL);
+	       "-h", hname, localuser, NULL, termenv);
     }
     /* Can't exec login, croak */
     fatal(STDERR_FILENO, _PATH_LOGIN, 1);
@@ -399,7 +401,10 @@ static void doit(int netfd) {
      * this will break anything or give away state secrets.
      */
     if (hostok) {
-	if (auth_checkauth(rusername, hname, lusername) == 0) authenticated=1;
+	if (auth_checkauth(rusername, hname, 
+			   lusername, sizeof(lusername)) == 0) {
+	   authenticated=1;
+	}
     }
     network_confirm();
 

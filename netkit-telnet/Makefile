@@ -2,6 +2,7 @@
 # You can also run make directly in the subdirs you want.
 
 SUB =   telnet telnetd
+# not yet: telnetlogin
 
 %.build:
 	(cd $(patsubst %.build, %, $@) && $(MAKE))

@@ -31,6 +31,9 @@
  * SUCH DAMAGE.
  */
 
+#include <sys/types.h>
+#include <pwd.h>
+
 #include "rlogind.h"
 
 #ifdef USE_PAM
@@ -48,7 +51,6 @@
 #include <unistd.h>
 #include <string.h>
 
-#include <sys/types.h>
 #include <security/pam_appl.h>
 #include <security/pam_misc.h>
 
@@ -66,7 +68,10 @@ void auth_checkoptions(void) {
 }
 
 void auth_finish(void) {
-    pam_end(pamh, PAM_SUCCESS);
+    if (pamh) {
+       pam_end(pamh, PAM_SUCCESS);
+       pamh = NULL;
+    }
 }
 
 static int attempt_auth(void) {
@@ -94,14 +99,6 @@ static int attempt_auth(void) {
 	}
     }
     return retval;
-
-#if 0    
-    while (0); /* We have the while(0) here because it is either using
-		    that and the breaks, or goto's */
-    /* eww. -dah */
-    /* well, replace it with goto's if you like! I won't tell! -mkj */
-    /* How 'bout recursion? This better? :-)  -dah */
-#endif
 }
 
 /*
@@ -109,15 +106,13 @@ static int attempt_auth(void) {
  * or return 0 on authentication success. Dying is discouraged.
  */
 int auth_checkauth(const char *remoteuser, const char *host,
-		   const char *localuser) 
+		   char *localuser, size_t localusersize) 
 {
     static struct pam_conv conv = { sock_conv, NULL };
-    const char *ln;
-/*  int NMAX=8; heaven knows what this was used for */
-    /* struct passwd *pwd; */
+    struct passwd *pwd;
+    char *ln;
     int retval;
 
-/*    retval = pam_start("rlogin", lusername, &conv, &pamh); */
     retval = pam_start("rlogin", localuser, &conv, &pamh);
     if (retval != PAM_SUCCESS) {
 	syslog(LOG_ERR, "pam_start: %s\n", pam_strerror(pamh, retval));
@@ -136,36 +131,6 @@ int auth_checkauth(const char *remoteuser, const char *host,
 	return -1;
     }
 
-    /*
-     * I do not understand the purpose of this code. At present it 
-     * won't (or at least shouldn't) compile, since localuser is
-     * read-only and NMAX isn't defined.
-     *
-     * Is it perhaps the case that in the presence of a hosts_equiv
-     * file to allow all users from the remote host, PAM returns
-     * success even though there's no such user? In that case this 
-     * code should probably be changed to the following:
-     *
-     *   const char *ln;
-     *   pam_get_item(pamh, PAM_USER, &ln);
-     *   if (!ln || !*ln) return -1;
-     *
-     * If it's really necessary to be able to change the localuser,
-     * I suppose this can be managed.
-     */
-
-    /* 
-     * Changed to above suggestion as the previous code was fubared under 64bit
-     * It used to be:
-     *      pam_get_item(pamh, PAM_USER, &ln);
-     *      if (ln && *ln) {
-     *         (copy ln into localuser)
-     *      }
-     *      else return -1;
-     *
-     * THIS MAY NOT BE RIGHT.
-     */
-
     pam_get_item(pamh, PAM_USER, &ln);
     if (!ln || !*ln) {
 	/*
@@ -178,27 +143,40 @@ int auth_checkauth(const char *remoteuser, const char *host,
     }
 
     /*
+     * PAM is apparently willing to change the username on us. (!?)
+     */
+    strncpy(localuser, ln, localusersize-1);
+    localuser[localusersize-1] = 0;
+
+    /*
      * And, as far as I can tell, this shouldn't be here at all.
      * /bin/login is supposed to handle this, isn't it? Certainly
-     * the gids.
+     * the gids. But, allegedly, it's needed.
+     *
+     * I thought PAM was supposed to make this sort of thing _easier_.
      */
-#if 0
-    pwd = getpwnam(lusername);
-    /* what if pwd is null? */
+    pwd = getpwnam(localuser);
+    if (pwd==NULL) {
+        syslog(LOG_ERR, "user returned by PAM does not exist\n");
+	/* don't print this - it tells people which accounts exist */
+	/*fprintf(stderr, "rlogind: internal error\n");*/
+	return -1;
+    }
     if (setgid(pwd->pw_gid) != 0) {
-	fprintf(stderr, "cannot assume gid\n");
+        syslog(LOG_ERR, "cannot assume gid for user returned by PAM\n");
+	fprintf(stderr, "rlogind: internal error\n");
 	return -1;
     }
-    if (initgroups(lusername, pwd->pw_gid) != 0) {
-	fprintf(stderr, "cannot initgroups\n");
+    if (initgroups(localuser, pwd->pw_gid) != 0) {
+        syslog(LOG_ERR, "initgroups failed for user returned by PAM\n");
+	fprintf(stderr, "rlogind: internal error\n");
 	return -1;
     }
-    retval = pam_setcred(pamh, PAM_CRED_ESTABLISH);
+    retval = pam_setcred(pamh, PAM_ESTABLISH_CRED);
     if (retval != PAM_SUCCESS) {
 	syslog(LOG_ERR,"PAM authentication failed for in.rlogind");
 	return -1;
     }
-#endif
 
     return 0;
 }
@@ -211,7 +189,6 @@ int auth_checkauth(const char *remoteuser, const char *host,
 
 #include <sys/socket.h>   /* for ruserok() in libc5 (!) */
 #include <netdb.h>        /* for ruserok() in glibc (!) */
-#include <pwd.h>
 
 #if defined(__GLIBC__) && (__GLIBC__ >= 2)
 #define _check_rhosts_file  __check_rhosts_file
@@ -227,9 +204,12 @@ void auth_finish(void) {}
  * or return 0 on authentication success. Dying is discouraged.
  */
 int auth_checkauth(const char *remoteuser, const char *host,
-		   const char *localuser) 
+		   char *localuser, size_t localusersize) 
 {
     struct passwd *pwd;
+
+    (void)localusersize;
+
     pwd = getpwnam(localuser);
     if (pwd == NULL) return -1;
 

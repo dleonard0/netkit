@@ -42,9 +42,6 @@ EOF
 	--manmode=*) MANMODE=`echo $1 | sed 's/^[^=]*=//'` ;;
 	--with-c-compiler=*) CC=`echo $1 | sed 's/^[^=]*=//'` ;;
 	--with-c++-compiler=*) CXX=`echo $1 | sed 's/^[^=]*=//'` ;;
-	--without-pam|--disable-pam) WITHOUT_PAM=1;;
-	--without-readline|--disable-readline) WITHOUT_READLINE=1;;
-	--without-shadow|--disable-shadow) WITHOUT_SHADOW=1;;
 	*) echo "Unrecognized option: $1"; exit 1;;
 esac 
 shift
@@ -503,20 +500,20 @@ int main() {
 
 EOF
 if (
-      $CXX $CXXFLAGS  __conftest.cc $(LIBBSD) -o __conftest || exit 1
+      $CXX $CXXFLAGS  __conftest.cc $LIBBSD -o __conftest || exit 1
       ./__conftest || exit 1
    ) >/dev/null 2>&1; then
     echo 'ok'
 else
     if (
-          $CXX $CXXFLAGS  __conftest.cc -lsnprintf $(LIBBSD) -o __conftest || exit 1
+          $CXX $CXXFLAGS  __conftest.cc -lsnprintf $LIBBSD -o __conftest || exit 1
           ./__conftest || exit 1
        ) >/dev/null 2>&1; then
         echo '-lsnprintf'
         LIBS="$LIBS -lsnprintf"
     else
         if (
-              $CXX $CXXFLAGS  __conftest.cc -ldb $(LIBBSD) -o __conftest || exit 1
+              $CXX $CXXFLAGS  __conftest.cc -ldb $LIBBSD -o __conftest || exit 1
               ./__conftest || exit 1
            ) >/dev/null 2>&1; then
             echo '-ldb'

@@ -35,7 +35,7 @@
  * From: @(#)telnet.c	5.53 (Berkeley) 3/22/91
  */
 char telnet_rcsid[] = 
-"$Id: telnet.cc,v 1.34 1999/08/19 09:34:15 dholland Exp $";
+"$Id: telnet.cc,v 1.36 2000/07/23 03:24:53 dholland Exp $";
 
 #include <string.h>
 #include <sys/types.h>
@@ -456,7 +456,7 @@ static void dooption(int option) {
 	break;
 	
       case TELOPT_XDISPLOC:	/* X Display location */
-	if (env_getvalue("DISPLAY"))
+	if (env_getvalue("DISPLAY", 0))
 	  new_state_ok = 1;
 	break;
 	
@@ -600,7 +600,9 @@ static void mklist(char *buf, const char *name, stringarray &fill) {
    */
   
   fill.add(fill[fill.num()-1]);
-  fill.add(NULL);
+
+  /* dholland 21-May-2000 I think this is bogus */
+  /*fill.add(NULL);*/
 }
 
 char termbuf[2048];
@@ -636,7 +638,7 @@ static const char *gettermname(void) {
   
   if (resettermname) {
     resettermname = 0;
-    tname = env_getvalue("TERM");
+    tname = env_getvalue("TERM", 0);
     if (!tname || my_setupterm(tname, 1, &err)) {
       termbuf[0] = 0;
       tname = "UNKNOWN";
@@ -769,7 +771,7 @@ static void suboption(void) {
     if (SB_EOF())
       return;
     if (SB_GET() == TELQUAL_SEND) {
-      const char *dp = env_getvalue("DISPLAY");
+      const char *dp = env_getvalue("DISPLAY", 0);
       if (dp == NULL) {
 	/*
 	 * Something happened, we no longer have a DISPLAY
@@ -1182,7 +1184,7 @@ void env_opt_add(const char *ep) {
     for (ep = env_next(&i,1); ep; ep = env_next(&i,1)) env_opt_add(ep);
     return;
   }
-  vp = env_getvalue(ep);
+  vp = env_getvalue(ep, 1);
   if (opt_replyp + (vp ? strlen(vp) : 0) + strlen(ep) + 6 > opt_replyend)
     {
       register int len;
@@ -1736,7 +1738,7 @@ void telnet(const char * /*user*/) {
     send_will(TELOPT_LINEMODE, 1);
     send_will(TELOPT_ENVIRON, 1);
     send_do(TELOPT_STATUS, 1);
-    if (env_getvalue("DISPLAY"))
+    if (env_getvalue("DISPLAY", 0))
       send_will(TELOPT_XDISPLOC, 1);
     if (eight)
       tel_enter_binary(eight);

@@ -39,10 +39,10 @@ char copyright[] =
  * From: @(#)timedc.c	5.1 (Berkeley) 5/11/93
  */
 char timedc_rcsid[] =
-  "$Id: timedc.c,v 1.7 1999/12/12 18:05:07 dholland Exp $";
+  "$Id: timedc.c,v 1.8 2000/07/23 04:16:25 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.7 $"
+#ident "$Revision: 1.8 $"
 #endif
 
 #include "timedc.h"
@@ -79,7 +79,10 @@ main(int argc, char *argv[])
 		fprintf(stderr, "Could not get privileged resources\n");
 		exit(1);
 	}
-	(void) setuid(getuid());
+	if (setuid(getuid())) {
+		fprintf(stderr, "timedc: setuid: %s\n", strerror(errno));
+		exit(1);
+	}
 
 	if (--argc > 0) {
 		c = getcmd(*++argv);

@@ -46,7 +46,7 @@ char copyright[] =
  * from: @(#)finger.c	5.22 (Berkeley) 6/29/90 
  */
 char finger_rcsid[] = \
-  "$Id: finger.c,v 1.14 1999/12/12 18:45:06 dholland Exp $";
+  "$Id: finger.c,v 1.15 1999/12/18 16:41:51 dholland Exp $";
 
 /*
  * Finger prints out information about users.  It is not portable since
@@ -63,12 +63,14 @@ char finger_rcsid[] = \
  */
 
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <limits.h>
 #include <time.h>
 #include <getopt.h>
 #include "finger.h"
@@ -79,6 +81,7 @@ static void userlist(int argc, char *argv[]);
 
 int lflag, pplan;
 static int sflag, mflag;
+static int enable_nofinger;
 
 time_t now;
 char tbuf[TBUFLEN];
@@ -122,7 +125,20 @@ int main(int argc, char *argv[]) {
 		 * so emit CRs with our LFs at the ends of lines.
 		 */
 		set_crmode();
+
+		/*
+		 * Also, enable .nofinger processing.
+		 */
+		enable_nofinger = 1;
 	}
+
+	/*
+	 * Also check stdin for nofinger processing, because of older
+	 * fingerds that make stdout a pipe for CRLF handling.
+	 */
+	if (getsockname(STDIN_FILENO, (struct sockaddr *)&sin, &slen)==0) {
+		enable_nofinger = 1;
+	}	
 
 	time(&now);
 
@@ -159,6 +175,22 @@ int main(int argc, char *argv[]) {
 	return 0;
 }
 
+/* Returns 1 if .nofinger is found and enable_nofinger is set. */
+static
+int
+check_nofinger(struct passwd *pw)
+{
+	if (enable_nofinger) {
+		char path[PATH_MAX];
+		struct stat tripe;
+		snprintf(path, sizeof(path), "%s/.nofinger", pw->pw_dir);
+		if (stat(path, &tripe)==0) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
 static void
 loginlist(void)
 {
@@ -186,6 +218,8 @@ loginlist(void)
 			memcpy(name, uptr->ut_name, UT_NAMESIZE);
 			if ((pw = getpwnam(name)) == NULL)
 				continue;
+			if (check_nofinger(pw))
+				continue;
 			pn = enter_person(pw);
 		}
 		enter_where(uptr, pn);
@@ -207,16 +241,20 @@ static void do_local(int argc, char *argv[], int *used) {
 	if (mflag) {
 		for (i = 0; i < argc; i++)
 			if (used[i] >= 0 && (pw = getpwnam(argv[i]))) {
-				enter_person(pw);
-				used[i] = 1;
+				if (!check_nofinger(pw)) {
+					enter_person(pw);
+					used[i] = 1;
+				}
 			}
 	} else for (pw = getpwent(); pw; pw = getpwent())
 		for (i = 0; i < argc; i++)
 			if (used[i] >= 0 &&
 			    (!strcasecmp(pw->pw_name, argv[i]) ||
 			    match(pw, argv[i]))) {
-				enter_person(pw);
-				used[i] = 1;
+				if (!check_nofinger(pw)) {
+					enter_person(pw);
+					used[i] = 1;
+				}
 			}
 
 	/* list errors */

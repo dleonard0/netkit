@@ -31,10 +31,11 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)pathnames.h	5.3 (Berkeley) 6/1/90
- *	$Id: pathnames.h,v 1.1 1994/05/23 09:04:45 rzsfl Exp $
+ *	$Id: pathnames.h,v 1.2 2000/07/22 23:00:05 dholland Exp $
  */
 
 #include <paths.h>
 
 #define	_PATH_INETDCONF	"/etc/inetd.conf"
 #define _PATH_INETDPID	"/var/run/inetd.pid"
+#define _PATH_INETD     "/usr/sbin/inetd"

@@ -30,11 +30,11 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)ping.8	6.7 (Berkeley) 3/16/91
-.\"	$Id: ping.8,v 1.10 1999/12/14 12:52:49 dholland Exp $
+.\"	$Id: ping.8,v 1.17 2000/07/30 23:56:59 dholland Exp $
 .\"
 .Dd August 30, 1996
 .Dt PING 8
-.Os "Linux NetKit (0.16)"
+.Os "Linux NetKit (0.17)"
 .Sh NAME
 .Nm ping
 .Nd send
@@ -48,6 +48,7 @@ packets to network hosts
 .Op Fl l Ar preload
 .Op Fl p Ar pattern
 .Op Fl s Ar packetsize
+.Op Fl w Ar waittime
 .Sh DESCRIPTION
 .Nm Ping
 uses the
@@ -71,8 +72,9 @@ Other options are:
 .It Fl c Ar count
 Stop after sending (and receiving)
 .Ar count
-.Tn ECHO_RESPONSE
-packets.
+packets. After the packets are sent,
+.Nm ping
+will wait up to ten seconds for replies to arrive, then exit.
 .It Fl d
 Set the
 .Dv SO_DEBUG
@@ -147,12 +149,19 @@ data bytes when combined
 with the 8 bytes of
 .Tn ICMP
 header data.
+Only the super-user may use this option.
 .It Fl v
 Verbose output.
 .Tn ICMP
 packets other than
 .Tn ECHO_RESPONSE
 that are received are listed.
+.It Fl w Ar waittime
+Cause
+.Nm ping
+to exit after
+.Ar waittime
+seconds, independently of other considerations.
 .El
 .Pp
 When using
@@ -328,8 +337,7 @@ Flood pinging is not recommended in general, and flood pinging the
 broadcast address should only be done under very controlled conditions.
 .Sh SEE ALSO
 .Xr netstat 1 ,
-.Xr ifconfig 8 ,
-.Xr routed 8
+.Xr ifconfig 8
 .Sh HISTORY
 The
 .Nm

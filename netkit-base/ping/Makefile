@@ -6,7 +6,7 @@ include ../MRULES
 ping:	ping.o
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
-ping.o: ../version.h
+ping.o: ../version.h pingpack.h
 
 install: ping
 	install -s -o root -m$(SUIDMODE) ping $(INSTALLROOT)$(ROOTBINDIR)

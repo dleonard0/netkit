@@ -35,7 +35,7 @@
  * From: @(#)sys_term.c	5.16 (Berkeley) 3/22/91
  */
 char st_rcsid[] = 
-  "$Id: sys_term.c,v 1.16 1999/12/12 14:59:45 dholland Exp $";
+  "$Id: sys_term.c,v 1.17 1999/12/17 14:28:47 dholland Exp $";
 
 #include <utmp.h>
 
@@ -740,5 +740,5 @@ void cleanup(int sig) {
     chmod(line, 0666);
     chown(line, 0, 0);
     shutdown(net, 2);
-    exit(1);
+    exit(0);
 }

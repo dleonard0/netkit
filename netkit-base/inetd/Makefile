@@ -3,8 +3,13 @@ all: inetd
 include ../MCONFIG
 include ../MRULES
 
-inetd: inetd.o servtab.o builtins.o sig.o daemon.o setproctitle.o
+OBJS=inetd.o servtab.o builtins.o sig.o daemon.o setproctitle.o mysleep.o
+
+inetd: $(OBJS)
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
+
+$(OBJS): builtins.h daemon.h inetd.h mysleep.h pathnames.h servtab.h \
+         setproctitle.h sig.h
 
 include depend.mk
 depend:

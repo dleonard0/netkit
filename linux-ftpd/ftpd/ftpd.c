@@ -39,7 +39,7 @@
  * From: OpenBSD: ftpd.c,v 1.54 1999/04/29 21:38:43 downsj Exp
  */
 char ftpd_rcsid[] = 
-  "$Id: ftpd.c,v 1.19 1999/12/12 18:04:58 dholland Exp $";
+  "$Id: ftpd.c,v 1.20 2000/07/23 03:34:56 dholland Exp $";
 
 char copyright[] =
   "@(#) Copyright (c) 1985, 1988, 1990, 1992, 1993, 1994\n"
@@ -988,7 +988,7 @@ skip:
 		    "%s: anonymous/%.*s", remotehost,
 		    (int)(sizeof(proctitle) - sizeof(remotehost) -
 		    sizeof(": anonymous/")), passwd);
-		setproctitle(proctitle);
+		setproctitle("%s", proctitle);
 #endif /* HASSETPROCTITLE */
 		if (logging)
 			syslog(LOG_INFO, "ANONYMOUS FTP LOGIN FROM %s, %s",
@@ -998,7 +998,7 @@ skip:
 #ifdef HASSETPROCTITLE
 		snprintf(proctitle, sizeof(proctitle),
 		    "%s: %s", remotehost, pw->pw_name);
-		setproctitle(proctitle);
+		setproctitle("%s", proctitle);
 #endif /* HASSETPROCTITLE */
 		if (logging)
 			syslog(LOG_INFO, "FTP LOGIN FROM %s as %s",
@@ -1834,7 +1834,7 @@ static void dolog(struct sockaddr_in *sn)
 	remotehost[sizeof(remotehost)-1] = '\0';
 #ifdef HASSETPROCTITLE
 	snprintf(proctitle, sizeof(proctitle), "%s: connected", remotehost);
-	setproctitle(proctitle);
+	setproctitle("%s", proctitle);
 #endif /* HASSETPROCTITLE */
 
 	if (logging)

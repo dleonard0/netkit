@@ -1,3 +1,10 @@
+23-Jul-2000:
+	General audit for setuid/setgid/initgroups/etc. calls that didn't
+	  check for error.
+
+14-Dec-1999:
+	netkit-timed-0.16 is released.
+
 1-Aug-1999:
 	Did complete y2k and y2038 audit. Alas, timed isn't
 	  y2038-compliant, but it looks like it should survive y2k.

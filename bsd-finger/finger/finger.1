@@ -30,11 +30,11 @@
 .\" SUCH DAMAGE.
 .\"
 .\"	from: @(#)finger.1	6.14 (Berkeley) 7/27/91
-.\"	$Id: finger.1,v 1.11 1999/12/14 12:52:47 dholland Exp $
+.\"	$Id: finger.1,v 1.18 2000/07/30 23:56:57 dholland Exp $
 .\"
 .Dd August 15, 1999
 .Dt FINGER 1
-.Os "Linux NetKit (0.16)"
+.Os "Linux NetKit (0.17)"
 .Sh NAME
 .Nm finger
 .Nd user information lookup program
@@ -70,9 +70,9 @@ described for the
 .Fl s
 option as well as the user's home directory, home phone number, login
 shell, mail status, and the contents of the files
-.Dq Pa .plan
-and
-.Dq Pa .project
+.Dq Pa .plan ,
+.Dq Pa .project ,
+.Dq Pa .pgpkey
 and
 .Dq Pa .forward
 from the user's home directory.
@@ -102,9 +102,10 @@ the
 option of
 .Nm finger
 from displaying the contents of the
-.Dq Pa .plan
-and
+.Dq Pa .plan ,
 .Dq Pa .project
+and
+.Dq Pa .pgpkey
 files.
 .It Fl m
 Prevent matching of
@@ -157,6 +158,30 @@ If standard output is a socket,
 will emit a carriage return (^M) before every linefeed (^J). This is
 for processing remote finger requests when invoked by
 .Xr fingerd 8 .
+.Sh FILES
+.Bl -tag -width mmmmmmmmmmmmmmm
+.It Pa ~/.nofinger
+If finger finds this file in a user's home directory, it will, for
+finger requests originating outside the local host, firmly deny the
+existence of that user.  For this to work, the finger program, as
+started by
+.Xr fingerd 8 ,
+must be able to see the
+.Pa .nofinger
+file. This generally means that the home directory containing the file
+must have the other-users-execute bit set (o+w). See
+.Xr chmod 1 .
+If you use this feature for privacy, please test it with ``finger
+@localhost'' before relying on it, just in case.
+.It ~/.plan
+.It ~/.project
+.It ~/.pgp
+These files are printed as part of a long-format request. The
+.Pa .project
+file is limited to one line; the
+.Pa .plan
+file may be arbitrarily long.
+.El
 .Sh SEE ALSO
 .Xr chfn 1 ,
 .Xr passwd 1 ,

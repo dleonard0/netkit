@@ -1,3 +1,21 @@
+22-Jul-2000:
+	Bug fixes for environment processing from Olaf Kirch. Also fixes
+	  privacy issue noticed by Steve Bellovin. Also fix a wrong 
+	  assert().
+
+21-May-2000:
+	Fix bug found by Herbert Xu (herbert@gondor.apana.org.au) - telnet
+	  was sending terminal type "(null)" as part of the terminal type
+	  list.
+
+12-Apr-2000:
+	IPPROTO_IP is not a macro in Linux, so don't check it with #ifdef.
+	Also, add initial experimental login wrapper, but don't make it 
+	  part of the default build.
+
+14-Dec-1999:
+	netkit-telnet-0.16 is released.
+
 13-Dec-1999:
 	Per recommendation of the linux-security-audit list, don't bother
 	  (in telnetd) to ask termcap/ncurses if a terminal type is good;

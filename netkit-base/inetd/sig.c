@@ -6,6 +6,9 @@
 static sigset_t blockmask, emptymask;
 static int blocked=0;
 
+char sig_rcsid[] = 
+  "$Id: sig.c,v 1.2 2000/07/22 20:13:07 dholland Exp $";
+
 void
 sig_init(void)
 {

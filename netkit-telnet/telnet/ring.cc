@@ -35,7 +35,7 @@
  * From: @(#)ring.c	5.2 (Berkeley) 3/1/91
  */
 char ring_rcsid[] =
-  "$Id: ring.cc,v 1.22 1997/09/23 11:33:16 dholland Exp $";
+  "$Id: ring.cc,v 1.23 2000/07/23 03:25:09 dholland Exp $";
 
 /*
  * This defines a structure for a ring buffer. 
@@ -129,7 +129,11 @@ int ringbuf::flush() {
     busy=1;
 
     /* should always be true */
-    assert(((size+head-tail)%size)==count);
+    /* assert(((size+head-tail)%size)==count); */
+    /* Nope! The above fails if the buffer is full; then:
+     * head == tail (so LHS is 0), but count == size.
+     * The following formula should be better. --okir */
+    assert(((head - tail - count) % size) == 0);
 
     while (count > 0) {
 	int bot = tail;

@@ -35,7 +35,7 @@
  * From: @(#)authenc.c	5.1 (Berkeley) 3/1/91
  */
 char au_rcsid[] = 
-  "$Id: authenc.cc,v 1.5 1996/08/02 01:06:31 dholland Exp $";
+  "$Id: authenc.cc,v 1.6 2000/07/23 03:24:53 dholland Exp $";
 
 #if	defined(ENCRYPT) || defined(AUTHENTICATE)
 #include <sys/types.h>
@@ -84,7 +84,9 @@ telnet_spin()
 telnet_getenv(val)
 	char *val;
 {
-	return((char *)env_getvalue((unsigned char *)val));
+	/* not sure about the export_only flag, but this code
+	 * isn't used anyway --okir */
+	return((char *)env_getvalue((unsigned char *)val, 1));
 }
 
 	char *

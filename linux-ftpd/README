@@ -1,9 +1,11 @@
-This is linux-ftpd 0.16 for Linux, a port of the OpenBSD ftp daemon.
+This is linux-ftpd-0.17 for Linux, a port of the OpenBSD ftp daemon.
 
-This package updates linux-ftpd-0.10.
+This package updates linux-ftpd-0.16.
 
 If you're reading this off a CD, go right away and check the net
-archives for later versions and security fixes.
+archives for later versions and security fixes. As of this writing the
+home site for NetKit is
+	ftp://ftp.uk.linux.org/pub/linux/Networking/netkit
 
 Contents:
 	ftpd		Daemon for the ftp protocol.
@@ -12,55 +14,17 @@ Requires:
 	Working compiler, libc, and kernel.
 	Supports shadow passwords. Does not (yet) support PAM.
 
-Installation:
-	Do "./configure --help" and decide what options you want. The
-	defaults should be suitable for most Linux systems. Then run
-	the configure script.
+Security:
+	This version contains vital fixes for a remotely exploitable
+	hole relating to printf format string processing. 
+	linux-ftpd-0.16 and earlier should not be used.
 
-	Do "make" to compile.
-	Then (as root) do "make install".
-
-	Save a backup copy of any mission-critical program in case the
-	new one doesn't work, and so forth. We warned you.
-
-DEC Alpha:
-        Compaq were kind enought to make available their C compiler for
-        the Alpha, you can down load this for free from
-        http://www.unix.digital.com/linux (At time of document 25/11/1999)
-        this package has been compiled and tested with this compiler as
-        with the GNU compiler. To compile this from source simply issue
-                CC=ccc ./configure
-	Compaq C will moan in the following areas.
-	support/isexpired.c - if no shadow support
-	ftpd/ftpd.c - odd error message about "the unsigned expression "len"
-	              is being tested to see if it is greater than zero"
-	                 while(cnt > 0 && len > 0)
-	              a minor moan that long long is a language extension
-                         vremotehost, (long long) size, vpath
-                      64-bit pointer "dhostname" is being cast to an integer
-	              type that is only 8 bits in size (behavior is undefined)
-	                 (char) dhostname);
-	              another moan about limits.h and stdarg.h being unused
-	The yacc generated file y.tab.c also generates a few moans
-	
 Restrictions:
 	This version does not put ftp users in utmp; the utmp code is
 	#if'd out. This means the -U option does not work.
 
 	Keep in mind that the man page has not been completely edited
 	for Linux and may refer to a few BSDisms.
-
-Bugs:
-	Send bug reports and whatnot to the netkit bug address, not to
-	OpenBSD, as the OpenBSD organization doesn't have anything
-	official to do with this port. Things will be forwarded if
-	necessary.
-
-	Be sure to send all correspondence in e-mail. Postings to netnews 
-	will not be seen due to the enormous volume.
-
-	Please don't report known bugs (see the BUGS file(s)) unless you
-	are including fixes. :-)
 
 Port information:	
 	The source was retrieved from ftp.openbsd.org on 
@@ -77,17 +41,82 @@ Port information:
 	because it was handy, not for any particular reason.) Others
 	were written for this port.
 
+Installation:
+	Do "./configure --help" and decide what options you want. The
+	defaults should be suitable for most Linux systems. Then run
+	the configure script.
+
+	Do "make" to compile.
+	Then (as root) do "make install".
+
+	Save a backup copy of any mission-critical program in case the
+	new one doesn't work, and so forth. We warned you.
+
+	If you get gcc warnings from files in /usr/include, they are
+	due to problems in your libc, not netkit. (You may only see
+	them when compiling netkit because netkit turns on a lot of
+	compiler warnings.)
+
+DEC CC:
+	The DEC compiler for the Alpha is now freely available. This
+	is a much better compiler with gcc, that is, it generates much
+	better code. If you have the DEC compiler, you can explicitly
+	use the DEC compiler instead of gcc by configuring like this:
+
+		./configure --with-c-compiler=ccc
+
+	It is known to generate spurious warnings on some files. Also,
+	some headers from some versions of glibc confuse it; that may
+	prevent	netkit from working. Other problems should be reported
+	as bugs.
+
+Bugs:
+	Send bug reports and whatnot to the netkit bug address, not to
+	OpenBSD, as the OpenBSD organization doesn't have anything
+	official to do with this port. Things will be forwarded if
+	necessary.
+
+	Please make sure the header files in /usr/include match the
+	libc version installed in /lib and /usr/lib. If you have weird
+	problems this is the most likely culprit.
+
+	Also, before reporting a bug, be sure you're working with the
+	latest version.
+
+	If something doesn't compile for you, fix it and send diffs.
+	If you can't, send the compiler's error output.
+
+	If it compiles but doesn't work, send as complete a bug report as 
+	you can. Patches and fixes are welcome, as long as you describe 
+	adequately what they're supposed to fix. Please, one patch per
+	distinct fix. Please do NOT send the whole archive back or
+	reindent the source.
+
+	Be sure to send all correspondence in e-mail to the netkit address.
+	Postings to netnews or mailing lists will not be seen due to the 
+	enormous volume. Also, anything that doesn't get filed in the bug
+	database is quite likely to end up forgotten.
+
+	Please don't report known bugs (see the BUGS file(s)) unless you
+	are including fixes. :-)
+
 	Mail should be sent to: netbug@ftp.uk.linux.org
 
 
-Note: please see http://www.hcs.harvard.edu/~dholland/computers/netkit.html
-if you are curious why it's been so long since the last NetKit release.
-(The short version is that I gave things to some other people, who let
-them kind of slide.)
+Early in April 2000, a hacker broke into the machine that was hosting
+the netkit bug database for me and trashed it. Unfortunately, it seems
+backups hadn't gotten done for a while, so three months of mail (since
+mid-January) was lost. So, if you sent something and didn't hear back,
+or you sent something, heard back, but the changes failed to appear in
+this release (unlikely but possible) - please resend.
 
-I do not currently plan to continue maintaining NetKit; I am doing this
-release and perhaps one or two more, and then I intend to give the source
-tree to Red Hat or some similar organization for long-term maintenance.
+Please see http://www.hcs.harvard.edu/~dholland/computers/netkit.html
+if you are curious why it was so long between the 0.10 and 0.16 releases.
+
+Future plans for netkit maintenance are still up in the air, but in the
+meantime new releases will still appear from time to time. I don't have
+a whole lot of cycles to spare to work on netkit, so things are likely
+to continue to be fairly slow.
 
 David A. Holland
-12 December 1999
+23 July 2000

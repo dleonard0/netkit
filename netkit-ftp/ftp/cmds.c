@@ -35,7 +35,7 @@
  * from: @(#)cmds.c	5.26 (Berkeley) 3/5/91
  */
 char cmds_rcsid[] = 
-   "$Id: cmds.c,v 1.32 1999/12/12 20:19:34 dholland Exp $";
+   "$Id: cmds.c,v 1.33 2000/07/23 01:36:59 dholland Exp $";
 
 /*
  * FTP User Program -- Command Routines.
@@ -1663,7 +1663,7 @@ quote1(const char *initial, int argc, char **argv)
 			len += strlen(strcpy(&buf[len], argv[i]));
 		}
 	}
-	if (command(buf) == PRELIM) {
+	if (command("%s", buf) == PRELIM) {
 		while (getreply(0) == PRELIM);
 	}
 }

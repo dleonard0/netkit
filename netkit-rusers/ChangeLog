@@ -1,3 +1,19 @@
+22-Jul-2000:
+	Fixed bug in rup: it wasn't able to print uptimes > 1 year. 
+	  (Stephen G. Roseman, sgr0@lehigh.edu)
+	Rearranged uptime printing logic in rup and added -s option
+	   to print times and uptimes in seconds for scripting.
+	Least privilege patches (and some other fixes) for rusersd
+	   from Olaf Kirch.
+
+21-May-2000:
+	Relax buffer paranoia a bit in rusersd to be able to send 
+	  8-character usernames. Should be safe. (Rune Andresen, 
+	  di990013@diku.dk)
+	
+14-Dec-1999:
+	netkit-rusers-0.16 is released.
+
 12-Dec-1999:
 	Backlogged fixes from Frodo Looijaard, frodol@dds.nl.
 

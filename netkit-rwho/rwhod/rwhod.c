@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)rwhod.c	5.20 (Berkeley) 3/2/91
  */
 char rcsid[] = 
-  "$Id: rwhod.c,v 1.17 1999/12/12 15:33:40 dholland Exp $";
+  "$Id: rwhod.c,v 1.20 2000/07/23 03:19:48 dholland Exp $";
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -67,6 +67,8 @@ char rcsid[] =
 #include <unistd.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <pwd.h>
+#include <grp.h>
 
 #include "daemon.h"
 
@@ -82,9 +84,6 @@ char rcsid[] =
 
 static struct sockaddr_in sine;
 
-char	myname[MAXHOSTNAMELEN];
-static size_t mynamelen;
-
 #ifndef __linux__
 struct	nlist nl[] = {
 #define	NL_BOOTTIME	0
@@ -93,9 +92,10 @@ struct	nlist nl[] = {
 };
 #endif
 
-static int configure(int s);
-static int verify(const char *name);
-static int getloadavg(double ptr[3], int n);
+static void	broadcaster(void);
+static int	configure(int s);
+static int	verify(const char *name);
+static int	getloadavg(double ptr[3], int n);
 
 /*
  * We communicate with each neighbor in
@@ -112,25 +112,30 @@ struct	neighbor {
 };
 
 static struct neighbor *neighbors;
-static struct whod mywd;
 static struct servent *sp;
 static int sk;
 static int use_pointopoint = 0;
 static int use_broadcast = 0;
+static int need_init = 1;
+static int child_pid = 0;
 
-#define	WHDRSIZE	(sizeof (mywd) - sizeof (mywd.wd_we))
+#define WHDRSIZE	(((caddr_t) &((struct whod *) 0)->wd_we) \
+			- ((caddr_t) 0))
 
-static void getkmem(int);
-static void onalrm(int);
+static void huphandler(int);
+static void termhandler(int);
+static void sendpacket(struct whod *);
+static void getboottime(struct whod *);
 
 int
 main(int argc, char *argv[])
 {
 	struct sockaddr_in from;
+	struct passwd *pw = 0;
 	struct stat st;
 	char path[64];
+	char *user = NULL;
 	int on = 1;
-	char *cp;
 	int opt;
 
 	if (getuid()) {
@@ -138,7 +143,7 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	while ((opt = getopt(argc, argv, "bpa")) != EOF) {
+	while ((opt = getopt(argc, argv, "bpau:")) != EOF) {
 	    switch (opt) {
 	      case 'b':
 		  use_broadcast = 1;
@@ -150,15 +155,18 @@ main(int argc, char *argv[])
 		  use_broadcast = 1;
 		  use_pointopoint = 1;
 		  break;
+	      case 'u':
+	      	  user = optarg;
+		  break;
 	      case '?':
 	      default:
-		  fprintf(stderr, "usage: rwhod [-bpa]\n");
+		  fprintf(stderr, "usage: rwhod [-bpa] [-u user]\n");
 		  exit(1);
 		  break;
 	    }
 	}
 	if (optind<argc) {
-	    fprintf(stderr, "usage: rwhod [-bpa]\n");
+	    fprintf(stderr, "usage: rwhod [-bpa] [-u user]\n");
 	    exit(1);
 	}
 	if (!use_pointopoint && !use_broadcast) {
@@ -180,23 +188,9 @@ main(int argc, char *argv[])
 		    _PATH_RWHODIR, strerror(errno));
 		exit(1);
 	}
-	(void) signal(SIGHUP, getkmem);
+	(void) signal(SIGHUP, huphandler);
 	openlog("rwhod", LOG_PID, LOG_DAEMON);
-	/*
-	 * Establish host name as returned by system.
-	 */
-	if (gethostname(myname, sizeof (myname) - 1) < 0) {
-		syslog(LOG_ERR, "gethostname: %m");
-		exit(1);
-	}
-	if ((cp = index(myname, '.')) != NULL)
-		*cp = '\0';
-	mynamelen = strlen(myname);
-	if (mynamelen > sizeof(mywd.wd_hostname)) 
-		mynamelen = sizeof(mywd.wd_hostname);
-	strncpy(mywd.wd_hostname, myname, mynamelen);
-	mywd.wd_hostname[sizeof(mywd.wd_hostname)-1] = 0;
-	getkmem(0);
+
 	if ((sk = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
 		syslog(LOG_ERR, "socket: %m");
 		exit(1);
@@ -211,11 +205,45 @@ main(int argc, char *argv[])
 		syslog(LOG_ERR, "bind: %m");
 		exit(1);
 	}
-	if (!configure(sk))
-		exit(1);
-	signal(SIGALRM, onalrm);
+
 	(void) umask(022);
-	onalrm(0);
+
+	signal(SIGTERM, termhandler);
+	child_pid = fork();
+	if (child_pid < 0) {
+		syslog(LOG_ERR, "fork: %m");
+		exit(1);
+	}
+	if (child_pid == 0) {
+		broadcaster();
+		exit(0);
+	}
+
+	/* We have to drop privs in two steps--first get the
+	 * account info, then drop privs after chroot */
+	if (user && (pw = getpwnam(user)) == NULL) {
+		syslog(LOG_ERR, "unknown user: %s", user);
+		exit(1);
+	}
+
+	/* Chroot to the spool directory
+	 * (note this is already our $cwd) */
+	if (chroot(_PATH_RWHODIR) < 0) {
+		syslog(LOG_ERR, "chroot(%s): %m", _PATH_RWHODIR);
+		kill(child_pid, SIGTERM);
+		exit(1);
+	}
+
+	/* Now drop privs */
+	if (pw) {
+		if (setgroups(1, &pw->pw_gid) < 0
+		 || setgid(pw->pw_gid) < 0
+		 || setuid(pw->pw_uid) < 0) {
+			syslog(LOG_ERR, "failed to drop privilege: %m");
+			exit(1);
+		}
+	}
+
 	for (;;) {
 		struct whod wd;
 		int cc, whod;
@@ -286,6 +314,64 @@ main(int argc, char *argv[])
 }
 
 /*
+ * Terminate broadcaster process
+ */
+static void
+termhandler(int dummy)
+{
+	(void) dummy;
+	if (child_pid)
+		kill(child_pid, SIGTERM);
+	exit(0);
+}
+
+/*
+ * Obtain boot time again
+ */
+static void
+huphandler(int dummy)
+{
+	(void) dummy;
+	need_init = 1;
+}
+
+/*
+ * This is the part of rwhod that sends out packets
+ */
+static void
+broadcaster()
+{
+	char		myname[MAXHOSTNAMELEN], *cp;
+	size_t		mynamelen;
+	struct whod	mywd;
+
+	if (!configure(sk))
+		exit(1);
+
+	/*
+	 * Establish host name as returned by system.
+	 */
+	if (gethostname(myname, sizeof (myname) - 1) < 0) {
+		syslog(LOG_ERR, "gethostname: %m");
+		exit(1);
+	}
+	if ((cp = index(myname, '.')) != NULL)
+		*cp = '\0';
+	mynamelen = strlen(myname);
+	if (mynamelen > sizeof(mywd.wd_hostname)) 
+		mynamelen = sizeof(mywd.wd_hostname);
+	strncpy(mywd.wd_hostname, myname, mynamelen);
+	mywd.wd_hostname[sizeof(mywd.wd_hostname)-1] = 0;
+
+	getboottime(&mywd);
+
+	while (1) {
+		sendpacket(&mywd);
+		(void) sleep(AL_INTERVAL);
+	}
+}
+
+/*
  * Check out host name for unprintables
  * and other funnies before allowing a file
  * to be created.  Sorry, but blanks aren't allowed.
@@ -296,7 +382,8 @@ verify(const char *name)
 	register int size = 0;
 
 	while (*name) {
-		if (!isascii(*name) || !(isalnum(*name) || ispunct(*name)))
+		if (*name=='/' || 
+		    !isascii(*name) || !(isalnum(*name) || ispunct(*name)))
 			return (0);
 		name++, size++;
 	}
@@ -304,7 +391,8 @@ verify(const char *name)
 }
 
 
-void onalrm(int dummy)
+static void
+sendpacket(struct whod *wd)
 {
 	static int nutmps = 0;
 	static time_t utmptime = 0;
@@ -312,18 +400,17 @@ void onalrm(int dummy)
 	static int alarmcount = 0;
 
 	struct neighbor *np;
-	struct whoent *we = mywd.wd_we, *wlast;
+	struct whoent *we = wd->wd_we, *wlast;
 	int i, cc;
 	struct stat stb;
 	struct utmp *uptr;
 	double avenrun[3];
 	time_t now = time(NULL);
 
-	(void)dummy;
-
-        signal(SIGALRM, onalrm);
-	if (alarmcount % 10 == 0)
-		getkmem(0);
+	if (alarmcount % 10 == 0 || need_init) {
+		getboottime(wd);
+		need_init = 0;
+	}
 	alarmcount++;
 	stat(_PATH_UTMP, &stb);
 	if ((stb.st_mtime != utmptime) || (stb.st_size > utmpsize)) {
@@ -331,9 +418,11 @@ void onalrm(int dummy)
 		if (stb.st_size > utmpsize) {
 			utmpsize = stb.st_size + 10 * sizeof(struct utmp);
 		}
-		wlast = &mywd.wd_we[1024 / sizeof (struct whoent) - 1];
+		wlast = (struct whoent *) ((caddr_t) wd->wd_we)
+						+ sizeof(wd->wd_we);
+		wlast = &wd->wd_we[1024 / sizeof (struct whoent) - 1];
 		setutent();
-		while ((uptr = getutent())!=NULL) {
+		while ((uptr = getutent()) && we < wlast) {
 			if (uptr->ut_name[0]
 			&& uptr->ut_type == USER_PROCESS) {
 				bcopy(uptr->ut_line, we->we_utmp.out_line,
@@ -341,12 +430,10 @@ void onalrm(int dummy)
 				bcopy(uptr->ut_name, we->we_utmp.out_name,
 				   sizeof(uptr->ut_name));
 				we->we_utmp.out_time = htonl(uptr->ut_time);
-				if (we >= wlast)
-					break;
 				we++;
 			}
 		}
-		nutmps = we - mywd.wd_we;
+		nutmps = we - wd->wd_we;
 		endutent();
 	}
 
@@ -359,7 +446,7 @@ void onalrm(int dummy)
 		syslog(LOG_ERR, "chdir(%s): %m", _PATH_DEV);
 		exit(1);
 	}
-	we = mywd.wd_we;
+	we = wd->wd_we;
 	for (i = 0; i < nutmps; i++) {
 		if (stat(we->we_utmp.out_line, &stb) >= 0)
 			we->we_idle = htonl(now - stb.st_atime);
@@ -367,13 +454,13 @@ void onalrm(int dummy)
 	}
 	getloadavg(avenrun, sizeof(avenrun)/sizeof(avenrun[0]));
 	for (i = 0; i < 3; i++)
-		mywd.wd_loadav[i] = htonl((u_long)(avenrun[i] * 100));
-	cc = (char *)we - (char *)&mywd;
-	mywd.wd_sendtime = htonl(time(0));
-	mywd.wd_vers = WHODVERSION;
-	mywd.wd_type = WHODTYPE_STATUS;
+		wd->wd_loadav[i] = htonl((u_long)(avenrun[i] * 100));
+	cc = (char *)we - (char *)wd;
+	wd->wd_sendtime = htonl(time(0));
+	wd->wd_vers = WHODVERSION;
+	wd->wd_type = WHODTYPE_STATUS;
 	for (np = neighbors; np != NULL; np = np->n_next) {
-		if (sendto(sk, (char *)&mywd, cc, 0,
+		if (sendto(sk, (char *)wd, cc, 0,
 			   (struct sockaddr *) np->n_addr, np->n_addrlen) < 0) 
 		  syslog(LOG_ERR, "sendto(%s): %m",
 			 inet_ntoa(((struct sockaddr_in *)np->n_addr)->sin_addr));
@@ -383,8 +470,6 @@ void onalrm(int dummy)
 		syslog(LOG_ERR, "chdir(%s): %m", _PATH_RWHODIR);
 		exit(1);
 	}
-
-	(void) alarm(AL_INTERVAL);
 }
 
 /*
@@ -435,7 +520,8 @@ int getloadavg(double ptr[3], int n)
 }
 
 
-void getkmem(int dummy)
+void
+getboottime(struct whod *wd)
 {
 #ifdef __linux__
 	long uptime;
@@ -447,7 +533,7 @@ void getkmem(int dummy)
 
 	curtime = time(NULL);
 	curtime -= uptime;
-	mywd.wd_boottime = htonl(curtime);
+	wd->wd_boottime = htonl(curtime);
 
 	fclose(fp);
 	return /* 0 */;
@@ -480,12 +566,10 @@ loop:
 		exit(1);
 	}
 	(void) lseek(kmemf, (long)nl[NL_BOOTTIME].n_value, L_SET);
-	(void) read(kmemf, (char *)&mywd.wd_boottime,
-	    sizeof (mywd.wd_boottime));
-	mywd.wd_boottime = htonl(mywd.wd_boottime);
+	(void) read(kmemf, (char *)&wd->wd_boottime,
+	    sizeof (wd->wd_boottime));
+	wd->wd_boottime = htonl(wd->wd_boottime);
 #endif
-
-	(void)dummy;
 }
 
 /*

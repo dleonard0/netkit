@@ -1,3 +1,9 @@
+8-Jul-2000:
+	Fix misused printf-function call (not %n-exploitable though).
+
+14-Dec-1999:
+	netkit-ftp-0.16 is released.
+
 13-Dec-1999:
 	Add fix from Olaf Kirch for some rather severe lossage with
 	aliased file descriptors.

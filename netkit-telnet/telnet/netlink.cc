@@ -12,15 +12,10 @@
 #include "proto.h"
 #include "ring.h"
 
-/* In linux, this is an enum */
-#ifdef __linux__
+/* In Linux, this is an enum */
+#if defined(__linux__) || defined(IPPROTO_IP)
 #define HAS_IPPROTO_IP
 #endif
-
-#ifdef IPPROTO_IP
-#define HAS_IPPROTO_IP
-#endif
-
 
 netlink nlink;
 
@@ -93,7 +88,6 @@ int netlink::connect(int debug, struct hostent *host,
     int on=1;
 
     net = socket(AF_INET, SOCK_STREAM, 0);
-    setuid(getuid());
     if (net < 0) {
 	perror("telnet: socket");
 	return 0;

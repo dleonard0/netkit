@@ -28,7 +28,7 @@
  */
 
 char repairs_rcsid[] = 
-  "$Id: repairs.c,v 1.5 1999/09/28 22:04:15 netbug Exp $";
+  "$Id: repairs.c,v 1.6 2000/05/21 21:32:49 dholland Exp $";
 
 /*
  * Most, but not quite all, of the voodoo for detecting and handling
@@ -206,9 +206,9 @@ static int probe_otalk_packet(char *buf, size_t len, size_t maxlen,
 	m.ctl_addr = otp.ctl_addr;
 	m.pid = otp.pid;
 	memcpy(m.l_name, otp.l_name, OLD_NAME_SIZE);
-	m.l_name[OLD_NAME_SIZE] = 0;
+	m.l_name[OLD_NAME_SIZE-1] = 0;
 	memcpy(m.r_name, otp.r_name, OLD_NAME_SIZE);
-	m.r_name[OLD_NAME_SIZE] = 0;
+	m.r_name[OLD_NAME_SIZE-1] = 0;
 	memcpy(m.r_tty, otp.r_tty, TTY_SIZE);
 	m.r_tty[TTY_SIZE-1] = 0;
 	memcpy(buf, &m, sizeof(m));

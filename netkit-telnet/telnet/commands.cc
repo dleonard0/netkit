@@ -35,7 +35,7 @@
  * From: @(#)commands.c	5.5 (Berkeley) 3/22/91
  */
 char cmd_rcsid[] = 
-  "$Id: commands.cc,v 1.32 1999/09/28 16:29:24 dholland Exp $";
+  "$Id: commands.cc,v 1.34 2000/07/23 04:16:24 dholland Exp $";
 
 #include <string.h>
 
@@ -73,11 +73,8 @@ char cmd_rcsid[] =
 #include "ptrarray.h"
 #include "netlink.h"
 
-#ifdef __linux__
-#define HAS_IPPROTO_IP
-#endif
-
-#ifdef IPPROTO_IP
+/* In Linux, this is an enum */
+#if defined(__linux__) || defined(IPPROTO_IP)
 #define HAS_IPPROTO_IP
 #endif
 
@@ -1633,7 +1630,6 @@ int tn(int argc, const char *argv[]) {
 
     if (connected) {
 	printf("?Already connected to %s\n", hostname);
-	setuid(getuid());
 	return 0;
     }
     if (argc < 2) {
@@ -1679,7 +1675,6 @@ int tn(int argc, const char *argv[]) {
 	}
     usage:
 	printf("usage: %s [-l user] [-a] host-name [port]\n", cmd);
-	setuid(getuid());
 	return 0;
     }
     if (hostp == 0)
@@ -1694,11 +1689,9 @@ int tn(int argc, const char *argv[]) {
 	int temp = sourceroute(hostp, &srp, &srlen);
 	if (temp == 0) {
 	    herror(srp);
-	    setuid(getuid());
 	    return 0;
 	} else if (temp == -1) {
 	    printf("Bad source route option: %s\n", hostp);
-	    setuid(getuid());
 	    return 0;
 	} else {
 	    sn.sin_addr.s_addr = temp;
@@ -1730,7 +1723,6 @@ int tn(int argc, const char *argv[]) {
 		hostname = _hostname;
 	    } else {
 		herror(hostp);
-	        setuid(getuid());
 		return 0;
 	    }
 	}
@@ -1750,7 +1742,6 @@ int tn(int argc, const char *argv[]) {
 		sn.sin_port = sp->s_port;
 	    else {
 		printf("%s: bad port number\n", portp);
-	        setuid(getuid());
 		return 0;
 	    }
 	} 
@@ -1763,7 +1754,6 @@ int tn(int argc, const char *argv[]) {
 	    sp = getservbyname("telnet", "tcp");
 	    if (sp == 0) {
 		fprintf(stderr, "telnet: tcp/telnet: unknown service\n");
-	        setuid(getuid());
 		return 0;
 	    }
 	    sn.sin_port = sp->s_port;

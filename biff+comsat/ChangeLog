@@ -1,3 +1,10 @@
+23-Jul-2000:
+	General audit for setuid/setgid/initgroups/etc. calls that didn't
+	  check for error.
+
+14-Dec-1999:
+	biff+comsat-0.16 is released.
+
 17-Oct-1999:
 	Comsat now allows ttys in /dev/pts.
 	Also, it now skips utmp entries that aren't marked USER_PROCESS.

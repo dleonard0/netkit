@@ -1,3 +1,30 @@
+29-Jul-2000:
+	Have talk scroll by screenfuls instead of single lines.
+	Flip the escape-p/n and ctrl-p/n keys, so the other person's
+	  window scrolls using ctrl. The rationale is that one scrolls
+	  one's own screen much less often and ctrl-combinations are 
+	  easier to type (and can be held down for repeat) - many
+	  keyboards do not have a shifting key that sends an escape
+	  prefix.
+
+22-Jul-2000:
+	Fix minor nonexploitable overflow. (Found by "teso".)
+	Fix input handling to not do silly things with 8-bit text input.
+	  (noted by several people)
+	Hopefully fix a problem where talk spews trash on tty hangup.
+	Also fix things so that talk doesn't exit until you say so - if
+	  the connection breaks, it won't let you type any more, but you
+	  can still scroll and read everything the other guy wrote.
+	
+21-May-2000:
+	Fix bug in otalk emulation. (Herbert Xu, herbert@gondor.apana.org.au)
+
+21-Dec-1999:
+	Make talk handle window resize better.
+
+14-Dec-1999:
+	netkit-ntalk-0.16 is released.
+
 24-Nov-1999:
 	Total rewrite of curses handling in talk to add support for
 	  scrollback. (David A. Holland, dholland@hcs.harvard.edu)

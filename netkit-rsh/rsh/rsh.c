@@ -38,7 +38,7 @@ char copyright[] =
 /*
  * From: @(#)rsh.c	5.24 (Berkeley) 7/1/91
  */
-char rcsid[] = "$Id: rsh.c,v 1.11 1997/06/13 10:08:32 dholland Exp $";
+char rcsid[] = "$Id: rsh.c,v 1.13 2000/07/23 04:16:24 dholland Exp $";
 #include "../version.h"
 
 #include <sys/types.h>
@@ -132,8 +132,11 @@ main(int argc, char *argv[])
 
 	/* if no further arguments, must have been called as rlogin. */
 	if (!argv[optind]) {
-		setuid(getuid());
-		if (asrsh) (const char *)(*argv) = "rlogin";
+		if (setuid(getuid())) {
+			fprintf(stderr, "rsh: setuid: %s\n", strerror(errno));
+			exit(1);
+		}
+		if (asrsh) argv[0] = (char *)"rlogin";
 		execve(_PATH_RLOGIN, argv, saved_environ);
 		fprintf(stderr, "rsh: can't exec %s.\n", _PATH_RLOGIN);
 		exit(1);
@@ -170,7 +173,10 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	setuid(uid);
+	if (setuid(uid)) {
+		fprintf(stderr, "rsh: setuid: %s\n", strerror(errno));
+		exit(1);
+	}
 
 	if (dflag) {
 		if (setsockopt(rem, SOL_SOCKET, SO_DEBUG, &one,

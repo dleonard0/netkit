@@ -30,11 +30,11 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)talk.1	6.6 (Berkeley) 4/22/91
-.\"	$Id: talk.1,v 1.8 1999/12/14 12:52:53 dholland Exp $
+.\"	$Id: talk.1,v 1.15 2000/07/30 23:57:02 dholland Exp $
 .\"
 .Dd November 24, 1999
 .Dt TALK 1
-.Os "Linux NetKit (0.16)"
+.Os "Linux NetKit (0.17)"
 .Sh NAME
 .Nm talk
 .Nd talk to another user
@@ -99,10 +99,12 @@ terminal to its previous state.
 .Pp
 As of netkit-ntalk 0.15
 .Nm talk
-supports scrollback; use ^P and ^N
-to scroll your window,
-and meta-p and meta-n
-to scroll the other window. (You can also use escape-p and escape-n.)
+supports scrollback; use esc-p and esc-n to scroll your window, and
+ctrl-p and ctrl-n to scroll the other window. These keys are now
+opposite from the way they were in 0.16; while this will probably be
+confusing at first, the rationale is that the key combinations with 
+escape are harder to type and should therefore be used to scroll one's
+own screen, since one needs to do that much less often.
 .Pp
 If you do not want to receive talk requests, you may block them using the
 .Xr mesg 1

@@ -41,7 +41,7 @@
  * Heavily modified 11/99 by dholland to add scrollback support.
  */
 char display_rcsid[] = 
-  "$Id: display.c,v 1.10 1999/11/27 23:35:02 dholland Exp $";
+  "$Id: display.c,v 1.15 2000/07/29 18:50:27 dholland Exp $";
 
 /*
  * The window 'manager', initializes curses and handles the actual
@@ -82,6 +82,20 @@ static int last_was_bot;        /* if 1, last win with activity was bottom */
 
 static
 void
+do_sigwinch(int ignore)
+{
+	(void)ignore;
+
+	/* Get curses to notice the size change */
+	endwin();
+	refresh();
+
+	/* and now repaint. */
+	dorefresh();
+}
+
+static
+void
 init_window(window *win)
 {
 	win->s_maxlines = 32;
@@ -118,6 +132,12 @@ real_init_display(void)
 	sigaction(SIGTSTP, NULL, &sigac);
 	sigaddset(&sigac.sa_mask, SIGALRM);
 	sigaction(SIGTSTP, &sigac, NULL);
+
+	/* Grab SIGWINCH (curses cannot do this correctly on its own) */
+	sigaction(SIGWINCH, NULL, &sigac);
+	sigaddset(&sigac.sa_mask, SIGALRM);
+	sigac.sa_handler = do_sigwinch;
+	sigaction(SIGWINCH, &sigac, NULL);
 
 	/* Set curses modes. */
 	cbreak();
@@ -182,6 +202,8 @@ dorefresh(void)
 {
 	int i;
 	erase();
+
+	sepline = LINES/2;
 
 	/* Separator */
 	move(sepline, 0);
@@ -249,15 +271,42 @@ int
 do_one_getch(void)
 {
 	static int gotesc = 0;
-	unsigned char ch = getch();
+	int ich;
+	unsigned char ch;
+
+	ich = getch();
+	if (ich==ERR) {
+		return -1;
+	}
+
+	ch = (unsigned char)ich;
+
 	if (!gotesc && ch==27) {
 		gotesc = 1;
 		return -1;
 	}
 	if (gotesc) {
 		gotesc = 0;
-		return ch|128;
+		return ((int)ch)|256;
 	}
+#if 0 /* blah - someone please fix this */
+	if (ch & 128) {
+		/*
+		 * It would be nice to be able to tell if this is meant to 
+		 * be a meta-modifier, in which case we should flip it to
+		 * the next bit over, or an actual 8-bit character, in
+		 * which case it should be passed through.
+		 *
+		 * The following kludge probably won't work right. When will
+		 * we get *working* international charset support in unix?
+		 * XXX.
+		 */
+		const char *foo = getenv("LC_CTYPE");
+		if (!foo) {
+			return = ((int)(ch&127))|256;
+		}
+	}
+#endif
 	return ch;
 }
 
@@ -270,18 +319,19 @@ int
 dogetch(void)
 {
 	int k = do_one_getch();
+	int scrl = sepline-2;  /* number of lines to scroll by */
 
-	if (k==('p'|128)) {          /* M-p: scroll other window up */
-		doscroll(&his_win, 1);
+	if (k==('p'|256)) {          /* M-p: scroll our window up */
+		doscroll(&my_win, scrl);
 	}
-	else if (k==('n'|128)) {     /* M-n: scroll other window down */
-		doscroll(&his_win, -1);
+	else if (k==('n'|256)) {     /* M-n: scroll our window down */
+		doscroll(&my_win, -scrl);
 	}
-	else if (k==('p'&31)) {      /* C-p: scroll our window up */
-		doscroll(&my_win, 1);
+	else if (k==('p'&31)) {      /* C-p: scroll other window up */
+		doscroll(&his_win, scrl);
 	}
-	else if (k==('n'&31)) {      /* C-n: scroll our window down */
-		doscroll(&my_win, -1);
+	else if (k==('n'&31)) {      /* C-n: scroll other window down */
+		doscroll(&his_win, -scrl);
 	}
 	else if (k == '\f') {        /* C-l: reprint */
 		clear();

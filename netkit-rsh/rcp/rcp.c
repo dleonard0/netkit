@@ -38,7 +38,7 @@ char copyright[] =
 /*
  * From: @(#)rcp.c	5.32 (Berkeley) 2/25/91
  */
-char rcsid[] = "$Id: rcp.c,v 1.14 1999/10/02 21:03:02 dholland Exp $";
+char rcsid[] = "$Id: rcp.c,v 1.15 2000/07/23 04:16:22 dholland Exp $";
 #include "../version.h"
 
 /*
@@ -156,14 +156,20 @@ main(int argc, char *argv[])
 	if (fflag) {
 		/* follow "protocol", send data */
 		(void)response();
-		(void)setuid(userid);
+		if (setuid(userid)) {
+			fprintf(stderr, "rcp: setuid: %s\n", strerror(errno));
+			exit(1);
+		}
 		source(argc, argv);
 		exit(errs);
 	}
 
 	if (tflag) {
 		/* receive data */
-		(void)setuid(userid);
+		if (setuid(userid)) {
+			fprintf(stderr, "rcp: setuid: %s\n", strerror(errno));
+			exit(1);
+		}
 		sink(argc, argv);
 		exit(errs);
 	}
@@ -270,7 +276,10 @@ toremote(const char *targ, int argc, char *argv[])
 				if (response() < 0)
 					exit(1);
 				(void)free(bp);
-				(void)setuid(userid);
+				if (setuid(userid)) {
+					fprintf(stderr, "rcp: setuid: %s\n",
+						strerror(errno));
+				}
 			}
 			source(1, argv+i);
 		}
@@ -393,7 +402,11 @@ susystem(const char *s)
 		const char *args[4];
 		const char **argsfoo;
 		char **argsbar;
-		(void)setuid(userid);
+		if (setuid(userid)) {
+			fprintf(stderr, "rcp: child: setuid: %s\n", 
+				strerror(errno));
+			_exit(1);
+		}
 		args[0] = "sh";
 		args[1] = "-c";
 		args[2] = s;

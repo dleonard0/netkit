@@ -1,3 +1,13 @@
+8-Jul-2000:
+	Fix maybe-exploitable misused printf-function calls.
+
+12-Apr-2000:
+	Improve the probing for cpp: now checks /usr/bin and /usr/libexec
+	  as well as /lib and /usr/ccs/lib.
+	
+14-Dec-1999:
+	netkit-rpc-0.16 is released.
+
 12-Dec-1999:
 	Split off rpcgen and rpcinfo into netkit-rpc.
 

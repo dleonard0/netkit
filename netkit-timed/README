@@ -1,9 +1,11 @@
-This is netkit-timed-0.16 for Linux.
+This is netkit-timed-0.17 for Linux.
 
-This package updates netkit-timed-0.12.
+This package updates netkit-timed-0.16.
 
 If you're reading this off a CD, go right away and check the net
-archives for later versions and security fixes.
+archives for later versions and security fixes. As of this writing the
+home site for NetKit is
+	ftp://ftp.uk.linux.org/pub/linux/Networking/netkit
 
 Note: for general use, xntpd is recommended. timed should only be used
 in cases where xntpd, or another ntp daemon, cannot be used.
@@ -18,6 +20,11 @@ Requires:
 	Old pre-release versions of glibc (before 2.0) are no longer
 	supported and will not work.
 
+Security:
+	This release contains no security fixes relative to
+	netkit-timed-0.16. Versions prior to netkit-timed-0.10
+	should not be used, however.
+
 Installation:
 	Do "./configure --help" and decide what options you want. The
 	defaults should be suitable for most Linux systems. Then run
@@ -29,13 +36,26 @@ Installation:
 	Save a backup copy of any mission-critical program in case the
 	new one doesn't work, and so forth. We warned you.
 
-Security:
-	This release contains no security fixes relative to
-	netkit-timed-0.12. Versions prior to netkit-timed-0.10
-	should not be used, however.
+	If you get gcc warnings from files in /usr/include, they are
+	due to problems in your libc, not netkit. (You may only see
+	them when compiling netkit because netkit turns on a lot of
+	compiler warnings.)
+
+DEC CC:
+	The DEC compiler for the Alpha is now freely available. This
+	is a much better compiler with gcc, that is, it generates much
+	better code. If you have the DEC compiler, you can explicitly
+	use the DEC compiler instead of gcc by configuring like this:
+
+		./configure --with-c-compiler=ccc
+
+	It is known to generate spurious warnings on some files. Also,
+	some headers from some versions of glibc confuse it; that may
+	prevent	netkit from working. Other problems should be reported
+	as bugs.
 
 Bugs:
-	Please make sure your header files in /usr/include match your
+	Please make sure the header files in /usr/include match the
 	libc version installed in /lib and /usr/lib. If you have weird
 	problems this is the most likely culprit.
 
@@ -51,8 +71,10 @@ Bugs:
 	distinct fix. Please do NOT send the whole archive back or
 	reindent the source.
 
-	Be sure to send all correspondence in e-mail. Postings to netnews 
-	will not be seen due to the enormous volume.
+	Be sure to send all correspondence in e-mail to the netkit address.
+	Postings to netnews or mailing lists will not be seen due to the 
+	enormous volume. Also, anything that doesn't get filed in the bug
+	database is quite likely to end up forgotten.
 
 	Please don't report known bugs (see the BUGS file(s)) unless you
 	are including fixes. :-)
@@ -60,14 +82,20 @@ Bugs:
 	Mail should be sent to: netbug@ftp.uk.linux.org
 
 
-Note: please see http://www.hcs.harvard.edu/~dholland/computers/netkit.html
-if you are curious why it's been so long since the last NetKit release.
-(The short version is that I gave things to some other people, who let
-them kind of slide.)
+Early in April 2000, a hacker broke into the machine that was hosting
+the netkit bug database for me and trashed it. Unfortunately, it seems
+backups hadn't gotten done for a while, so three months of mail (since
+mid-January) was lost. So, if you sent something and didn't hear back,
+or you sent something, heard back, but the changes failed to appear in
+this release (unlikely but possible) - please resend.
 
-I do not currently plan to continue maintaining NetKit; I am doing this
-release and perhaps one or two more, and then I intend to give the source
-tree to Red Hat or some similar organization for long-term maintenance.
+Please see http://www.hcs.harvard.edu/~dholland/computers/netkit.html
+if you are curious why it was so long between the 0.10 and 0.16 releases.
+
+Future plans for netkit maintenance are still up in the air, but in the
+meantime new releases will still appear from time to time. I don't have
+a whole lot of cycles to spare to work on netkit, so things are likely
+to continue to be fairly slow.
 
 David A. Holland
-12 December 1999
+23 July 2000

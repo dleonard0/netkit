@@ -43,7 +43,7 @@ char copyright[] =
  * From: @(#)rshd.c	5.38 (Berkeley) 3/2/91
  */
 char rcsid[] = 
-  "$Id: rshd.c,v 1.22 1999/10/02 21:45:08 dholland Exp $";
+  "$Id: rshd.c,v 1.25 2000/07/23 04:16:24 dholland Exp $";
 #include "../version.h"
 
 /*
@@ -171,7 +171,7 @@ static void stderr_parent(int sock, int pype, int pid) {
     fd_set ready, readfrom;
     char buf[BUFSIZ], sig;
     int one = 1;
-    int nfd, cc, done=0;
+    int nfd, cc, guys=2;
     
     ioctl(pype, FIONBIO, (char *)&one);
     /* should set s nbio! */
@@ -182,24 +182,28 @@ static void stderr_parent(int sock, int pype, int pid) {
     if (pype > sock) nfd = pype+1;
     else nfd = sock+1;
     
-    while (!done) {
+    while (guys > 0) {
 	ready = readfrom;
-	if (select(nfd, &ready, NULL, NULL, NULL) < 0 && errno != EINTR) {
-	    break;
+	if (select(nfd, &ready, NULL, NULL, NULL) < 0) {
+	   if (errno != EINTR) {
+	      break;
+	   }
+	   continue;
 	}
-	done = 1;
 	if (FD_ISSET(sock, &ready)) {
-	    done = 0;
 	    cc = read(sock, &sig, 1);
-	    if (cc <= 0) FD_CLR(sock, &readfrom);
+	    if (cc <= 0) {
+	       FD_CLR(sock, &readfrom);
+	       guys--;
+	    }
 	    else killpg(pid, sig);
 	}
 	if (FD_ISSET(pype, &ready)) {
-	    done = 0;
 	    cc = read(pype, buf, sizeof(buf));
 	    if (cc <= 0) {
 		shutdown(sock, 2);
 		FD_CLR(pype, &readfrom);
+		guys--;
 	    } 
 	    else write(sock, buf, cc);
 	}
@@ -209,6 +213,8 @@ static void stderr_parent(int sock, int pype, int pid) {
     /*
      * This does not strike me as the right place for this; this is
      * in a child process... what does this need to accomplish?
+     *
+     * No, it's not the child process, the code is just confusing.
      */
     pam_close_session(pamh, 0);
     pam_end(pamh, PAM_SUCCESS);
@@ -436,10 +442,19 @@ doit(struct sockaddr_in *fromp)
 #endif
 #ifndef USE_PAM
 	/* if PAM, already done */
-	setgid(pwd->pw_gid);
-	initgroups(pwd->pw_name, pwd->pw_gid);
+	if (setgid(pwd->pw_gid)) {
+		syslog(LOG_ERR, "setgid: %m");
+		exit(1);
+	}
+	if (initgroups(pwd->pw_name, pwd->pw_gid)) {
+		syslog(LOG_ERR, "initgroups: %m");
+		exit(1);
+	}
 #endif
-	setuid(pwd->pw_uid);
+	if (setuid(pwd->pw_uid)) {
+		syslog(LOG_ERR, "setuid: %m");
+		exit(1);
+	}
 	environ = envinit;
 
 	strncat(homedir, pwd->pw_dir, sizeof(homedir)-6);
@@ -467,7 +482,7 @@ doit(struct sockaddr_in *fromp)
 	 * Close all fds, in case libc has left fun stuff like 
 	 * /etc/shadow open.
 	 */
-	for (ifd=3; ifd<OPEN_MAX; ifd++) close(ifd);
+	for (ifd = getdtablesize()-1; ifd > 2; ifd--) close(ifd);
 
 	execl(theshell, shellname, "-c", cmdbuf, 0);
 	perror(theshell);

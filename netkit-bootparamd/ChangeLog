@@ -1,3 +1,10 @@
+22-Jul-2000:
+	Some cleanup. New scanf-free parsing code for bootparams file.
+	Add bootparams(5) page (swiped from FreeBSD 4.0-RELEASE).
+
+14-Dec-1999:
+	netkit-bootparamd-0.16 is released.
+
 14-Sep-1999:
 	Some minor cleanup.
 

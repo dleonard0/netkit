@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)main.c	5.10 (Berkeley) 3/1/91
  */
 char main_rcsid[] = 
-  "$Id: main.c,v 1.12 1999/09/29 02:01:31 netbug Exp $";
+  "$Id: main.c,v 1.15 2000/07/22 19:06:29 dholland Exp $";
 
 /* Many bug fixes are from Jim Guyton <guyton@rand-unix> */
 
@@ -63,6 +63,8 @@ char main_rcsid[] =
 #include <ctype.h>
 #include <netdb.h>
 #include <unistd.h>
+
+#include "tftpsubs.h"  /* for mysignal() */
 
 #define	TIMEOUT		5		/* secs between rexmt's */
 
@@ -172,7 +174,7 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 	strcpy(mode, "netascii");
-	signal(SIGINT, intr);
+	mysignal(SIGINT, intr);
 	if (argc > 1) {
 		if (sigsetjmp(toplevel, 1) != 0)
 			exit(0);
@@ -332,17 +334,17 @@ put(int argc, char *argv[])
 		return;
 	}
 	targ = argv[argc - 1];
-	if (index(argv[argc - 1], ':')) {
+	if (strchr(argv[argc - 1], ':')) {
 		char *cp;
 		struct hostent *hp;
 
 		for (n = 1; n < argc - 1; n++)
-			if (index(argv[n], ':')) {
+			if (strchr(argv[n], ':')) {
 				putusage(argv[0]);
 				return;
 			}
 		cp = argv[argc - 1];
-		targ = index(cp, ':');
+		targ = strchr(cp, ':');
 		*targ++ = 0;
 		hp = gethostbyname(cp);
 		if (hp == NULL) {
@@ -431,13 +433,13 @@ get(int argc, char *argv[])
 	}
 	if (!connected) {
 		for (n = 1; n < argc ; n++)
-			if (index(argv[n], ':') == 0) {
+			if (strchr(argv[n], ':') == 0) {
 				getusage(argv[0]);
 				return;
 			}
 	}
 	for (n = 1; n < argc ; n++) {
-		src = index(argv[n], ':');
+		src = strchr(argv[n], ':');
 		if (src == NULL)
 			src = argv[n];
 		else {
@@ -569,7 +571,7 @@ intr(int ignore)
 {
 	(void)ignore;
 
-	signal(SIGALRM, SIG_IGN);
+	mysignal(SIGALRM, SIG_IGN);
 	alarm(0);
 	siglongjmp(toplevel, -1);
 }
@@ -613,6 +615,10 @@ command(int top)
 		if (line[0] == 0)
 			continue;
 		makeargv();
+		if (margc<1) {
+			/* empty line */
+		   	continue;
+		}
 		c = getcmd(margv[0]);
 		if (c == (struct cmd *)-1) {
 			printf("?Ambiguous command\n");

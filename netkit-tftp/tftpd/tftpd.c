@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)tftpd.c	5.13 (Berkeley) 2/26/91
  */
 char rcsid[] = 
-  "$Id: tftpd.c,v 1.17 1999/12/12 18:05:06 dholland Exp $";
+  "$Id: tftpd.c,v 1.20 2000/07/29 18:37:21 dholland Exp $";
 
 /*
  * Trivial file transfer protocol server.
@@ -83,12 +83,10 @@ static void recvfile(struct formats *pf);
 
 static int validate_access(const char *, int);
 
-/*static struct	sockaddr_in s_in = { AF_INET };*/
 static int		peer;
 static int		rexmtval = TIMEOUT;
 static int		maxtimeout = 5*TIMEOUT;
 
-#define	PKTSIZE		SEGSIZE+4
 static char		buf[PKTSIZE];
 static char		ackbuf[PKTSIZE];
 static struct		sockaddr_in from;
@@ -100,6 +98,10 @@ static char		*dirs[MAXARG+1];
 int
 main(int ac, char **av)
 {
+	struct sockaddr_in sn;
+	socklen_t snsize;
+	int dobind=1;
+
 	register struct tftphdr *tp;
 	register int n = 0;
 	int on = 1;
@@ -131,8 +133,8 @@ main(int ac, char **av)
 	 * inetd may get one or more successful "selects" on the
 	 * tftp port before we do our receive, so more than one
 	 * instance of tftpd may be started up.  Worse, if tftpd
-	 * break before doing the above "recvfrom", inetd would
-	 * spawn endless instances, clogging the system.
+	 * were to break before doing the above "recvfrom", inetd 
+	 * would spawn endless instances, clogging the system.
 	 */
 	{
 		int pid = -1;
@@ -186,6 +188,21 @@ main(int ac, char **av)
 	}
 	from.sin_family = AF_INET;
 	alarm(0);
+
+	/*
+	 * Get the local address of the port inetd is using, so we can
+	 * send from the same address. This will not make multihomed
+	 * usage work *transparently*, but it at least gives a chance
+	 * - you can have inetd bind a separate tftpd port for each 
+	 * interface.
+	 */
+	snsize = sizeof(sn);
+	if (getsockname(0, (struct sockaddr *)&sn, &snsize)<0 ||
+	    sn.sin_addr.s_addr == INADDR_ANY) {
+		dobind = 0;
+	}
+	sn.sin_port = 0;
+
 	close(0);
 	close(1);
 	peer = socket(AF_INET, SOCK_DGRAM, 0);
@@ -193,12 +210,12 @@ main(int ac, char **av)
 		syslog(LOG_ERR, "socket: %m\n");
 		exit(1);
 	}
-#if 0 /* This shouldn't be needed */
-	if (bind(peer, (struct sockaddr *)&s_in, sizeof (s_in)) < 0) {
+
+	if (dobind && bind(peer, (struct sockaddr *)&sn, snsize) < 0) {
 		syslog(LOG_ERR, "bind: %m\n");
 		exit(1);
 	}
-#endif
+
 	if (connect(peer, (struct sockaddr *)&from, sizeof(from)) < 0) {
 		syslog(LOG_ERR, "connect: %m\n");
 		exit(1);
@@ -382,10 +399,10 @@ sendfile(struct formats *pf)
 {
 	struct tftphdr *dp;
 	register struct tftphdr *ap;    /* ack packet */
-	volatile int block = 1;
+	volatile u_int16_t block = 1;
 	int size, n;
 
-	signal(SIGALRM, timer);
+	mysignal(SIGALRM, timer);
 	dp = r_init();
 	ap = (struct tftphdr *)ackbuf;
 	do {
@@ -454,10 +471,10 @@ recvfile(struct formats *pf)
 {
 	struct tftphdr *dp;
 	struct tftphdr *ap;    /* ack buffer */
-	volatile int block = 0;
+	volatile u_int16_t block = 0;
 	int n, size;
 
-	signal(SIGALRM, timer);
+	mysignal(SIGALRM, timer);
 	dp = w_init();
 	ap = (struct tftphdr *)ackbuf;
 	do {
@@ -509,7 +526,7 @@ send_ack:
 	ap->th_block = htons((u_short)(block));
 	(void) send(peer, ackbuf, 4, 0);
 
-	signal(SIGALRM, justquit);      /* just quit on timeout */
+	mysignal(SIGALRM, justquit);      /* just quit on timeout */
 	alarm(rexmtval);
 	n = recv(peer, buf, sizeof (buf), 0); /* normally times out and quits */
 	alarm(0);

@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)comsat.c	5.24 (Berkeley) 2/25/91
  */
 char rcsid[] = 
-  "$Id: comsat.c,v 1.17 1999/10/17 23:18:47 dholland Exp $";
+  "$Id: comsat.c,v 1.18 2000/07/23 04:16:20 dholland Exp $";
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -464,7 +464,10 @@ static void jkfprintf(FILE *tp, const char *name, off_t offset, const char *cr)
 	 * This sets both real and effective uids and clears the saved uid 
 	 * too (see posix) so it's a one-way trip.
 	 */
-	setuid(p->pw_uid);
+	if (setuid(p->pw_uid)!=0) {
+		syslog(LOG_AUTH | LOG_NOTICE, "Cannot setuid");
+		return;
+	}
 
 	/*
 	 * Open the user's mailbox (recall we're already in the mail spool dir)

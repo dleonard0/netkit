@@ -12,7 +12,7 @@ void network_close(void);
 void auth_checkoptions(void);
 void auth_finish(void);
 int auth_checkauth(const char *remoteuser, const char *host,
-		   const char *localuser);
+		   char *localuser, size_t localusermaxsize);
 
 /* 
  * Global flag variables 

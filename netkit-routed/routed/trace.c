@@ -36,7 +36,7 @@
  * From: @(#)trace.c	8.1 (Berkeley) 6/5/93
  */
 char trace_rcsid[] = 
-  "$Id: trace.c,v 1.14 1999/09/29 01:47:36 netbug Exp $";
+  "$Id: trace.c,v 1.16 2000/07/22 23:25:11 dholland Exp $";
 
 
 /*
@@ -113,16 +113,42 @@ void traceon(char *file)
 		       file, logdir);
 		return;
 	}
-               
-	fd = open(file, O_WRONLY|O_APPEND|O_CREAT|O_EXCL|O_NDELAY, 0600);
+
+	/*
+	 * Also check that the environment is sane.
+	 */
+	if (stat(logdir, &stbuf)<0 || !S_ISDIR(stbuf.st_mode)) {
+		syslog(LOG_ERR, "Configuration problem: %s does not exist "
+		       "or is not a directory", logdir);
+		syslog(LOG_ERR, "Logging disabled");
+		return;
+	}
+
+	if ((stbuf.st_mode & 022)!=0 || stbuf.st_uid!=0) {
+		syslog(LOG_ERR, "Configuration problem: wrong permissions for "
+		       "%s (should be mode 700 and owned by root)",
+		       logdir);
+		syslog(LOG_ERR, "Logging disabled");
+		return;
+	}
+        
+	/*
+	 * 7/22/00 took out O_EXCL on the grounds that since we're
+	 * checking that the file is in the log dir, and the log 
+	 * dir is supposed to be root-only, appending to an
+	 * existing file is not particularly evil.
+	 *
+	 * If Linux ever supports O_NOLINK that should go in here though.
+	 */
+	fd = open(file, O_WRONLY|O_APPEND|O_CREAT|O_NDELAY, 0600);
 	
 	if (fd == -1) {
-		syslog(LOG_ERR, "Cannot syslog to %s: %s\n",
+		syslog(LOG_ERR, "Cannot log to %s: %s\n",
 		       file, strerror(errno));
 		return;
 	}
 	if (fstat(fd, &stbuf) >= 0 && !S_ISREG(stbuf.st_mode)) {
-		syslog(LOG_ERR, "Cannot syslog to %s: not a regular file\n",
+		syslog(LOG_ERR, "Cannot log to %s: not a regular file\n",
 		       file);
 		return;
 	}
@@ -134,6 +160,8 @@ void traceon(char *file)
 	ftrace = fdopen(fd, "a");
 	if (ftrace == NULL)
 		return;
+	fflush(stdout);
+	fflush(stderr);
 	dup2(fileno(ftrace), 1);
 	dup2(fileno(ftrace), 2);
 	traceactions = 1;
@@ -146,6 +174,12 @@ void traceoff(void)
 		return;
 	if (ftrace != NULL) {
 		int fd = open(_PATH_DEVNULL, O_RDWR);
+
+		if (fd<0) {
+			fprintf(ftrace, "Disable tracing: /dev/null: %s\n",
+				strerror(errno));
+			return;
+		}
 
 		fprintf(ftrace, "Tracing disabled %s\n",
 		    ctime(&now.tv_sec));

@@ -27,14 +27,17 @@
  */
 
 char rusersd_rcsid[] = 
-  "$Id: rusersd.c,v 1.8 1999/12/12 19:32:05 dholland Exp $";
+  "$Id: rusersd.c,v 1.10 2000/07/23 04:09:28 dholland Exp $";
 
 #include <stdio.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <syslog.h>
+#include <pwd.h>
 #include <rpc/rpc.h>
 #include <rpc/pmap_clnt.h>
+#include <unistd.h>
+#include <grp.h>
 #ifdef __GLIBC__
 	#include <rpcsvc/rusers.h>
 #else
@@ -67,29 +70,50 @@ main(void)
         int proto = 0;
 	struct sockaddr_in from;
 	int fromlen = sizeof(from);
-        
-        /*
-         * See if inetd started us
-         */
-        if (getsockname(0, (struct sockaddr *)&from, &fromlen) < 0) {
-                from_inetd = 0;
-                sock = RPC_ANYSOCK;
-                proto = IPPROTO_UDP;
-        }
-        
-        if (!from_inetd) {
-                daemon(0, 0);
 
-                pmap_unset(RUSERSPROG, RUSERSVERS_3);
-                pmap_unset(RUSERSPROG, RUSERSVERS_IDLE);
+ 
+	/* Open syslog */
+	openlog("rpc.rusersd", LOG_PID, LOG_DAEMON);
+ 
+	/* Drop privilege */
+	if (getuid() == 0) {
+		struct passwd	*pw;
+ 
+		if ((pw = getpwnam("nobody")) == NULL) {
+			syslog(LOG_WARNING, "Unable to find user nobody: %m");
+			exit(1);
+		}
+		if (setgroups(1, &pw->pw_gid) < 0
+		 || setgid(pw->pw_gid) < 0
+		 || setuid(pw->pw_uid) < 0) {
+			syslog(LOG_WARNING, "Failed to drop privilege: %m");
+			exit(1);
+		}
+	}
+ 
+	
+	/*
+	 * See if inetd started us
+	 */
+	if (getsockname(0, (struct sockaddr *)&from, &fromlen) < 0) {
+		from_inetd = 0;
+		sock = RPC_ANYSOCK;
+		proto = IPPROTO_UDP;
+	}
+	
+	if (!from_inetd) {
+		daemon(0, 0);
+
+		pmap_unset(RUSERSPROG, RUSERSVERS_3);
+		pmap_unset(RUSERSPROG, RUSERSVERS_IDLE);
 
 		signal(SIGINT, cleanup);
 		signal(SIGTERM, cleanup);
 		signal(SIGHUP, cleanup);
-        }
+	}
 
-        openlog("rpc.rusersd", LOG_CONS|LOG_PID, LOG_DAEMON);
-        
+	openlog("rpc.rusersd", LOG_PID, LOG_DAEMON);
+	
 	transp = svcudp_create(sock);
 	if (transp == NULL) {
 		syslog(LOG_ERR, "cannot create udp service.");
@@ -105,7 +129,7 @@ main(void)
 		exit(1);
 	}
 
-        svc_run();
+	svc_run();
 	syslog(LOG_ERR, "svc_run returned");
 	exit(1);
 }

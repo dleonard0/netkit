@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  */
 
-char rcsid[] = "$Id: rup.c,v 1.7 1999/12/12 18:05:04 dholland Exp $";
+char rcsid[] = "$Id: rup.c,v 1.8 2000/07/22 19:51:40 dholland Exp $";
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -56,7 +56,8 @@ char rcsid[] = "$Id: rup.c,v 1.7 1999/12/12 18:05:04 dholland Exp $";
 
 static int print_rup_data(const char *host, statstime *host_stat);
 
-int printtime;			/* print the remote host(s)'s time */
+static int printtime;			/* print the remote host(s)'s time */
+static int printseconds;                /* print in seconds, not formatted */
 
 struct host_list {
 	struct host_list *next;
@@ -185,52 +186,55 @@ static
 int
 print_rup_data(const char *host, statstime *host_stat)
 {
-	struct tm *tmp_time;
-	struct tm host_time;
-	struct tm host_uptime;
-	char days_buf[16];
-	char hours_buf[16];
-	time_t timer;
+	time_t hosttime;
+	long uptime;
 
 	printf("%-*.*s", HOST_WIDTH, HOST_WIDTH, host);
 
-	timer = host_stat->curtime.tv_sec;
-	tmp_time = localtime(&timer);
-	host_time = *tmp_time;
-
+	hosttime = host_stat->curtime.tv_sec;
 	host_stat->curtime.tv_sec -= host_stat->boottime.tv_sec;
+	uptime = host_stat->curtime.tv_sec;	/* uptime in seconds */
+	
+	if (printtime) {
+		if (printseconds) {
+			printf(" %-12lld", (unsigned long long) hosttime);
+		}
+		else {
+			struct tm *time = localtime(&hosttime);
+			printf(" %2d:%02d%cm", time->tm_hour % 12,
+			       time->tm_min,
+			       (time->tm_hour >= 12) ? 'p' : 'a');
+		}
+	}
 
-	timer = host_stat->curtime.tv_sec;
-	tmp_time = gmtime(&timer);
-	host_uptime = *tmp_time;
+	if (printseconds) {
+		printf(" up %12ld", uptime);
+	}
+	else {
+		uptime /= 60;  /* convert to minutes */
+		printf(" up ");
+		if (uptime > 24*60) {		/* more than 1 day? */ 
+			int days = uptime/(24*60);
+			printf("%3d %s ", days, days > 1 ? "days," : "day, ");
+			uptime %= (24*60);
+		}
+		else {
+			printf("          ");
+		}
 
-	if (host_uptime.tm_yday != 0)
-		snprintf(days_buf, sizeof(days_buf), 
-			 "%3d %s, ", host_uptime.tm_yday,
-			 (host_uptime.tm_yday > 1) ? "days" : "day");
-	else
-		days_buf[0] = '\0';
-
-	if (host_uptime.tm_hour != 0)
-		snprintf(hours_buf, sizeof(hours_buf), "%2d:%02d, ",
-			host_uptime.tm_hour, host_uptime.tm_min);
-	else
-		if (host_uptime.tm_min != 0)
-			snprintf(hours_buf, sizeof(hours_buf),
-				 "%2d mins, ", host_uptime.tm_min);
-		else
-			hours_buf[0] = '\0';
-
-	if (printtime)
-		printf(" %2d:%02d%cm", host_time.tm_hour % 12,
-			host_time.tm_min,
-			(host_time.tm_hour >= 12) ? 'p' : 'a');
-
-	printf(" up %9.9s%9.9s load average: %.2f %.2f %.2f\n",
-		days_buf, hours_buf,
-		(double)host_stat->avenrun[0]/FSCALE,
-		(double)host_stat->avenrun[1]/FSCALE,
-		(double)host_stat->avenrun[2]/FSCALE);
+		if (uptime > 60) {
+			int hours = uptime/60;
+			int mins = uptime%60;
+			printf("%2d:%02d,   ", hours, mins);
+		}
+		else {
+			printf("%2ld mins, ", uptime);
+		}
+	}
+	printf(" load average: %.2f %.2f %.2f\n",
+	       (double)host_stat->avenrun[0]/FSCALE,
+	       (double)host_stat->avenrun[1]/FSCALE,
+	       (double)host_stat->avenrun[2]/FSCALE);
 
 	return(0);
 }
@@ -307,10 +311,13 @@ int main(int argc, char *argv[])
 	int ch;
 
 	sort_type = SORT_NONE;
-	while ((ch = getopt(argc, argv, "dhlt")) != -1)
+	while ((ch = getopt(argc, argv, "dshlt")) != -1)
 		switch (ch) {
 		case 'd':
 			printtime = 1;
+			break;
+		case 's':
+			printseconds = 1;
 			break;
 		case 'h':
 			sort_type = SORT_HOST;

@@ -1,3 +1,12 @@
+22-Jul-2000:
+	Document ~/.pgpkey. (Herbert Xu, herbert@gondor.apana.org.au)
+
+18-Dec-1999:
+	Add support for ~/.nofinger files.
+
+14-Dec-1999:
+	bsd-finger-0.16 is released.
+
 12-Dec-1999:
 	Withdrew -R option; finger can figure out on its own if it needs
 	  to emit CRs.

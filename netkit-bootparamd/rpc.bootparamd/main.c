@@ -24,7 +24,7 @@
 int debug = 0;
 int dolog = 0;
 struct in_addr route_addr;
-char *bootpfile = "/etc/bootparams";
+const char *bootpfile = "/etc/bootparams";
 
 static char *progname;
 static struct sockaddr_in my_addr;

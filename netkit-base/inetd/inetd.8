@@ -30,11 +30,11 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)inetd.8	6.7 (Berkeley) 3/16/91
-.\"	$Id: inetd.8,v 1.12 1999/12/14 12:52:49 dholland Exp $
+.\"	$Id: inetd.8,v 1.18 2000/07/30 23:56:58 dholland Exp $
 .\"
 .Dd August 22, 1999
 .Dt INETD 8
-.Os "Linux NetKit (0.16)"
+.Os "Linux NetKit (0.17)"
 .Sh NAME
 .Nm inetd
 .Nd internet
@@ -99,7 +99,7 @@ of a line.  There must be an entry for each field.  The
 fields of the configuration file are as follows:
 .Pp
 .Bd -unfilled -offset indent -compact
-service name
+service name[@hostname]
 socket type
 protocol
 wait/nowait[.max]
@@ -113,7 +113,7 @@ To specify an
 based service, the entry would contain these fields.
 .Pp
 .Bd -unfilled -offset indent -compact
-service name/version
+service name/version[@hostname]
 socket type
 rpc/protocol
 wait/nowait[.max]
@@ -145,6 +145,23 @@ is the RPC version number. This
 can simply be a single numeric argument or a range of versions.
 A range is bounded by the low version to the high version - 
 .Dq rusers/1-3 .
+.Pp
+If a string of the form
+.Em @hostname 
+is appended to the service, it causes inetd to bind to the port for
+the service on only the specific IP address associated with
+.Em hostname ,
+instead of listening on all available addresses. This can be done as
+many times as desired for different addresses, which permits setting
+up ``virtually hosted'' services. Note, however, that while you can
+listen to as many specific addresses as you want, kernel restrictions
+prevent 
+.Nm inetd
+from listening to the same port on a specific address and the general
+address at once.
+.Em hostname
+should be a resolvable hostname or an IP address associated with one
+of the interfaces of the local system.
 
 .Pp
 The

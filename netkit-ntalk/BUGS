@@ -1,11 +1,12 @@
 talk:
-	- long-standing curses bugs associated with going off right side of
-	  screen. (These appear to no longer happen now though.)
-	- support word-wrap.
+	- support word-wrap. maybe. It's not clear what this means or how it
+	  should work if each end has a different width of screen.
 	- handle backspacing intelligently.
 	- there are reports that it sometimes goes into a one-line-only 
 	  mode where it only prints to the top line of the screen. I can't 
 	  reproduce this, I'm afraid... insight welcome.
+	- someone should figure out some way to determine whether 8-bit
+	  input is meant to be carrying a meta-modifier bit or be text.
 
 talkd:
 	- talk request messages should check for 8 bit tty and not 

@@ -35,7 +35,7 @@
  * From: @(#)io.c	5.6 (Berkeley) 3/1/91
  */
 char io_rcsid[] = 
-  "$Id: io.c,v 1.11 1999/11/25 04:23:38 dholland Exp $";
+  "$Id: io.c,v 1.13 2000/07/23 00:31:57 dholland Exp $";
 
 /*
  * This file contains the I/O handling and the exchange of 
@@ -73,28 +73,31 @@ talk(void)
 	for (;;) {
 		FD_ZERO(&read_set);
 		FD_SET(0, &read_set);
-		FD_SET(sockt, &read_set);
-		nb = select(sockt+1, &read_set, NULL, NULL, NULL);
+		if (sockt>=0) FD_SET(sockt, &read_set);
+		nb = select(sockt+2, &read_set, NULL, NULL, NULL);
 		if (nb <= 0) {
-			if (errno == EINTR) {
+			if (nb<0 && errno==EINTR) {
 				continue;
 			}
 			/* panic, we don't know what happened */
 			p_error("Unexpected error from select");
 			quit(0);
 		}
-		if (FD_ISSET(sockt, &read_set)) { 
+		if (sockt>=0 && FD_ISSET(sockt, &read_set)) { 
 			/* There is data on sockt */
 			nb = read(sockt, buf, sizeof(buf));
 			if (nb <= 0) {
-				message("Connection closed. Exiting");
-				quit(0);
+				message("Connection closed. ^C to exit");
+				close(sockt);
+				sockt = -1;
 			}
-			display(1, buf, nb);
+			else {
+				display(1, buf, nb);
+			}
 		}
 		if (FD_ISSET(0, &read_set)) {
 			k = dogetch();
-			if (k>=0) {
+			if (k>=0 && sockt>=0) {
 				nb = 1;
 				buf[0] = k;
 				display(0, buf, nb);

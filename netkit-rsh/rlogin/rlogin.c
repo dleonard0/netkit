@@ -41,7 +41,7 @@ char copyright[] =
  *     Exp Locker: kfall
  */
 char rcsid[] = 
-  "$Id: rlogin.c,v 1.19 1999/10/02 21:50:52 dholland Exp $";
+  "$Id: rlogin.c,v 1.20 2000/07/23 04:16:22 dholland Exp $";
 #include "../version.h"
 
 /*
@@ -294,7 +294,10 @@ main(int argc, char **argv)
 	    	fprintf(stderr, "rlogin: setsockopt(TOS): %s.\n", 
 			strerror(errno));
 #endif
-	setuid(uid);
+	if (setuid(uid)) {
+		fprintf(stderr, "rlogin: setuid: %s\n", strerror(errno));
+		exit(1);
+	}
 
 	doit(omask);
 	/*NOTREACHED*/

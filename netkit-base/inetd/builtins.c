@@ -20,6 +20,8 @@
 #define MINUDPSRCPORT	1024	/* ignore inbound udp on low-number ports */
 #define	BUFSIZE	4096
 
+char builtins_rcsid[] = 
+  "$Id: builtins.c,v 1.5 2000/07/22 20:13:07 dholland Exp $";
 
 static void
 do_setproctitle(char *a, int s)

@@ -193,8 +193,9 @@ const char *env_next(int *iter, int exported_only) {
     return NULL;
 }
 
-const char *env_getvalue(const char *var) {
+const char *env_getvalue(const char *var, int exported_only) {
     enviro *ep = env_find(var);
-    if (ep) return ep->getval();
+    if (ep && (!exported_only || ep->getexport()))
+    	return ep->getval();
     return NULL;
 }

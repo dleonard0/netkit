@@ -8,17 +8,19 @@
 #include <ctype.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <assert.h>
 
 #include "../version.h"
 const char bootparamd_rcsid[] = 
-  "$Id: rpc.bootparamd.c,v 1.9 1999/09/14 11:01:16 dholland Exp $";
+  "$Id: rpc.bootparamd.c,v 1.12 2000/07/22 16:23:56 dholland Exp $";
 
 extern int debug, dolog;
 extern struct in_addr route_addr;
-extern char *bootpfile;
+extern const char *bootpfile;
 
-static int getthefile(char *askname, char *fileid, char *buffer);
-static int checkhost(char *askname, char *hostname);
+static int getthefile(const char *askname, const char *fileid, 
+		      char *buf, size_t buflen);
+static int checkhost(const char *askname, char *hostname, size_t hostsize);
 
 #define MAXLEN 800
 
@@ -74,9 +76,9 @@ bootparamproc_whoami_1_svc(bp_whoami_arg *whoami, struct svc_req *svc_req)
     strncpy(askname, he->h_name, sizeof(askname));
     askname[sizeof(askname)-1] = 0;
 
-    if (checkhost(askname, hostname)) {
+    if (checkhost(askname, hostname, sizeof(hostname))) {
 	res.client_name = hostname;
-	getdomainname(domain_name, MAX_MACHINE_NAME);
+	getdomainname(domain_name, sizeof(domain_name));
 	res.domain_name = domain_name;
 	
 	if (res.router_address.address_type != IP_ADDR_TYPE) {
@@ -125,13 +127,14 @@ bootparamproc_getfile_1_svc(bp_getfile_arg *getfile,struct svc_req *svc_req)
     strncpy(askname, he->h_name, sizeof(askname));
     askname[sizeof(askname)-1] = 0;
 
-    if (getthefile(askname, getfile->file_id,buffer)) {
+    if (getthefile(askname, getfile->file_id, buffer, sizeof(buffer))) {
 	if ((where = strchr(buffer,':'))!=NULL) {
 	    /* buffer is re-written to contain the name of the info of file */
 	    strncpy(hostname, buffer, where - buffer);
 	    hostname[where - buffer] = '\0';
 	    where++;
-	    strcpy(path, where);
+	    strncpy(path, where, sizeof(path));
+	    path[sizeof(path)-1] = 0;
 	    he = gethostbyname(hostname);
 	    if (!he) goto failed;
 	    bcopy( he->h_addr, &res.server_address.bp_address_u.ip_addr, 4);
@@ -167,21 +170,96 @@ bootparamproc_getfile_1_svc(bp_getfile_arg *getfile,struct svc_req *svc_req)
     return NULL;
 }
 
-/*    getthefile return 1 and fills the buffer with the information
-      of the file, e g "host:/export/root/client" if it can be found.
-      If the host is in the database, but the file is not, the buffer 
-      will be empty. (This makes it possible to give the special
-      empty answer for the file "dump")   */
+static int
+get_bootparam_line(char *buf, size_t len, FILE *f)
+{
+	size_t pos = 0, inc;
+
+	while (fgets(buf+pos, len-pos, f)) {
+		inc = strlen(buf+pos);
+		pos += inc;
+		if (inc < 2 || buf[pos-1]!='\n' || buf[pos-2]!='\\') {
+			break;
+		}
+		/* remove the escaped newline */
+		pos -= 2;
+		buf[pos] = 0;
+	}
+
+	return pos>0;
+}
+
+static int 
+get_bootparam_entry(const char *askname, const char *capname,
+		    char *hostbuf, size_t hostbuflen,
+		    char *valbuf, size_t valbuflen,
+		    FILE *f)
+{
+	char linebuf[8192];
+	char *words[16], *s;
+	int nwords, i;
+	int found;
+	size_t caplen;
+
+	while (get_bootparam_line(linebuf, sizeof(linebuf), f)) {
+		if (*linebuf=='#') continue;  /* comment */
+		nwords = 0;
+		for (s=strtok(linebuf, " \t\n"); s; s=strtok(NULL, " \t\n")) {
+			if (s[0]=='#') break; /* comment */
+			if (nwords < 16) words[nwords++] = s;
+		}
+		if (nwords==0) continue;  /* blank line */
+
+		found = 0;
+
+		if (!strcmp(askname, words[0])) {
+			found = 1;
+		}
+		else {
+			struct hostent *hp = gethostbyname(words[0]);
+			if (hp && !strcmp(askname, hp->h_name)) found = 1;
+		}
+
+		if (!found) continue;
+
+		if (hostbuf) {
+			snprintf(hostbuf, hostbuflen, "%s", words[0]);
+		}
+
+		if (!capname) return 1;
+
+		caplen = strlen(capname);
+		if (valbuf) *valbuf = 0;
+
+		for (i=1; i<nwords; i++) {
+			if (!strncmp(words[i], capname, caplen) &&
+			    words[i][caplen]=='=') {
+				if (valbuf) {
+					snprintf(valbuf, valbuflen, "%s",
+						 words[i]+caplen+1);
+				}
+				break;
+			}
+		}
+		/* Item not found, host is: return success and valbuf of "" */
+		return 1;
+	}
+	return 0;
+}
+
+/*
+ * getthefile returns 1 and fills the buffer with the information of
+ * the file, e.g. "host:/export/root/client" if it can be found.  If
+ * the host is in the database, but the file is not, the buffer will
+ * be empty. (This makes it possible to give the special empty answer
+ * for the file "dump")
+ */
 
 static int
-getthefile(char *askname,char *fileid,char *buffer)
+getthefile(const char *askname, const char *fileid, char *buffer, size_t bufferlen)
 {
     FILE *bpf;
-    char *where;
-
-    int ch, pch, fid_len, res = 0;
     int match = 0;
-    char info[MAX_FILEID + MAX_PATH_LEN+MAX_MACHINE_NAME + 3];
     
     bpf = fopen(bootpfile, "r");
     if (!bpf) {
@@ -189,70 +267,25 @@ getthefile(char *askname,char *fileid,char *buffer)
 	exit(1);
     }
 
-    while (fscanf(bpf, "%s", hostname) >  0  && !match) {
-	if ( *hostname != '#' ) { /* comment */
-	    if (!strcmp(hostname, askname)) {
-		match = 1;
-	    } 
-	    else {
-		he = gethostbyname(hostname);
-		if (he && !strcmp(he->h_name, askname)) match = 1;
-	    }
-	}
-	/* skip to next entry */
-	if (match) break;
-	pch = ch = getc(bpf); 
-	while ( ! ( ch == '\n' && pch != '\\') && ch != EOF) {
-	    pch = ch; ch = getc(bpf);
-	}
-    }
+    match = get_bootparam_entry(askname, fileid, 
+				NULL, 0,
+				buffer, bufferlen,
+				bpf);
 
-    /* if match is true we read the rest of the line to get the
-       info of the file */
-
-    if (match) {
-	fid_len = strlen(fileid);
-	while (!res && (fscanf(bpf,"%s", info)) > 0) { /* read a string */
-	    ch = getc(bpf);                            /* and a character */
-	    if (*info != '#') {                        /* Comment ? */
-		if (!strncmp(info, fileid, fid_len) && 
-		    *(info + fid_len) == '=') 
-		{
-		    where = info + fid_len + 1;
-		    if (isprint(*where)) {
-			strcpy(buffer, where);        /* found file */
-			res = 1; break;
-		    }
-		} 
-		else {  
-		    while (isspace(ch) && ch != '\n') ch = getc(bpf); 
-				                     /* read to end of line */
-		    if ( ch == '\n' ) {              /* didn't find it */
-			res = -1; break;             /* but host is there */
-		    }
-		    if ( ch == '\\' ) {              /* more info */
-			ch = getc(bpf);              /* maybe on next line */
-			if (ch == '\n') continue;    /* read it in next loop */
-			ungetc(ch, bpf); ungetc('\\',bpf); 
-                                               /* push the character(s) back */
-		    } else ungetc(ch, bpf);    /* but who know what a `\` is */
-		}                              /* needed for. */
-	    } else break;                      /* a commented rest-of-line */
-	}
-    }
     if (fclose(bpf)) { fprintf(stderr,"Could not close %s\n", bootpfile); }
-    if ( res == -1) buffer[0] = '\0';            /* host found, file not */
+
     return(match);
 }
 
-/* checkhost puts the hostname found in the database file in
-   the hostname-variable and returns 1, if askname is a valid
-   name for a host in the database */
+/* 
+ * checkhost puts the hostname found in the database file in the
+ * hostname-variable and returns 1, if askname is a valid name for a
+ * host in the database.
+ */
 
 static int
-checkhost(char *askname, char *hostname)
+checkhost(const char *askname, char *hostname, size_t hostsize)
 {
-    int ch, pch;
     FILE *bpf;
     int res = 0;
     
@@ -262,26 +295,11 @@ checkhost(char *askname, char *hostname)
 	exit(1);
     }
 
-    while (fscanf(bpf, "%s", hostname) > 0) {
-	if (!strcmp(hostname, askname)) {
-	    /* return true for match of hostname */
-	    res = 1;
-	    break;
-	} 
-	else {
-	    /* check the alias list */
-	    he = gethostbyname(hostname);
-	    if (he && !strcmp(askname, he->h_name)) {
-		res = 1;
-		break;
-	    }
-	}
-	/* skip to next entry */
-	pch = ch = getc(bpf); 
-	while (!(ch == '\n' && pch != '\\') && ch != EOF) {
-	    pch = ch; ch = getc(bpf);
-	}
-    }
+    res = get_bootparam_entry(askname, NULL, 
+			      hostname, hostsize,
+			      NULL, 0,
+			      bpf);
+
     if (fclose(bpf)) { fprintf(stderr,"Could not close %s\n", bootpfile); }
     return(res);
 }

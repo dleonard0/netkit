@@ -27,7 +27,7 @@
  */
 
 char rp_rcsid[] = 
-  "$Id: rusers_proc.c,v 1.14 1999/12/12 15:33:39 dholland Exp $";
+  "$Id: rusers_proc.c,v 1.16 2000/07/23 03:11:56 dholland Exp $";
 
 #include <signal.h>
 #include <sys/types.h>
@@ -106,39 +106,44 @@ abortOpen ()
     siglongjmp (openAbort, 1);
 }
 
+static long
 XqueryIdle(char *display)
 {
         int first_event, first_error;
         Time IdleTime;
+	int result = -1;
 
         (void) signal (SIGALRM, abortOpen);
         (void) alarm ((unsigned) 10);
         if (!sigsetjmp(openAbort, 1)) {
                 if (!(dpy= XOpenDisplay(display))) {
                         syslog(LOG_ERR, "Cannot open display %s", display);
-                        return(-1);
+                        goto out;
                 }
                 if (XidleQueryExtension(dpy, &first_event, &first_error)) {
                         if (!XGetIdleTime(dpy, &IdleTime)) {
                                 syslog(LOG_ERR, "%s: Unable to get idle time.", display);
-                                return(-1);
+                                goto out;
                         }
                 }
                 else {
                         syslog(LOG_ERR, "%s: Xidle extension not loaded.", display);
-                        return(-1);
+                        goto out;
                 }
                 XCloseDisplay(dpy);
         }
         else {
                 syslog(LOG_ERR, "%s: Server grabbed for over 10 seconds.", display);
-                return(-1);
+                goto out;
         }
-        (void) signal (SIGALRM, SIG_DFL);
-        (void) alarm ((unsigned) 0);
 
         IdleTime /= 1000;
-        return((IdleTime + 30) / 60);
+        result = (IdleTime + 30) / 60;
+
+out:
+        (void) signal (SIGALRM, SIG_DFL);
+        (void) alarm ((unsigned) 0);
+	return result;
 }
 #endif
 
@@ -148,9 +153,13 @@ getidle(char *tty, char *display)
         struct stat st;
         char devname[PATH_MAX];
         time_t now;
-        u_long idletime;
+        long idletime;
         
 	(void)display;
+
+	/* Don't trust utmp data */
+	if (strstr(tty, "../"))
+		return 0;
 
         /*
          * If this is an X terminal or console, then try the
@@ -335,7 +344,8 @@ do_names_2(int all)
                         do_strncpy(utmp_idle[nusers].ui_utmp.ut_line, 
 				uptr->ut_line, 
 				sizeof(utmp_idle[nusers].ui_utmp.ut_line));
-                        do_strncpy(utmp_idle[nusers].ui_utmp.ut_name, 
+			/* note NOT do_strncpy */
+                        strncpy(utmp_idle[nusers].ui_utmp.ut_name, 
 				uptr->ut_name, 
 				sizeof(utmp_idle[nusers].ui_utmp.ut_name));
                         do_strncpy(utmp_idle[nusers].ui_utmp.ut_host, 

@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)telnetd.c	5.48 (Berkeley) 3/1/91
  */
 char telnetd_rcsid[] = 
-  "$Id: telnetd.c,v 1.23 1999/12/14 00:43:31 dholland Exp $";
+  "$Id: telnetd.c,v 1.24 2000/04/12 21:36:12 dholland Exp $";
 
 #include "../version.h"
 
@@ -61,6 +61,11 @@ int	auth_level = 0;
 #endif
 #if	defined(SecurID)
 int	require_SecurID = 0;
+#endif
+
+/* In Linux, this is an enum */
+#if defined(__linux__) || defined(IPPROTO_IP)
+#define HAS_IPPROTO_IP
 #endif
 
 static void doit(struct sockaddr_in *who);
@@ -90,7 +95,7 @@ main(int argc, char *argv[], char *env[])
 	socklen_t fromlen;
 	register int ch;
 
-#if	defined(IPPROTO_IP) && defined(IP_TOS)
+#if	defined(HAS_IPPROTO_IP) && defined(IP_TOS)
 	int tos = -1;
 #endif
 
@@ -318,7 +323,7 @@ main(int argc, char *argv[], char *env[])
 		syslog(LOG_WARNING, "setsockopt (SO_KEEPALIVE): %m");
 	}
 
-#if	defined(IPPROTO_IP) && defined(IP_TOS)
+#if	defined(HAS_IPPROTO_IP) && defined(IP_TOS)
 	{
 # if	defined(HAS_GETTOS)
 		struct tosent *tp;
@@ -332,7 +337,7 @@ main(int argc, char *argv[], char *env[])
 		   && (errno != ENOPROTOOPT) )
 			syslog(LOG_WARNING, "setsockopt (IP_TOS): %m");
 	}
-#endif	/* defined(IPPROTO_IP) && defined(IP_TOS) */
+#endif	/* defined(HAS_IPPROTO_IP) && defined(IP_TOS) */
 	net = 0;
 	doit(&from);
 	/* NOTREACHED */

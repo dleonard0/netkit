@@ -1,3 +1,9 @@
+8-Jul-2000:
+	Fix exploitable misused printf-function calls.
+
+14-Dec-1999:
+	linux-ftpd-0.16 is released.
+
 5-Dec-1999:
 	Performance fixes. (Andi Kleen, ak@suse.de)
 

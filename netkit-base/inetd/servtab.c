@@ -47,6 +47,10 @@
 #include "servtab.h"
 #include "builtins.h"
 #include "sig.h"
+#include "mysleep.h"
+
+char servtab_rcsid[] = 
+  "$Id: servtab.c,v 1.6 2000/07/22 20:20:50 dholland Exp $";
 
 static struct biltin biltins[] = {
 	/* service	socktype	fork,wait   function */
@@ -165,7 +169,7 @@ domalloc(size_t len)
 	
 		syslog(LOG_ERR, "Out of memory - retrying in %d seconds.",
 		       retries[try]);
-		sleep(retries[try]);
+		mysleep(retries[try]);
 		try++;
 	}
 	/* Should this be LOG_EMERG? */

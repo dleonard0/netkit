@@ -1,3 +1,23 @@
+23-Jul-2000:
+	General audit for setuid/setgid/initgroups/etc. calls that didn't
+	  check for error.
+
+22-Jul-2000:
+	Use getdtablesize() instead of OPEN_MAX. (Olaf Kirch, okir@caldera.de)
+
+5-Jan-2000:
+	Fix to PAM handling. (Olaf Kirch, okir@caldera.de)
+	Other PAM changes in rlogind. (Jeff Johnson, jbj@redhat.com,
+	  munged by yours truly.)
+
+17-Dec-1999:
+	Fix bug in rshd (hangs forever with zombie offspring).
+	Also fix problems with rlogind.
+	To be posted as patch 1, making netkit-rsh-0.16.1.
+
+14-Dec-1999:
+	netkit-rsh-0.16 is released.
+
 14-Sep-1999:
 	Close all files >= 3 before execing, in case libc has left
 	  something open. Also merge a Caldera doc fix.

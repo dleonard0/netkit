@@ -40,9 +40,6 @@ EOF
 	--daemonmode=*) DAEMONMODE=`echo $1 | sed 's/^[^=]*=//'` ;;
 	--manmode=*) MANMODE=`echo $1 | sed 's/^[^=]*=//'` ;;
 	--with-c-compiler=*) CC=`echo $1 | sed 's/^[^=]*=//'` ;;
-	--without-pam|--disable-pam) WITHOUT_PAM=1;;
-	--without-readline|--disable-readline) WITHOUT_READLINE=1;;
-	--without-shadow|--disable-shadow) WITHOUT_SHADOW=1;;
 	*) echo "Unrecognized option: $1"; exit 1;;
 esac 
 shift
@@ -152,46 +149,6 @@ fi
 LDFLAGS=
 LIBS=
 
-rm -f __conftest*
-
-##################################################
-
-echo -n 'Checking for BSD signal semantics... '
-cat <<EOF >__conftest.c
-#include <unistd.h>
-#include <signal.h>
-int count=0;
-void handle(int foo) { count++; }
-int main() {
-    int pid=getpid();
-    signal(SIGINT, handle);
-    kill(pid,SIGINT);
-    kill(pid,SIGINT);
-    kill(pid,SIGINT);
-    if (count!=3) return 1;
-    return 0;
-}
-
-EOF
-if (
-      $CC $CFLAGS  __conftest.c  -o __conftest || exit 1
-      ./__conftest || exit 1
-   ) >/dev/null 2>&1; then
-    echo 'yes'
-else
-    if (
-          $CC $CFLAGS -D__USE_BSD_SIGNAL __conftest.c  -o __conftest || exit 1
-          ./__conftest || exit 1
-       ) >/dev/null 2>&1; then
-        echo '-D__USE_BSD_SIGNAL'
-        CFLAGS="$CFLAGS -D__USE_BSD_SIGNAL"
-    else
-        echo 'no'
-        echo 'This package needs BSD signal semantics to run.'
-        rm -f __conftest*
-        exit
-    fi
-fi
 rm -f __conftest*
 
 ##################################################

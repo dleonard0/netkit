@@ -62,7 +62,7 @@ char copyright[] =
  * From: @(#)rexecd.c	5.12 (Berkeley) 2/25/91
  */
 char rcsid[] = 
-  "$Id: rexecd.c,v 1.27 1999/10/02 21:50:52 dholland Exp $";
+  "$Id: rexecd.c,v 1.29 2000/07/23 04:16:22 dholland Exp $";
 #include "../version.h"
 
 #include <sys/param.h>
@@ -381,15 +381,14 @@ doit(struct sockaddr_in *fromp)
 
 	write(2, "\0", 1);
 	if (port) {
-/* If we have a port, dup STDERR on that port KRH */
+		/* If we have a port, dup STDERR on that port KRH */
 		close(2);
 		dup2(s, 2);
-	/*
-	 * We no longer need s, close it so we don't leave it behind for a
-	 * daemon.
-	 */
-	close (s);
-
+		/*
+		 * We no longer need s, close it so we don't leave it 
+		 * behind for a daemon.
+		 */
+		close (s);
 	}
 	if (*pwd->pw_shell == 0) {
 		/* Shouldn't we deny access? (Can be done by PAM KRH) */
@@ -398,9 +397,18 @@ doit(struct sockaddr_in *fromp)
 	else theshell = pwd->pw_shell;
 	/* shouldn't we check /etc/shells? (Can be done by PAM KRH) */
 
-	setgid(pwd->pw_gid);
-	initgroups(pwd->pw_name, pwd->pw_gid);
-	setuid(pwd->pw_uid);
+	if (setgid(pwd->pw_gid)) {
+		perror("setgid");
+		exit(1);
+	}
+	if (initgroups(pwd->pw_name, pwd->pw_gid)) {
+		perror("initgroups");
+		exit(1);
+	}
+	if (setuid(pwd->pw_uid)) {
+		perror("setuid");
+		exit(1);
+	}
 
 	strcat(path, _PATH_DEFPATH);
 	myenviron = envinit;
@@ -415,7 +423,7 @@ doit(struct sockaddr_in *fromp)
 	 * Close all fds, in case libc has left fun stuff like 
 	 * /etc/shadow open.
 	 */
-	for (ifd=3; ifd<OPEN_MAX; ifd++) close(ifd);
+	for (ifd = getdtablesize()-1; ifd > 2; ifd--) close(ifd);
 
 	execle(theshell, cp2, "-c", cmdbuf, 0, myenviron);
 	perror(theshell);

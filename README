@@ -1,46 +1,51 @@
-This is netkit-combo-0.16.
+This is netkit-combo-0.17 for Linux.
+
+This package updates netkit-combo-0.16.
 
 This package contains the following packages that are also distributed
 individually:
 
-	biff+comsat-0.16
-	bsd-finger-0.16
-	linux-ftpd-0.16
-	netkit-base-0.16
-	netkit-bootparamd-0.16
-	netkit-ftp-0.16
-	netkit-ntalk-0.16
-	netkit-routed-0.16
-	netkit-rpc-0.16
-	netkit-rsh-0.16
-	netkit-rusers-0.16
-	netkit-rwall-0.16
-	netkit-rwho-0.16
-	netkit-telnet-0.16
-	netkit-tftp-0.16
-	netkit-timed-0.16
-	netwrite-0.16
+	biff+comsat-0.17
+	bsd-finger-0.17
+	linux-ftpd-0.17
+	netkit-base-0.17
+	netkit-bootparamd-0.17
+	netkit-ftp-0.17
+	netkit-ntalk-0.17
+	netkit-routed-0.17
+	netkit-rpc-0.17
+	netkit-rsh-0.17
+	netkit-rusers-0.17
+	netkit-rwall-0.17
+	netkit-rwho-0.17
+	netkit-telnet-0.17
+	netkit-tftp-0.17
+	netkit-timed-0.17
+	netwrite-0.17
 
 If you are a distribution maintainer, you probably wish to fetch and
 package each of those separately, so that your users can selectively
 install and uninstall them.
 
-If you are an end user, you may find it more convenient to use this
-package, however. But, if you're reading this off a CD, go right away
-and check the net archives for later versions and security fixes.
+However, if you are an end user, you may find it more convenient to
+use this package.
 
-
+If you're reading this off a CD, go right away and check the net
+archives for later versions and security fixes. As of this writing the
+home site for NetKit is
+	ftp://ftp.uk.linux.org/pub/linux/Networking/netkit
 
 Requires:
 	Working compiler, libc, and kernel, and a recent ncurses.
 
 Security:
-	Several of the NetKit packages contain security fixes in this
-	release relative to the 0.10 or 0.11 releases. Please consult
-	the individual package READMEs for details.
+	Several of the NetKit packages in this release are believed to
+	contain security fixes relative to the 0.16 release. Please
+	consult the individual package READMEs for details.
 
-	Versions prior to NetKit-0.09 should not be used under any
-	circumstances.
+	In general, versions prior to 0.17 or sometimes 0.16 should 
+	not be used. Versions prior to NetKit-0.09 should not be used
+	ever under any circumstances.
 
 Installation:
 	Do "./configure --help" and decide what options you want. The
@@ -52,6 +57,24 @@ Installation:
 
 	Save a backup copy of any mission-critical program in case the
 	new one doesn't work, and so forth. We warned you.
+
+	If you get gcc warnings from files in /usr/include, they are
+	due to problems in your libc, not netkit. (You may only see
+	them when compiling netkit because netkit turns on a lot of
+	compiler warnings.)
+
+DEC CC:
+	The DEC compiler for the Alpha is now freely available. This
+	is a much better compiler with gcc, that is, it generates much
+	better code. If you have the DEC compiler, you can explicitly
+	use the DEC compiler instead of gcc by configuring like this:
+
+		./configure --with-c-compiler=ccc
+
+	It is known to generate spurious warnings on some files. Also,
+	some headers from some versions of glibc confuse it; that may
+	prevent	netkit from working. Other problems should be reported
+	as bugs.
 
 Bugs:
 	Please make sure the header files in /usr/include match the
@@ -70,8 +93,10 @@ Bugs:
 	distinct fix. Please do NOT send the whole archive back or
 	reindent the source.
 
-	Be sure to send all correspondence in e-mail. Postings to netnews 
-	will not be seen due to the enormous volume.
+	Be sure to send all correspondence in e-mail to the netkit address.
+	Postings to netnews or mailing lists will not be seen due to the 
+	enormous volume. Also, anything that doesn't get filed in the bug
+	database is quite likely to end up forgotten.
 
 	Please don't report known bugs (see the BUGS file(s)) unless you
 	are including fixes. :-)
@@ -79,14 +104,20 @@ Bugs:
 	Mail should be sent to: netbug@ftp.uk.linux.org
 
 
-Note: please see http://www.hcs.harvard.edu/~dholland/computers/netkit.html
-if you are curious why it's been so long since the last NetKit release.
-(The short version is that I gave things to some other people, who let
-them kind of slide.)
+Early in April 2000, a hacker broke into the machine that was hosting
+the netkit bug database for me and trashed it. Unfortunately, it seems
+backups hadn't gotten done for a while, so three months of mail (since
+mid-January) was lost. So, if you sent something and didn't hear back,
+or you sent something, heard back, but the changes failed to appear in
+this release (unlikely but possible) - please resend.
 
-I do not currently plan to continue maintaining NetKit; I am doing this
-release and perhaps one or two more, and then I intend to give the source
-tree to Red Hat or some similar organization for long-term maintenance.
+Please see http://www.hcs.harvard.edu/~dholland/computers/netkit.html
+if you are curious why it was so long between the 0.10 and 0.16 releases.
+
+Future plans for netkit maintenance are still up in the air, but in the
+meantime new releases will still appear from time to time. I don't have
+a whole lot of cycles to spare to work on netkit, so things are likely
+to continue to be fairly slow.
 
 David A. Holland
-12 December 1999
+23 July 2000

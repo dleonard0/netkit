@@ -40,9 +40,6 @@ EOF
 	--daemonmode=*) DAEMONMODE=`echo $1 | sed 's/^[^=]*=//'` ;;
 	--manmode=*) MANMODE=`echo $1 | sed 's/^[^=]*=//'` ;;
 	--with-c-compiler=*) CC=`echo $1 | sed 's/^[^=]*=//'` ;;
-	--without-pam|--disable-pam) WITHOUT_PAM=1;;
-	--without-readline|--disable-readline) WITHOUT_READLINE=1;;
-	--without-shadow|--disable-shadow) WITHOUT_SHADOW=1;;
 	*) echo "Unrecognized option: $1"; exit 1;;
 esac 
 shift

@@ -1,3 +1,6 @@
+/*	$OpenBSD: vis.h,v 1.3 1999/05/14 20:31:56 aaron Exp $	*/
+/*	$NetBSD: vis.h,v 1.4 1994/10/26 00:56:41 cgd Exp $	*/
+
 /*-
  * Copyright (c) 1990 The Regents of the University of California.
  * All rights reserved.
@@ -31,8 +34,6 @@
  * SUCH DAMAGE.
  *
  *	@(#)vis.h	5.9 (Berkeley) 4/3/91
- *	NetBSD: vis.h,v 1.4 1994/10/26 00:56:41 cgd Exp
- *	$Id: vis.h,v 1.1.1.1 1999/07/15 21:59:06 dholland Exp $
  */
 
 #ifndef _VIS_H_
@@ -42,7 +43,7 @@
  * to select alternate encoding format
  */
 #define	VIS_OCTAL	0x01	/* use octal \ddd format */
-#define	VIS_CSTYLE	0x02	/* use \[nrft0..] where appropiate */
+#define	VIS_CSTYLE	0x02	/* use \[nrft0..] where appropriate */
 
 /*
  * to alter set of characters encoded (default is to encode all

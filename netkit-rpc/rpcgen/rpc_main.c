@@ -32,7 +32,7 @@
  * From @(#)rpc_main.c 1.30 89/03/30 (C) 1987 SMI;
  */
 char main_rcsid[] =
-  "$Id: rpc_main.c,v 1.6 1999/12/12 18:04:59 dholland Exp $";
+  "$Id: rpc_main.c,v 1.8 2000/07/23 03:35:00 dholland Exp $";
 
 /*
  * rpc_main.c, Top level of the RPC protocol compiler. 
@@ -56,10 +56,6 @@ char main_rcsid[] =
 #define EXTEND	1		/* alias for TRUE */
 #define DONT_EXTEND	0		/* alias for FALSE */
 
-#define SVR4_CPP "/usr/ccs/lib/cpp"
-#define SUNOS_CPP "/lib/cpp"
-static int cppDefined = 0;          /* explicit path for C preprocessor */
-
 struct commandline {
 	int cflag;		/* xdr C routines */
 	int hflag;		/* header file */
@@ -78,7 +74,7 @@ struct commandline {
 static const char *cmdname;
 
 static const char *svcclosetime = "120";
-static const char *CPP = SVR4_CPP;
+static const char *user_cpp = NULL;
 static char CPPFLAGS[] = "-C";
 static char pathbuf[MAXPATHLEN + 1];
 static const char *allv[] = {
@@ -104,7 +100,7 @@ static char *extendfile(const char *file, const char *ext);
 static void open_output(const char *infile, const char *outfile);
 static void add_warning(void);
 static void clear_args(void);
-static void find_cpp(void);
+static const char *find_cpp(void);
 static void open_input(const char *infile, const char *define);
 static int check_nettype(const char *name, const char *list_to_check[]);
 static void c_output(const char *infile, const char *define, 
@@ -305,22 +301,37 @@ static void clear_args(void)
 }
 
 /* make sure that a CPP exists */
-static void find_cpp(void)
+static const char *find_cpp(void)
 {
-  struct stat buf;
+  static const char *cpp_paths[] = {
+    "/usr/bin/cpp",
+    "/usr/libexec/cpp",
+    "/usr/ccs/lib/cpp",
+    "/lib/cpp",
+    NULL
+  };
 
-  if (stat(CPP, &buf) < 0 )  {	/* SVR4 or explicit cpp does not exist */
-    if (cppDefined) {
-      fprintf( stderr, "cannot find C preprocessor: %s \n", CPP );
+  struct stat buf;
+  int i;
+
+  if (user_cpp) {
+    if (stat(user_cpp, &buf) < 0) {
+      /* explicitly given cpp does not exist */
+      fprintf(stderr, "cannot find C preprocessor: %s\n", user_cpp);
       crash();
-    } else {			/* try the other one */
-      CPP = SUNOS_CPP;
-      if( stat( CPP, &buf ) < 0 ) { /* can't find any cpp */
-	fprintf( stderr, "cannot find any C preprocessor (cpp)\n" );
-	crash();
-      }
     }
+    return user_cpp;
   }
+
+  /* now try the others */
+  for (i=0; cpp_paths[i]; i++) {
+     if (stat(cpp_paths[i], &buf)==0) {
+	return cpp_paths[i];
+     }
+  } 
+  fprintf( stderr, "cannot find any C preprocessor (cpp)\n" );
+  crash();
+  return NULL;
 }
 
 /*
@@ -330,13 +341,14 @@ static void
 open_input(const char *infile, const char *define)
 {
 	int pd[2];
+	const char *cpp;
 
 	infilename = (infile == NULL) ? "<stdin>" : infile;
 	(void) pipe(pd);
 	switch (fork()) {
 	case 0:
-		find_cpp();
-		putarg(0, CPP);
+		cpp = find_cpp();
+		putarg(0, cpp);
 		putarg(1, CPPFLAGS);
 		addarg(define);
 		addarg(infile);
@@ -516,7 +528,7 @@ h_output(const char *infile, const char *define, int extend,
 	if (extend && tell == ftell(fout)) {
 		(void) unlink(outfilename);
 	} else if (tblflag) {
-		f_print(fout, rpcgen_table_dcl);
+		f_print(fout, "%s", rpcgen_table_dcl);
 	}
 	f_print(fout, "\n#endif /* !_%s */\n", guard);
 }
@@ -1001,8 +1013,7 @@ parseargs(int argc, const char *argv[], struct commandline *cmd)
 					}
 					(void) strcpy(pathbuf, argv[i]);
 					(void) strcat(pathbuf, "/cpp");
-					CPP = pathbuf;
-					cppDefined = 1;
+					user_cpp = pathbuf;
 					goto nextarg;
 
 

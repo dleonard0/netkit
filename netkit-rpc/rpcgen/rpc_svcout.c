@@ -32,7 +32,7 @@
  * From: @(#)rpc_svcout.c 1.29 89/03/30 (C) 1987 SMI
  */
 char svcout_rcsid[] =
-  "$Id: rpc_svcout.c,v 1.4 1999/12/12 12:17:51 dholland Exp $";
+  "$Id: rpc_svcout.c,v 1.5 2000/07/23 03:35:00 dholland Exp $";
 
 /*
  * rpc_svcout.c, Server-skeleton outputter for the RPC protocol compiler
@@ -316,7 +316,7 @@ write_real_program(definition *def)
 			  f_print(fout, "(" );
 			  /* arg name */
 			  if (proc->arg_num > 1)
-			    f_print(fout, proc->args.argname);
+			    f_print(fout, "%s", proc->args.argname);
 			  else
 			    ptype(proc->args.decls->decl.prefix, 
 				  proc->args.decls->decl.type, 0);
@@ -626,11 +626,11 @@ write_msg_out(void)
 	f_print(fout, "#ifdef RPC_SVC_FG\n");
 	if (inetdflag || pmflag)
 		f_print(fout, "\tif (_rpcpmstart)\n");
-	f_print(fout, "\t\tsyslog(LOG_ERR, msg);\n");
+	f_print(fout, "\t\tsyslog(LOG_ERR, \"%%s\", msg);\n");
 	f_print(fout, "\telse\n");
 	f_print(fout, "\t\t(void) fprintf(stderr, \"%%s\\n\", msg);\n");
 	f_print(fout, "#else\n");
-	f_print(fout, "\tsyslog(LOG_ERR, msg);\n");
+	f_print(fout, "\tsyslog(LOG_ERR, \"%%s\", msg);\n");
 	f_print(fout, "#endif\n");
 	f_print(fout, "}\n");
 }

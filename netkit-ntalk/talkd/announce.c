@@ -35,7 +35,7 @@
  * From: @(#)announce.c	5.9 (Berkeley) 2/26/91
  */
 char ann_rcsid[] = 
-  "$Id: announce.c,v 1.7 1998/11/27 07:08:22 dholland Exp $";
+  "$Id: announce.c,v 1.8 2000/07/22 15:27:39 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -94,7 +94,7 @@ print_mesg(int fd, CTL_MSG *request, const char *remote_machine)
 	struct tm *localclock;
 	char line_buf[N_LINES][N_CHARS];
 	int sizes[N_LINES];
-	char big_buf[N_LINES*N_CHARS];
+	char big_buf[N_LINES*(N_CHARS+2)+16];
 	char *bptr, *lptr;
 	int i, j, max_size;
 	time_t footime;

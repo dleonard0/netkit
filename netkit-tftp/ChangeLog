@@ -1,3 +1,19 @@
+29-Jul-2000:
+	Have tftp bind to the same address inetd was listening to, 
+	  if it's not INADDR_ANY.
+
+22-Jul-2000:
+	Fixes for file size limit bugs. Also, a few Solaris patches.
+	  (Ignacio Goyret, igoyret@acm.org)
+	Switch to sigaction() and remove test for BSD signal semantics.
+
+28-Apr-2000:
+	Bug fix: it seems if you started tftp and just pressed return,
+	  it would core... (Philipp Rumpf, prumpf@tux.org)
+
+14-Dec-1999:
+	netkit-tftp-0.16 is released.
+
 14-Sep-1999:
 	Log attempts to use ".." in filenames in tftpd. Also don't spew
 	  every request at LOG_ERR; use LOG_NOTICE. (Olaf Kirch, 

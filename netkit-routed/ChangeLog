@@ -1,3 +1,19 @@
+22-Jul-2000:
+	Allow appending to an existing log file, as long as it's in
+	  the log directory. Also some cosmetic fixes. (Dennis Reichel,
+	  dennis@reichel.net)
+
+	Also a bit of other cleanup and sanity checking.
+  
+5-Jan-2000:
+	Bug fix (mishandling of fork return codes). (Bill Nottingham,
+	  notting@redhat.com)
+	Also correct getopt handling. (Noticed by Dirk von Suchodoletz,
+	  dirk@goe.net)
+
+14-Dec-1999:
+	netkit-routed-0.16 is released.
+
 12-Dec-1999:
 	Apply backlogged 64-bit bug fix. (Dr. Graeme Wilford, 
 	  G.Wilford@ee.surrey.ac.uk)

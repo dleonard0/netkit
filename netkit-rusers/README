@@ -1,9 +1,11 @@
-This is netkit-rusers-0.16 for Linux.
+This is netkit-rusers-0.17 for Linux.
 
-This version updates netkit-rusers-0.11.
+This package updates netkit-rusers-0.16.
 
 If you're reading this off a CD, go right away and check the net
-archives for later versions and security fixes.
+archives for later versions and security fixes. As of this writing the
+home site for NetKit is
+	ftp://ftp.uk.linux.org/pub/linux/Networking/netkit
 
 Contents:
 	rup		Program to print LAN uptimes
@@ -17,11 +19,19 @@ Requires:
 	from glibc 2.x. Older rpcgens will croak on rup.
 
 Security:
-	This release contains no security fixes relative to
-	netkit-rusers-0.11. However, netkit-rusers-0.10 and earlier
-	are insecure and should not be used.
+	This release contains no known security fixes relative to
+	netkit-rusers-0.16. However, it contains patches to enable
+	running as a non-root user in a chroot area, so it provides
+	a definite increment in security. netkit-rusers-0.10 and 
+	earlier are insecure and should not be used under any 
+	circumstances.
 
 Installation:
+	If you like, apply the rusers.x patch to rusers.x in
+	/usr/include/rpcsvc. This patch was supposed to have been merged 
+	into libc, but appears to not have been. It is not important,
+	however - all it does is suppress compiler warnings.
+
 	Do "./configure --help" and decide what options you want. The
 	defaults should be suitable for most Linux systems. Then run
 	the configure script.
@@ -32,19 +42,23 @@ Installation:
 	Save a backup copy of any mission-critical program in case the
 	new one doesn't work, and so forth. We warned you.
 
-	If you like, apply the rusers.x patch to rusers.x in
-	/usr/include/rpcsvc. This patch was supposed to have been merged 
-	into libc, but appears to not have been. It is not important,
-	however - all it does is suppress compiler warnings.
+	If you get gcc warnings from files in /usr/include, they are
+	due to problems in your libc, not netkit. (You may only see
+	them when compiling netkit because netkit turns on a lot of
+	compiler warnings.)
 
-DEC Alpha:
-	This pakage uses rpc calls which the Compaq Compiler finds
-	conflicts with (__P)
-	You may get a message as follows from GNU C
-	/usr/include/bits/string2.h:363: warning: pointer of type `void *'
-	used in arithmetic
-	This is a bug in the GNU C compiler's optimazation checking code
-	you can safely ignore it
+DEC CC:
+	The DEC compiler for the Alpha is now freely available. This
+	is a much better compiler with gcc, that is, it generates much
+	better code. If you have the DEC compiler, you can explicitly
+	use the DEC compiler instead of gcc by configuring like this:
+
+		./configure --with-c-compiler=ccc
+
+	It is known to generate spurious warnings on some files. Also,
+	some headers from some versions of glibc confuse it; that may
+	prevent	netkit from working. Other problems should be reported
+	as bugs.
 
 Bugs:
 	Please make sure the header files in /usr/include match the
@@ -63,8 +77,10 @@ Bugs:
 	distinct fix. Please do NOT send the whole archive back or
 	reindent the source.
 
-	Be sure to send all correspondence in e-mail. Postings to netnews 
-	will not be seen due to the enormous volume.
+	Be sure to send all correspondence in e-mail to the netkit address.
+	Postings to netnews or mailing lists will not be seen due to the 
+	enormous volume. Also, anything that doesn't get filed in the bug
+	database is quite likely to end up forgotten.
 
 	Please don't report known bugs (see the BUGS file(s)) unless you
 	are including fixes. :-)
@@ -72,14 +88,20 @@ Bugs:
 	Mail should be sent to: netbug@ftp.uk.linux.org
 
 
-Note: please see http://www.hcs.harvard.edu/~dholland/computers/netkit.html
-if you are curious why it's been so long since the last NetKit release.
-(The short version is that I gave things to some other people, who let
-them kind of slide.)
+Early in April 2000, a hacker broke into the machine that was hosting
+the netkit bug database for me and trashed it. Unfortunately, it seems
+backups hadn't gotten done for a while, so three months of mail (since
+mid-January) was lost. So, if you sent something and didn't hear back,
+or you sent something, heard back, but the changes failed to appear in
+this release (unlikely but possible) - please resend.
 
-I do not currently plan to continue maintaining NetKit; I am doing this
-release and perhaps one or two more, and then I intend to give the source
-tree to Red Hat or some similar organization for long-term maintenance.
+Please see http://www.hcs.harvard.edu/~dholland/computers/netkit.html
+if you are curious why it was so long between the 0.10 and 0.16 releases.
+
+Future plans for netkit maintenance are still up in the air, but in the
+meantime new releases will still appear from time to time. I don't have
+a whole lot of cycles to spare to work on netkit, so things are likely
+to continue to be fairly slow.
 
 David A. Holland
-12 December 1999
+23 July 2000

@@ -31,17 +31,17 @@
 .\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 .\" SUCH DAMAGE.
 .\"
-.\"	$Id: rup.1,v 1.6 1999/12/14 12:52:59 dholland Exp $
+.\"	$Id: rup.1,v 1.13 2000/07/30 23:57:05 dholland Exp $
 .\"
 .Dd August 15, 1999
 .Dt RUP 1
-.Os "Linux NetKit (0.16)"
+.Os "Linux NetKit (0.17)"
 .Sh NAME
 .Nm rup 
 .Nd remote status display
 .Sh SYNOPSIS
 .Nm rup 
-.Op Fl dhlt
+.Op Fl dshlt
 .Op Ar host ...
 .Sh DESCRIPTION
 .Nm rup
@@ -57,8 +57,11 @@ averaged over 1, 5 and 15 minutes.
 The following options are available:
 .Bl -tag -width indent
 .It Fl d
-For each host, report what it's local time is.
+For each host, report what its local time is.
 This is useful for checking time syncronization on a network.
+.It Fl s
+Print time data in seconds (seconds of uptime or seconds since the
+epoch), for scripts.
 .It Fl h
 Sort the display alphabetically by host name.
 .It Fl l

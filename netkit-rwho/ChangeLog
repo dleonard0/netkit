@@ -1,3 +1,14 @@
+22-Jul-2000:
+	Add some minor additional paranoia.
+	Changes from Olaf Kirch to run chrooted to /var/spool/rwho and
+	  then optionally drop root privileges.
+
+3-Jun-2000:
+	Fix sizes of types in enclosed protocols/rwhod.h.
+
+14-Dec-1999:
+	netkit-rwho-0.16 is released.
+
 1-Aug-1999:
 	Complete y2k and y2038 audit. Clean up y2038 issues.
 	Clean up buffer problems in rwho (apparently unexploitable, 

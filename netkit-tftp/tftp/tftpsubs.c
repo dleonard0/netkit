@@ -35,7 +35,7 @@
  * From: @(#)tftpsubs.c	5.6 (Berkeley) 2/28/91
  */
 char subs_rcsid[] = 
-  "$Id: tftpsubs.c,v 1.6 1999/09/29 02:01:31 netbug Exp $";
+  "$Id: tftpsubs.c,v 1.8 2000/07/22 19:06:29 dholland Exp $";
 
 /* Simple minded read-ahead/write-behind subroutines for tftp user and
    server.  Written originally with multiple buffers in mind, but current
@@ -55,10 +55,16 @@ char subs_rcsid[] =
 #include <arpa/tftp.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <signal.h>
+
+#ifndef FIONREAD
+#if defined(__sun__) && defined(__svr4__)
+#include <stropts.h>
+#define FIONREAD I_NREAD
+#endif /* slowaris */
+#endif /* FIONREAD */
 
 #include "tftpsubs.h"
-
-#define PKTSIZE SEGSIZE+4       /* should be moved to tftp.h */
 
 struct bf {
 	int counter;            /* size of data in buffer, or flag */
@@ -262,4 +268,16 @@ synchnet(int f /* socket to flush */)
 			return(j);
 		}
 	}
+}
+
+/*
+ * Like signal(), but with well-defined semantics.
+ */
+void
+mysignal(int sig, void (*handler)(int))
+{
+	struct sigaction sa;
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_handler = handler;
+	sigaction(sig, &sa, NULL);
 }

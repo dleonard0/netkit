@@ -1,3 +1,42 @@
+24-Jul-2000:
+	Don't use OPEN_MAX. (Olaf Kirch)
+
+23-Jul-2000:
+	General audit for setuid/setgid/initgroups/etc. calls that didn't
+	  check for error.
+
+22-Jul-2000:
+	Documented the virtual hosting stuff in inetd(8).
+	  (Michael Tokarev, mjt@tls.msk.ru)
+	
+	On systems where sleep() is implemented in terms of alarm(),
+	  inetd breaks because it tries to sleep while alarms are in
+	  progress, blocks SIGALRM, and other fun stuff. So, on libc5,
+	  reimplement sleep in terms of select to circumvent this.
+
+	Fixed another file descriptor leak. (Pekka Savola, 
+	  Pekka.Savola@netcore.fi)
+
+	Added code that will hopefully restart inetd if it runs out of
+	  fds. It doesn't work terribly well yet, unfortunately.
+
+3-Jun-2000:
+	Some minor fixes to ping.
+
+4-Feb-2000:
+	Massive cleanup of ping. 
+	Also, added -w option (overall timeout).
+
+3-Feb-2000:
+	Merge some ping fixes from Red Hat.
+
+20-Jan-2000:
+	AF_UNIX sockets should be chmod 666'd after being bound.
+	  (Olaf Kirch, okir@caldera.de)
+
+14-Dec-1999:
+	netkit-base-0.16 is released.
+
 12-Dec-1999:
 	Split off rpcgen and rpcinfo into netkit-rpc.
 

@@ -40,7 +40,7 @@ char copyright[] =
  * From: @(#)main.c	8.1 (Berkeley) 6/5/93
  */
 char main_rcsid[] = 
-  "$Id: main.c,v 1.14 1999/10/02 16:43:56 dholland Exp $";
+  "$Id: main.c,v 1.16 2000/01/05 23:16:12 dholland Exp $";
 
 #include "../version.h"
 
@@ -113,8 +113,8 @@ main(int argc, char *argv[])
 	if (debug == 0 && tflags == 0) {
 		switch (fork()) {
 			case -1: perror("fork"); exit(1);
-			case 0: exit(0);  /* parent */
-			default: break;   /* child */
+			case 0: break;   /* child */
+			default: exit(0);  /* parent */
 		}
 		close(0);
 		close(1);
@@ -134,8 +134,8 @@ main(int argc, char *argv[])
 	 * crash on startup should do so before this point.
 	 */
 
-	if (argc > 0) {
-		traceon(*argv);
+	if (argc > optind) {
+		traceon(argv[optind]);
 	}
 	while (tflags-- > 0) {
 		bumploglevel();

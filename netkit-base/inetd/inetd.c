@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)inetd.c	5.30 (Berkeley) 6/3/91
  */
 char rcsid[] = 
-  "$Id: inetd.c,v 1.31 1999/11/23 19:31:53 dholland Exp $";
+  "$Id: inetd.c,v 1.38 2000/07/24 23:48:34 dholland Exp $";
 
 #include "../version.h"
 
@@ -150,6 +150,7 @@ char rcsid[] =
 #include "sig.h"
 #include "daemon.h"
 #include "setproctitle.h"
+#include "mysleep.h"
 
 #ifdef RPC   /* must come after inetd.h, which defines RPC */
 /* work around a compiler warning in rpc.h in libc5 */
@@ -164,9 +165,7 @@ char rcsid[] =
 #define MIN(a, b)	((a) < (b) ? (a) : (b))
 #endif
 
-#ifndef OPEN_MAX
-#define OPEN_MAX	64
-#endif
+#define DEFAULT_FILE_LIMIT	1024
 
 /* Reserve some descriptors, 3 stdio + at least: 1 log, 1 conf. file */
 #define FD_MARGIN	(8)
@@ -174,6 +173,8 @@ char rcsid[] =
 
 static void logpid(void);
 static int bump_nofile(void);
+
+static void attempt_to_restart(void);
 
 struct servtab *servtab;                     /* service table */
 const char *configfile = _PATH_INETDCONF;    /* config file path */
@@ -188,7 +189,7 @@ static fd_set		allsock;
 static int		options;
 static int		timingout;
 
-static long rlim_ofile_cur = OPEN_MAX;
+static long rlim_ofile_cur = DEFAULT_FILE_LIMIT;
 
 #ifdef RLIMIT_NOFILE
 struct rlimit	rlim_ofile;
@@ -326,13 +327,36 @@ exec_child(struct servtab *sep)
 	 */
 
 	if (uid) {
-		setgid(gid);
-		initgroups(pwd->pw_name, gid);
-		setuid(uid);
+		if (setgid(gid)) {
+			syslog(LOG_AUTH|LOG_ERR, "setgid: %m");
+			return;
+		}
+		if (initgroups(pwd->pw_name, gid)) {
+			syslog(LOG_AUTH|LOG_ERR, "initgroups: %m");
+			return;
+		}
+		if (setuid(uid)) {
+			syslog(LOG_AUTH|LOG_ERR, "setuid: %m");
+			return;
+		}
+		/*
+		 * Just a bit of extra paranoia.
+		 */
+		seteuid(0);
+		if (getuid()==0 || geteuid()==0) {
+			syslog(LOG_AUTH|LOG_ERR, "Failed to drop root");
+			return;
+		}
 	} 
 	else if (grp) {
-		setgid(gid);
-		setgroups(1, &gid);
+		if (setgid(gid)) {
+			syslog(LOG_AUTH|LOG_ERR, "setgid: %m");
+			return;
+		}
+		if (setgroups(1, &gid)) {
+			syslog(LOG_AUTH|LOG_ERR, "setgroups: %m");
+			return;
+		}
 	}
 
 	if (debug) {
@@ -453,6 +477,11 @@ launch(struct servtab *sep)
 				syslog(LOG_WARNING, "accept (for %s): %m",
 				       sep->se_service);
 			}
+			if (errno == EMFILE) {
+				syslog(LOG_ALERT, 
+				       "Out of files! Attempting restart...");
+				attempt_to_restart();
+			}
 			return;
 		}
 	} 
@@ -466,7 +495,7 @@ launch(struct servtab *sep)
 		if (pid < 0) {
 			if (ctrl != sep->se_fd)
 				close(ctrl);
-			sleep(1);
+			mysleep(1);
 			return;
 		}
 		if (pid==0) {
@@ -490,6 +519,8 @@ launch(struct servtab *sep)
 	}
 	else {
 		sep->se_bi->bi_fn(ctrl, sep);
+		if (ctrl != sep->se_fd)
+			close(ctrl);
 	}
 }
 
@@ -503,6 +534,8 @@ mainloop(void)
 	fd_set readable;
 
 	sig_block();
+
+	syslog(LOG_INFO, "Online and ready (%d sockets)", nsock);
 
 	for (;;) {
 		/*
@@ -526,7 +559,7 @@ mainloop(void)
 		if (n <= 0) {
 			if (n < 0 && errno != EINTR) {
 				syslog(LOG_WARNING, "select: %m");
-				sleep(1);
+				mysleep(1);
 			}
 			continue;
 		}
@@ -554,6 +587,82 @@ mainloop(void)
 	}
 }
 
+/*
+ * Saved state so we can try to restart.
+ */
+static int got_dflag=0, got_iflag=0, got_qflag=0, got_conf=0;
+
+static
+void
+attempt_to_restart(void)
+{
+	struct stat statbuf;
+	const char *argv[6];
+	const char **tmpargv1;
+	char **tmpargv2;
+	char qbuf[16];
+	int i=0;
+	snprintf(qbuf, sizeof(qbuf), "-q%d", global_queuelen);
+	argv[i++] = "inetd";
+	if (got_dflag) argv[i++] = "-d";
+	if (got_iflag) argv[i++] = "-i";
+	if (got_qflag) argv[i++] = qbuf;
+	if (got_conf) argv[i++] = configfile;
+	argv[i] = NULL;
+
+	if (stat(_PATH_INETD, &statbuf)!=0 || (statbuf.st_mode & 0111)==0) {
+		/*
+		 * Cannot restart - inetd is not there or not executable
+		 */
+		syslog(LOG_ALERT, "Cannot restart.");
+		syslog(LOG_ALERT, "Recommend manually restarting inetd ASAP.");
+		
+		/*
+		 * Hopefully this will help the situation and not make too
+		 * much a mess of the internal state.
+		 */
+		for (i=getdtablesize()-1; i>=64; i--) close(i);
+		return;
+	}
+
+	/*
+	 * At this point we're committed to restarting.
+	 * Note that we have to close everything before execing the new
+	 * inetd, or it won't be able to listen on the ports we've got
+	 * bound.
+	 */
+
+	for (i=getdtablesize()-1; i>2; i--) {
+		shutdown(i,2);
+		close(i);
+	}
+
+	/* should we try argv[0] first? probably not */
+	tmpargv1 = argv;
+	/* grr */
+	/*tmpargv2 = (char **)tmpargv1;*/
+	memcpy(&tmpargv2, &tmpargv1, sizeof(tmpargv1));
+
+	mysleep(10);
+
+	execv(_PATH_INETD, tmpargv2);
+
+	/* Should this be EMERG? */
+	closelog();
+	openlog("inetd", LOG_PID, LOG_DAEMON);
+	syslog(LOG_ALERT, "Restart attempt failed.");
+	syslog(LOG_ALERT, "Recommend manually restarting inetd ASAP.");
+
+	/* this may help restore us to a semi-operable state */
+	{
+		const char *tmp = configfile;
+		configfile = "/dev/null";
+		config(0);
+		configfile = tmp;
+		config(0);
+	}
+}
+
 int
 main(int argc, char *argv[], char *envp[])
 {
@@ -577,6 +686,9 @@ main(int argc, char *argv[], char *envp[])
 	 * 
 	 * Note that the setproctitle implementation copies the environment,
 	 * so child processes won't be sent trash.
+	 *
+	 * Also note that we only setproctitle() in child processes, so
+	 * our progname pointer and the like remain valid.
 	 */
 
 	initsetproctitle(argc, argv, envp);
@@ -599,13 +711,16 @@ main(int argc, char *argv[], char *envp[])
 		case 'd':
 			debug = nodaemon = 1;
 			options |= SO_DEBUG;
+			got_dflag = 1;
 			break;
 		case 'i':
 			nodaemon = 1;
+			got_iflag = 1;
 			break;
 		case 'q':
 		        global_queuelen = atoi(optarg);
 			if (global_queuelen < 8) global_queuelen=8;
+			got_qflag = 1;
 			break;
 		case '?':
 		default:
@@ -616,8 +731,10 @@ main(int argc, char *argv[], char *envp[])
 	argc -= optind;
 	argv += optind;
 
-	if (argc > 0)
+	if (argc > 0) {
 		configfile = argv[0];
+		got_conf = 1;
+	}
 
 	if (nodaemon == 0) {
 		daemon(0, 0);
@@ -635,12 +752,11 @@ main(int argc, char *argv[], char *envp[])
 	logpid();
 
 #ifdef RLIMIT_NOFILE
+	rlim_ofile_cur = DEFAULT_FILE_LIMIT;
 	if (getrlimit(RLIMIT_NOFILE, &rlim_ofile) < 0) {
 		syslog(LOG_ERR, "getrlimit: %m");
-	} else {
+	} else if (rlim_ofile.rlim_cur != RLIM_INFINITY) {
 		rlim_ofile_cur = rlim_ofile.rlim_cur;
-		if (rlim_ofile_cur == RLIM_INFINITY)	/* ! */
-			rlim_ofile_cur = OPEN_MAX;
 	}
 #endif
 
@@ -755,6 +871,12 @@ setup(struct servtab *sep)
 	if ((sep->se_fd = socket(sep->se_family, sep->se_socktype, 0)) < 0) {
 		syslog(LOG_ERR, "%s: socket: %m", service_name(sep),
 		    sep->se_service, sep->se_proto);
+
+		if (errno == EMFILE) {
+			syslog(LOG_ALERT, 
+			       "Out of files! Attempting restart...");
+			attempt_to_restart();
+		}
 		return;
 	}
 #define	turnon(fd, opt) \
@@ -778,6 +900,17 @@ setsockopt(fd, SOL_SOCKET, opt, (char *)&on, sizeof (on))
 	}
 	if (sep->se_socktype == SOCK_STREAM)
 		listen(sep->se_fd, global_queuelen);
+
+	if (sep->se_family == AF_UNIX) {
+		/* 
+		 * Ignore any error, on the grounds that chmod on a socket
+		 * might not be possible on some systems.
+		 *
+		 * XXX in the long run there should be a config option for
+		 * the mode. And owner/group, too.
+		 */
+		chmod(sep->se_ctrladdr_un.sun_path, 0666);
+	}
 
 	FD_SET(sep->se_fd, &allsock);
 	nsock++;

@@ -1,2 +1,1 @@
-rpcgen:
-	- should look for cpp in more places (eg, /usr/bin, /usr/libexec)
+None known at present.
