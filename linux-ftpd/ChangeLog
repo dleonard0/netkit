@@ -1,0 +1,15 @@
+New in 0.10: (5/20/97)
+- Patches from Marek Michalkiewicz (marekm@i17linuxb.ists.pwr.wroc.pl):
+    - shadow support
+    - add code to use high data ports without IP_PORTRANGE
+    - add "CERT suggested fixes" from wu-ftpd-2.4.2-beta11 to popen.c
+    - add real strvis(3)
+    - other minor fixes
+- Correct printfs of off_t quantities and thus reporting of file sizes.
+- Merge from OpenBSD of 5/19/97 and reorganize source.
+- Fix shift/reduce conflict in ftpcmd.y and, consequently, fix SITE IDLE
+  command. [Jan. 1997]
+
+New in 0.09: (12/31/96)
+- Clean compilation with assorted gcc warnings enabled.
+- Ported from OpenBSD.  

@@ -1,0 +1,34 @@
+If you are using glibc 1.99 with Linux (such as current Red Hat for Alpha),
+apply this patch in the netkit-timed-0.10 directory by doing
+
+	patch -p1 < oldglibc.patch
+
+--- netkit-timed-0.10-alpha/timed/lib/measure.c	Sat Apr  5 17:26:28 1997
++++ netkit-timed-0.10/timed/lib/measure.c	Wed May 14 10:35:43 1997
+@@ -45,10 +45,6 @@
+ #include <netinet/ip.h>
+ #include <netinet/ip_icmp.h>
+ 
+-#if defined(__GLIBC__) && (__GLIBC__ >= 2)
+-#define icmphdr icmp
+-#endif
+-
+ #define MSEC_DAY	(SECDAY*1000)
+ 
+ #define PACKET_IN	1024
+@@ -143,7 +139,6 @@
+ 	 * between the two clocks.
+ 	 */
+ 
+-#if !defined(__GLIBC__) || (__GLIBC__ < 2)
+ #define icmp_type	type
+ #define icmp_code	code
+ #define icmp_id		un.echo.id
+@@ -151,7 +146,6 @@
+ #define icmp_cksum	checksum
+ #define ICMP_TSTAMP	ICMP_TIMESTAMP
+ #define ICMP_TSTAMPREPLY	ICMP_TIMESTAMPREPLY
+-#endif
+ 
+ 	oicp->icmp_type = ICMP_TSTAMP;
+ 	oicp->icmp_code = 0;

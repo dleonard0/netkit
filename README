@@ -1,158 +1,40 @@
-This is NetKit-0.09. 
 
-NetKit-0.09 is an update of NetKit-B-0.08. There is now officially no
-"B" in the name. There is NO NetKit-A and there has not been one for a
-LONG time. 
+NetKit 0.09 was the last NetKit to be released as a complete package.
 
-NOTE: There was a "NetKit-B-0.07B" uploaded to some archive sites. It
-was *not* an official release and might be trojanized. Please delete
-it if you see it anywhere.
+NetKit, if you wish to call it that, consists of the following
+packages:
 
-According to current plans this is the last NetKit with everything
-packaged everything together. In the future the components of this
-package will be available individually on all the usual archive sites,
-most likely including wherever you got this NetKit.
+   		biff+comsat-0.10
+   		bsd-finger-0.10
+   		(linux-ftpd-0.10) (*)
+   		netkit-base-0.10
+   		netkit-bootparamd-0.10
+   		netkit-ftp-0.10
+   		netkit-ntalk-0.10
+   		netkit-routed-0.10
+   		netkit-rsh-0.10
+   		netkit-rusers-0.10
+   		netkit-rwall-0.10
+   		netkit-rwho-0.10
+   		netkit-telnet-0.10
+   		netkit-tftp-0.10
+   		netkit-timed-0.10
+   		netwrite-0.10
 
-Contents: 
-	NetKit contains the following programs:
-		biff  comsat  finger  fingerd  ftp  inetd  ping  
-		rlogin  rlogind  rcp  rexecd  rsh  rshd  
-		rpcgen  rusers  rpc.rusersd  rwall  rpc.rwalld
-		rpc.bootparamd  rpcinfo  routed  rwho  rwhod  
-		talk  talkd  telnet  telnetd  timed  timedc  
-		tftp  tftpd  write  writed
+These may all be downloaded separately. If some or all of these have
+been updated since this document was written, be sure to always get
+the latest versions.
 
-	If you're reading this off a CD, go right away and check the
-	net archives for later versions and security fixes.
-	
-	If you are updating from NetKit-B-0.06, you may also want to
-	get the current versions of portmap, rdist, sliplogin, 
-	and/or bsd-ftpd, as those are no longer included here. You 
-	will also want to get LPRng or PLP to replace lpr, as that is
-	no longer included either. All of these can be gotten from
-	ftp.uk.linux.org://pub/linux/Networking.
+Please don't install packages you don't need; also please be sure to
+remove any binaries of out-of-date versions of anything you choose not
+to install.
 
-	Note: bsdslattach is no longer included in NetKit. The
-	slattach in the net-tools package works perfectly well.
+(*) linux-ftpd hasn't ever really been part of NetKit and it isn't
+packaged quite the same way as the others. This will probably change
+in the future.
 
-	Note: arp is no longer included in NetKit. The arp in
-	the net-tools package works noticeably better.
+If you have questions please mail me: 
 
-	Note: NetKit now includes a working (supposedly) routed.
-	Please don't use it if you don't know what you're doing,
-	though.
+David A. Holland
+dholland@hcs.harvard.edu
 
-	Note: NetKit now includes a bootparamd, for use booting 
-	diskless workstations. You probably don't want to install 
-	this if you don't need it.
-
-	Note: NetKit now includes write and writed. This version
-	supersedes "netwrite-0.9".
-
-Requirements: (I know these work; you can probably use much earlier 
-versions of libc, gcc, or the kernel.)
-
-	libc 5.4 or higher 
-		Older libc versions will work but anything before 5.4.6 
-		includes some nasty security bugs. All the NetKit programs 
-		are believed immune to these, but the rest of your system 
-		probably isn't... 
-
-		Note: libc 5.0.x is not supported and won't work.
-
-	linux 2.0 or higher 
-		Use of 1.2.x kernel versions is not recommended in general.
-		NetKit itself will probably work with anything since 0.99pl14,
-		although some hacking would probably be required.
-
-	gcc 2.7.2 or higher
-		Please get the strength-reduce fix if you don't have it.
-
-	libncurses
-		Some versions are reported to cause problems with telnetd,
-		but I don't know which ones. Recent versions should be fine.
-
-	libreadline (GNU readline library) is optional but recommended.
-
-Please make sure your header files in /usr/include match your libc
-version installed in /lib and /usr/lib. If you have weird problems
-this is the most likely culprit.
-
-
-Installation:
-	Edit MCONFIG to set the configuration options. 
-	You will want to edit the top-level Makefile to select which
-	  programs to build and install.
-	Apply the rusersd.x patch to your /usr/include if you feel so 
-	  inclined and you have a libc without the patch already applied.
-	  This is not necessary; the patch fixes some noncritical compiler
-	  warnings.
-	Do "make".
-	Do "make install" as root to install everything. Save backup copies 
-	  of important tools, or confirm the new ones work first. Etc. We 
-	  warned you.
-
-Security:
-	The tools in NetKit-0.09 are hardened against a particular
-	form of name-service spoofing attack that old resolver
-	libraries may be vulnerable to. This applies to nearly all the
-	programs. For this reason it cannot be considered wise to use
-	older versions of any of these tools.
-
-	NetKit-0.09 fixes a /tmp problem in ftp that could be
-	exploited by local users to gain access to other accounts,
-	including potentially root.
-
-	NetKit-0.09 fixes a buffer overrun in finger that could be
-	exploited by local users to gain access to other accounts,
-	including potentially root.
-
-	NetKit-0.09 fixes a problem with the use of the resolver
-	library in rlogin that could possibly have security
-	implications.
-
-	NetKit-0.09 fixes a problem with rexecd that permitted rexecd
-	to be used to perform port scans and other undesirable
-	behavior.
-	
-	NetKit-B-0.08 and .07 fixed a number of now well-known security
-	problems. Please read README.v08 and README.v07, and don't use
-	older versions of the affected programs.
-
-Other notes:
-	To compile ftp with readline support you'll need a copy of the
-	readline library installed. If you don't have it, get
-	readline-2.0 from prep.ai.mit.edu (or any GNU mirror). You'll
-	need to apply the enclosed patch, or ftp will have problems with 
-	^C handling.
-
-	Use of the the "talk.FvK.patch" patch is neither recommended
-	nor discouraged. Apply it at your discretion.
-
-Bugs:
-	There is a known bug in telnetd. You can tickle it by logging in,
-	doing cat >/dev/null, and typing 256 characters without any newlines. 
-	This causes telnetd to hang, for no clear reason.
-
-	Everything else is believed to work. If you sent patches that
-	seem to have disappeared, I probably lost them, I'm afraid. The
-	excessive length of time since the previous release has caused
-	a bit of organizational difficulty.
-
-	If something doesn't compile for you, send diffs. If you can't
-	send diffs, send the compiler's error output.
-
-	If it compiles but doesn't work, send as complete a bug report as 
-	you can. Patches and fixes are welcome, as long as you describe 
-	adequately what they're supposed to fix. Please, one patch per
-	distinct fix.
-
-	Be sure to send all correspondence in e-mail. Postings to netnews 
-	will not be seen due to the enormous volume.
-
-	Please don't report known bugs (see the BUGS file(s)) unless you
-	are including fixes. :-)
-
-
-David A. Holland	dholland@hcs.harvard.edu
-								29-Dec-1996
