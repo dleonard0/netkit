@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)rexecd.c	5.12 (Berkeley) 2/25/91
  */
 char rcsid[] = 
-  "$Id: rexecd.c,v 1.9 1996/07/24 00:15:51 dholland Exp $";
+  "$Id: rexecd.c,v 1.10 1996/07/26 04:51:44 dholland Exp $";
 
 
 #include <sys/param.h>
@@ -309,11 +309,11 @@ doit(int f, struct sockaddr_in *fromp)
 			fatal("Login incorrect.\n");
 		}
 	    }
-#endif /* !USE_PAM */
 	    fclose(fp);
 	}
 	else syslog(LOG_ERR, "cannot open /etc/ftpusers");
 #endif
+#endif /* !USE_PAM */
 
 	/* Log successful attempts. */
 	syslog(LOG_INFO, "login from %.128s as %s", remote, user);

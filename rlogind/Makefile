@@ -7,8 +7,7 @@ OBJS = rlogind.o logwtmp.o
 
 ifeq ($(USE_PAM),1)
 CFLAGS += -DUSE_PAM
-LDFLAGS += -ldl -lpam
-OBJS += pamconv.o
+LIBS += -ldl -lpam -lpam_misc
 endif
 
 rlogind: $(OBJS)

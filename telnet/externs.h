@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)externs.h	5.3 (Berkeley) 3/22/91
- *	$Id: externs.h,v 1.3 1996/07/20 19:47:39 dholland Exp $
+ *	$Id: externs.h,v 1.4 1996/07/26 04:05:03 dholland Exp $
  */
 
 #ifndef	BSD
@@ -70,6 +70,10 @@ typedef unsigned char cc_t;
 #include <string.h>
 #endif
 #include <strings.h>
+
+#ifdef __linux__
+#include <unistd.h>   /* get _POSIX_VDISABLE */
+#endif
 
 #ifndef	_POSIX_VDISABLE
 # ifdef sun

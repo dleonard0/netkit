@@ -49,7 +49,7 @@ char copyright[] =
  * From: @(#)rlogind.c	5.53 (Berkeley) 4/20/91
  */
 char rcsid[] = 
-  "$Id: rlogind.c,v 1.11 1996/07/23 08:18:58 dholland Exp $";
+  "$Id: rlogind.c,v 1.13 1996/07/26 05:08:18 dholland Exp $";
 
 /*
  * remote login server:
@@ -74,6 +74,7 @@ char rcsid[] =
 #include <netdb.h>
 
 #include <pwd.h>
+#include <grp.h>
 #include <syslog.h>
 #include <errno.h>
 #include <unistd.h>
@@ -82,8 +83,9 @@ char rcsid[] =
 #include "pathnames.h"
 
 #ifdef USE_PAM
-#include <grp.h>
+#include <sys/types.h>
 #include <security/pam_appl.h>
+#include <security/pam_misc.h>
 #endif
 
 pid_t forkpty(int *, char *, struct termios *, struct winsize *);
@@ -133,6 +135,7 @@ main(int argc, char **argv)
 	int ch;
 	int on = 1, fromlen;
 	struct sockaddr_in from;
+	_check_rhosts_file = 1;     /* default */
 
 	openlog("rlogind", LOG_PID | LOG_CONS, LOG_AUTH);
 
@@ -310,13 +313,11 @@ doit(int f, struct sockaddr_in *fromp)
 				exit(1);
 			}
 #ifdef USE_PAM
-			pam_end(pamh, PAM_AUTH_ERR);
-/* I gather that PAM precludes dropping to straight login or something. (?) */
-#else
+			pam_end(pamh, PAM_SUCCESS);
+#endif
 			execl(_PATH_LOGIN, "login", "-p",
 			      "-h", hp->h_name, lusername, 0);
 			/* should not return... */
-#endif
 		}
 		fatal(STDERR_FILENO, _PATH_LOGIN, 1);
 		/*NOTREACHED*/
@@ -507,7 +508,6 @@ cleanup(int ignore)
 	if (logout(p))
 		logwtmp(p, "", "");
 #ifdef USE_PAM
-       pam_close_session(pamh, 0);
        pam_end (pamh, PAM_SUCCESS);
 #endif
 
@@ -553,7 +553,6 @@ fatal(int f, const char *msg, int syserr)
 	write(f, buf, bp + len - buf);
 
 #ifdef USE_PAM
-	pam_close_session(pamh, 0);
 	pam_end (pamh, PAM_SUCCESS);
 #endif
 
@@ -565,7 +564,10 @@ do_rlogin(const char *host)
 {
 #ifdef USE_PAM
 	char c;
-	extern struct pam_conv conv;
+	static struct pam_conv conv = {
+	  misc_conv,
+	  NULL
+	};
         int retval;
 #endif /* USE_PAM */
 
@@ -599,11 +601,22 @@ do_rlogin(const char *host)
                        retval = pam_acct_mgmt(pamh, 0);
                if (retval == PAM_SUCCESS)
                        break;
-               if (retval == PAM_AUTHTOKEN_REQD)
+               if (retval == PAM_AUTHTOKEN_REQD) {
                        retval = pam_chauthtok (pamh,PAM_CHANGE_EXPIRED_AUTHTOK);
-       } while (retval == PAM_SUCCESS);
+	               if(retval == PAM_SUCCESS)
+			 /* Try authentication again if passwd change
+			    succeeded.  Don't try again if it didn't;
+			    sysadmin might not want passwords changed
+			    over the next, and might have set password
+			    to pam_deny.so to disable it... */
+			 continue;
+	       }
+       } while (0); /* We have the while(0) here because it is either using
+		       that and the breaks, or goto's */
+	/* eww. -dah */
 
-       if (retval == PAM_SUCCESS) {
+
+	if (retval == PAM_SUCCESS) {
                if (setgid(pwd->pw_gid) != 0) {
                        fprintf(stderr, "cannot assume gid\n");
                        return (0);
@@ -615,17 +628,21 @@ do_rlogin(const char *host)
                }
 
                retval = pam_setcred(pamh, PAM_CRED_ESTABLISH);
-       }
+	}
 
-       if (retval == PAM_SUCCESS)
-               retval = pam_open_session(pamh,0);
-       return (retval ^ PAM_SUCCESS);
-#else
+	if (retval != PAM_SUCCESS) {
+		syslog(LOG_ERR,"PAM authentication failed for in.rlogind");
+		fatal(STDERR_FILENO, "login failed", 0);
+		/* no return */
+	}
+	return 0;
+
+#else /* !USE_PAM */
 
 	if (pwd->pw_uid == 0)
 		return(-1);
 	return(ruserok(host, 0, rusername, lusername));
-#endif /* USE_PAM */
+#endif /* PAM */
 }
 
 static void

@@ -13,8 +13,6 @@ SUB =   biff comsat finger fingerd ftp inetd libtelnet \
 # rarpd 	(doesn't compile...)
 # routed	(deprecated due to being totally broken beyond hope; use gated)
 # rup		(doesn't compile...)
-# rpcgen	(obsolete)
-# slattach	(obsolete)
 #
 # These programs are not supplied at all any more:
 # portmap 	(use Wietse Venema's secure portmapper)
@@ -22,12 +20,15 @@ SUB =   biff comsat finger fingerd ftp inetd libtelnet \
 # sliplogin	(use the sliplogin sold separately - check security notices)
 
 
-all:
-	for i in $(SUB); do make -C  $$i; done
+%.build:
+	$(MAKE)-C$(patsubst %.build, %, $@)
 
-install:
-	for i in $(SUB); do make -C  $$i install; done
+%.install:
+	$(MAKE)-C$(patsubst %.install, %, $@) install
 
-clean:
-	for i in $(SUB); do make -C  $$i clean; done
+%.clean:
+	$(MAKE)-C$(patsubst %.clean, %, $@) clean
 
+all:     $(patsubst %, %.build, $(SUB))
+install: $(patsubst %, %.install, $(SUB))
+clean:   $(patsubst %, %.clean, $(SUB))

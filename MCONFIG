@@ -45,6 +45,12 @@ USE_GNU_READLINE=1
 # If you take out the __USE_BSD_SIGNAL, things will probably not work.
 #
 # On the PowerPC, you probably want to add -fsigned-char to CFLAGS.
+#
+# Note: if talk breaks because it can't find "unctrl.h", your ncurses 
+# package is not installed correctly. Either link /usr/include/unctrl.h
+# to /usr/include/ncurses/unctrl.h, fix /usr/include/ncurses/curses.h to
+# include <ncurses/unctrl.h> instead of <unctrl.h>, or hack around the 
+# problem by putting -I/usr/include/ncurses in the CFLAGS.
 
 CC=gcc
 CFLAGS=-O2 -Wall -D__USE_BSD_SIGNAL

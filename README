@@ -1,7 +1,9 @@
-This is NetKit-B-0.07.
+This is NetKit-B-0.07A.
 
 This is probably the last or next to last NetKit-B. NetKit-A has
 already officially ceased to exist.
+
+NetKit-B-0.07A fixes some stupid bugs in NetKit-B-0.07.
 
 In the future the components of the NetKit packages will be available
 individually at ftp://ftp.uk.linux.org/pub/linux/Networking, and

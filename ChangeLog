@@ -1,4 +1,11 @@
-New in 0.07: (16-Jul-1996)
+New in 0.07A: (25-Jul-1996)
+- fixed the top-level makefile.
+- removed old versions of rpcgen and slattach.
+- fixed a bug in telnet where the escape character was being ignored.
+- fixed a bug in telnetd; now uses the correct names for the last ptys
+  (that is, ptya0-ptyef, not ptyA0-ptyEf.)
+
+New in 0.07: (23-Jul-1996)
 - removed portmap; use Wietse Venema's portmap.
 - removed rdist; use rdist 6.x distributed separately.
 - removed sliplogin; use the one distributed separately and read the
