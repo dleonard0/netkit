@@ -36,9 +36,9 @@ IBSD=-I/usr/include/bsd -include /usr/include/bsd/bsd.h
 CFLAGS = ${O} ${IBSD}
 LDLIBS = -lbsd
 
-SUB = arp biff comsat finger fingerd ftp ftpd inetd libtelnet lpr \
-	ping portmap rcp rexecd rlogin rlogind routed rpc.rusersd \
-	rpc.rwalld rpcgen.new rpcinfo rsh rshd rusers rwall rwho rwhod \
+SUB = biff comsat finger fingerd ftp ftpd inetd libtelnet lpr \
+	ping portmap rcp rdist rexecd rlogin rlogind routed rpcgen.new \
+	rpc.rusersd rpc.rwalld rpcinfo rsh rshd rusers rwall rwho rwhod \
 	slattach.new sliplogin talk talkd telnet telnetd tftp tftpd timed
 # Missing subdirs: rarpd, rup
 

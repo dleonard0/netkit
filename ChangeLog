@@ -1,3 +1,22 @@
+New in 0.04:
+- Added new program rdist from NetBSD with many bug-fixes from me.
+- Changed inetd to store pid-file in /var/run.
+- Changes to comsat and biff from newer NetBSD versions.
+- Changes to talk and talkd from newer NetBSD versions.
+- 'arp' is no longer installed. The Linux version is better and the BSD
+  version currently doesn't work anyway. (Vesa Ruokonen)
+- Install slattach as bsdslattach, since we have also a Linux version of it.
+  (Resa Ruokonen)
+- Changed Makefile, so that rpcgen was build before it is needed...
+  (Vesa Ruokonen)
+- Changed several Makefiles from "../rpcgen/rpcgen" to "../rpcgen.new/rpcgen".
+  (Vesa Ruokonen)
+- Changed in routed to not define AF_MAX when it is already defined.
+- gcc 2.6.0 told me, that a local variable was returned in rpc.rusersd.
+  Changed that ivariable to be static.
+- Did some nasty changes to telnet/extern.h. I should really take the current
+  version from NetBSD again and make a clean port of it. (signals).
+
 New in 0.03: (may be incomplete, please make context diffs to catch all)
 - fixed "lprm" to properly remove queued files (maybe this was already in
   release 0.02 ??)

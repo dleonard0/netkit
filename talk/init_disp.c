@@ -33,7 +33,7 @@
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)init_disp.c	5.4 (Berkeley) 6/1/90";*/
-static char rcsid[] = "$Id: init_disp.c,v 1.1 1994/05/23 09:11:40 rzsfl Exp rzsfl $";
+static char rcsid[] = "$Id: init_disp.c,v 1.1 1994/07/16 09:45:13 florian Exp florian $";
 #endif /* not lint */
 
 /*
@@ -43,6 +43,7 @@ static char rcsid[] = "$Id: init_disp.c,v 1.1 1994/05/23 09:11:40 rzsfl Exp rzsf
 
 #include "talk.h"
 #include <signal.h>
+#include <stdio.h>
 
 /* 
  * Set up curses, catch the appropriate signals,
@@ -54,7 +55,10 @@ init_display()
 	struct sigvec sigv;
 
 	LINES = COLS = 0;
-	initscr();
+	if (initscr() == NULL) {
+		printf("initscr failed: TERM is unset or unknown terminal type.\n");
+		exit(-1);
+	}
 	(void) sigvec(SIGTSTP, (struct sigvec *)0, &sigv);
 	sigv.sv_mask |= sigmask(SIGALRM);
 	(void) sigvec(SIGTSTP, &sigv, (struct sigvec *)0);
@@ -66,7 +70,7 @@ init_display()
 	signal(SIGINT, sig_sent);
 	signal(SIGPIPE, sig_sent);
 	/* curses takes care of ^Z */
-	signal(SIGTSTP,SIG_IGN); /* No, it doesn't. */
+	signal(SIGTSTP, SIG_IGN);	/* No, it doesn't. */
 	my_win.x_nlines = LINES / 2;
 	my_win.x_ncols = COLS;
 	my_win.x_win = newwin(my_win.x_nlines, my_win.x_ncols, 0, 0);

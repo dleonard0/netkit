@@ -33,7 +33,7 @@
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)msgs.c	5.6 (Berkeley) 3/1/91";*/
-static char rcsid[] = "$Id: msgs.c,v 1.1 1994/05/23 09:11:41 rzsfl Exp rzsfl $";
+static char rcsid[] = "$Id: msgs.c,v 1.2 1993/08/01 18:07:46 mycroft Exp $";
 #endif /* not lint */
 
 /* 
@@ -54,7 +54,6 @@ int	current_line = 0;
 void
 disp_msg()
 {
-	/* signal(SIGALRM,disp_msg); */
 	message(current_state);
 }
 

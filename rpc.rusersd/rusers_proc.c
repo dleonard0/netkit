@@ -195,7 +195,7 @@ getidle(char *tty, char *display)
 int *
 rusers_num()
 {
-        int num_users = 0;
+        static int num_users = 0;
 	struct utmp usr;
 
         ufp = fopen(_PATH_UTMP, "r");
