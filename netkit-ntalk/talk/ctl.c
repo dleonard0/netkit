@@ -35,7 +35,7 @@
  * From: @(#)ctl.c	5.7 (Berkeley) 3/1/91
  */
 char ctl_rcsid[] = 
-  "$Id: ctl.c,v 1.8 1997/05/19 09:13:20 dholland Exp $";
+  "$Id: ctl.c,v 1.11 1998/11/27 10:55:58 dholland Exp $";
 
 /*
  * This file handles haggling with the various talk daemons to
@@ -47,25 +47,12 @@ char ctl_rcsid[] =
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include "talk.h"
-#include "talk_ctl.h"
 
-#ifdef	__linux__
-struct sockaddr_in daemon_addr = { AF_INET };
-struct sockaddr_in ctl_addr = { AF_INET };
-struct sockaddr_in my_addr = { AF_INET };
-#else
-struct	sockaddr_in daemon_addr = { sizeof(daemon_addr), AF_INET };
-struct	sockaddr_in ctl_addr = { sizeof(ctl_addr), AF_INET };
-struct	sockaddr_in my_addr = { sizeof(my_addr), AF_INET };
-#endif
-
-	/* inet addresses of the two machines */
-struct	in_addr my_machine_addr;
+/* inet address of the remote machine */
 struct	in_addr his_machine_addr;
 
 u_short daemon_port;	/* port number of the talk daemon */
 
-int	ctl_sockt;
 int	sockt;
 int	invitation_waiting = 0;
 
@@ -74,40 +61,9 @@ CTL_MSG msg;
 void
 open_sockt(void)
 {
-	size_t length;
-
-	my_addr.sin_family = AF_INET;
-	my_addr.sin_addr = my_machine_addr;
-	my_addr.sin_port = 0;
 	sockt = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockt <= 0)
 		p_error("Bad socket");
-	if (bind(sockt, (struct sockaddr *)&my_addr, sizeof(my_addr)) != 0)
-		p_error("Binding local socket");
-	length = sizeof(my_addr);
-	if (getsockname(sockt, (struct sockaddr *)&my_addr, &length) == -1)
-		p_error("Bad address for socket");
-}
-
-/* open the ctl socket */
-void
-open_ctl(void) 
-{
-	size_t length;
-
-	ctl_addr.sin_family = AF_INET;
-	ctl_addr.sin_port = 0;
-	ctl_addr.sin_addr = my_machine_addr;
-	ctl_sockt = socket(AF_INET, SOCK_DGRAM, 0);
-	if (ctl_sockt <= 0)
-		p_error("Bad socket");
-	if (bind(ctl_sockt,
-	    (struct sockaddr *)&ctl_addr, sizeof(ctl_addr)) != 0)
-		p_error("Couldn't bind to control socket");
-	length = sizeof(ctl_addr);
-	if (getsockname(ctl_sockt,
-	    (struct sockaddr *)&ctl_addr, &length) == -1)
-		p_error("Bad address for ctl socket");
 }
 
 #if 0

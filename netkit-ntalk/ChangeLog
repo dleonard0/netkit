@@ -1,3 +1,34 @@
+9-Dec-1998:
+	We don't need to check for BSD signal semantics now; updated
+	  MCONFIG and regenerated configure script.
+
+26-Nov-1998:
+	Fixed bug: the talkd announce message is passed as the format 
+	  string to fprintf, so if it has %'s in it, we probably crash.
+	Copied <protocols/talkd.h> into include directory, because we
+	  need to fiddle with it.
+	Rearrange/clean up talkd source. Removed mytalkd.h.
+	Added lots of checking and paranoia to packet handling. 
+	Don't reply to the ctl_addr in the packet; reply to where the
+	  packet came from.
+	Created framework for working with bogus packets.
+	Beefed up talkd's debug logging.
+	Cleanup in talk. Removed talk_ctl.h.
+	Fixed the problem where talk goes and blindly binds things to
+	  the wrong local addresses.
+	We don't need talk.FvK.patch any more, either.
+	Filter high-ascii control characters in talk as well as regular
+	  ones. (Olaf Kirch, okir@caldera.de)
+	Don't zoom off the end of the string fields of the input packet in
+	  talkd. (Olaf Kirch, okir@caldera.de)
+
+22-Sep-1997:
+	Fix talkd to use WIFEXITED et al. rather than assume things about
+	the bits returned by wait.
+
+12-Jun-1997:
+	netkit-ntalk-0.10 released.
+
 08-Jun-1997:
 	Pause before clearing the screen on exit. (Peter Tobias, 
 	  tobias@et-inf.fho-emden.de)

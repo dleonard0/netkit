@@ -487,82 +487,6 @@ fi
 
 rm -f __conftest __conftest.c
 fi
-NEED_BSD_SIGNAL=1
-echo -n "Checking for BSD signal semantics..."
-cat <<EOF >__conftest.c
-#include <unistd.h>
-#include <signal.h>
-int count=0;
-handle() { count++; }
-int main() {
-    int pid=getpid();
-    signal(SIGINT, handle);
-    kill(pid,SIGINT);
-    kill(pid,SIGINT);
-    kill(pid,SIGINT);
-    if (count!=3) return 1;
-    return 0;
-}
-EOF
-$CC $CFLAGS $WARNINGS $LIBS __conftest.c -o __conftest >/dev/null 2>&1
-if [ $? != 0 ]; then
-	echo "nope"
-	TEMP=0
-else
-	TEMP=1
-fi
-if [ $TEMP = 1 ]; then
-  ./__conftest
-  if [ $? != 0 ]; then
-     TEMP=0; echo 'nope'
-  else
-     TEMP=1; echo 'got it'
-fi;fi
-
-
-rm -f __conftest __conftest.c
-if [ $TEMP = 0 ]; then
-echo -n "Checking if -D__USE_BSD_SIGNAL helps..."
-cat <<EOF >__conftest.c
-#include <unistd.h>
-#include <signal.h>
-int count=0;
-handle() { count++; }
-int main() {
-    int pid=getpid();
-    signal(SIGINT, handle);
-    kill(pid,SIGINT);
-    kill(pid,SIGINT);
-    kill(pid,SIGINT);
-    if (count!=3) return 1;
-    return 0;
-}
-EOF
-$CC -D__USE_BSD_SIGNAL $CFLAGS $WARNINGS $LIBS __conftest.c -o __conftest >/dev/null 2>&1
-if [ $? != 0 ]; then
-	echo "nope"
-	TEMP=0
-else
-	TEMP=1
-fi
-if [ $TEMP = 1 ]; then
-  ./__conftest
-  if [ $? != 0 ]; then
-     TEMP=0; echo 'nope'
-  else
-     TEMP=1; echo 'got it'
-fi;fi
-
-
-rm -f __conftest __conftest.c
-if [ $TEMP = 0 ]; then
-  echo 'Sorry.'
-  exit 1
-else
-  CFLAGS="${CFLAGS} -D__USE_BSD_SIGNAL"
-fi;fi
-
-
 ########################################################################
 
 CFLAGS="${CFLAGS} "'$(WARNINGS)'
@@ -624,9 +548,6 @@ echo "# Work around GNU libc lossage" >>MCONFIG
 echo "USE_GLIBC=$USE_GLIBC" >>MCONFIG
 echo >>MCONFIG
 echo >>MCONFIG
-echo >>MCONFIG
-echo "# Tell confgen we need BSD signal semantics" >>MCONFIG
-echo "NEED_BSD_SIGNAL=$NEED_BSD_SIGNAL" >>MCONFIG
 echo >>MCONFIG
 
 

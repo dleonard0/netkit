@@ -35,7 +35,7 @@
  * From: @(#)display.c	5.4 (Berkeley) 6/1/90
  */
 char display_rcsid[] = 
-  "$Id: display.c,v 1.6 1997/04/06 00:07:37 dholland Exp $";
+  "$Id: display.c,v 1.7 1998/11/27 11:30:43 dholland Exp $";
 
 /*
  * The window 'manager', initializes curses and handles the actual
@@ -146,7 +146,7 @@ display(xwin_t *win, unsigned char *text, int size)
 			/* check for wraparound */
 			xscroll(win, 0);
 		}
-		if (*text < ' ' && *text != '\t') {
+		if ((*text & 0x7F) < ' ' && *text != '\t') {
 			waddch(win->x_win, '^');
 			getyx(win->x_win, win->x_line, win->x_col);
 			if (win->x_col == COLS-1) /* check for wraparound */

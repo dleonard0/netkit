@@ -1,0 +1,122 @@
+This patch is not applied because it implements wordwrap in a way that
+makes the local screen (where both your text and the other guy's text
+get wordwrapped) differ from the remote screen (where they don't). I'm
+not convinced this is a good idea.
+
+However, because the patch might be useful, it is included here.
+
+(The diffs were modified by dholland to fix some minor bugs.)
+
+
+Date: Fri, 17 Apr 1998 18:21:17 -0500
+From: Dale Osowski <dosowski0474@VAX2.WINONA.MSUS.EDU>
+Subject: talk program
+
+I have added a word wrap feature to "talk" today.  I have attached the
+diffs to this email.
+
+I hope there isn't a problem with how I did it.  I added to members to
+the xwin_t struct in order to keep track of where a word starts.
+
+--
+Dale Osowski
+dosowski0474@vax2.winona.msus.edu
+http://web.winona.msus.edu/~dosowski
+
+--- display.c	1998/11/27 11:30:43	1.7
++++ display.c	1998/11/27 12:03:08
+@@ -40,8 +40,9 @@
+ /*
+  * The window 'manager', initializes curses and handles the actual
+  * displaying of text
+  */
++#include <stdlib.h>
+ #include "talk.h"
+ 
+ static void xscroll(xwin_t *win, int flag);
+ static int readwin(WINDOW *win, int line, int col);
+@@ -62,8 +63,37 @@
+ 
+ 	return (a > b ? a : b);
+ }
+ 
++
++/* 
++ * Wordwrap added by Dale Osowski (dosowski0474@vax2.winona.msus.edu)
++ * on 4/17/98
++ */
++static void
++wordwrap(xwin_t *win)
++{
++	int oldline = win->x_lspaceline;
++	int oldcol = win->x_lspacecol;
++	int i, n = COLS-1-oldcol-1;
++        char *tomovedown = malloc(n);
++
++	wmove(win->x_win, oldline, oldcol+1);
++	for (i=0; i<n; i++) {
++		tomovedown[i] = readwin(win->x_win, oldline, i+oldcol+1);
++	}
++
++	wmove(win->x_win, oldline, oldcol+1);
++	wclrtoeol(win->x_win);
++	wmove(win->x_win, oldline, oldcol+1);
++	xscroll(win, 0);
++	for (i=0; i<n; i++) {
++		waddch(win->x_win, tomovedown[i]);
++	}
++	free(tomovedown);
++}
++
++
+ /*
+  * Display some text on somebody's window, processing some control
+  * characters while we are at it.
+  */
+@@ -79,8 +109,14 @@
+ 			text++;
+ 			continue;
+ 		}
+ 
++                /* Mark position of last space.  For wordwrap */
++		if (*text == ' ')
++		{
++			getyx(win->x_win, win->x_lspaceline, win->x_lspacecol);
++		}
++
+ 		/* someday erase characters will work properly in unix */
+ 		if (*text == '\b' || *text == 127) *text = win->cerase;
+ 
+ 		/* erase character */
+@@ -142,10 +178,16 @@
+ 			text++;
+ 			continue;
+ 		}
+ 		if (win->x_col == COLS-1) {
+-			/* check for wraparound */
+-			xscroll(win, 0);
++			/* check for wraparound -- wordwrap */
++			if (win->x_lspaceline == win->x_line && 
++			    win->x_lspacecol > 1) {
++				wordwrap(win);
++			}
++			else {
++				xscroll(win, 0);
++			}
+ 		}
+ 		if ((*text & 0x7F) < ' ' && *text != '\t') {
+ 			waddch(win->x_win, '^');
+ 			getyx(win->x_win, win->x_line, win->x_col);
+--- talk.h	1998/11/27 10:55:58	1.13
++++ talk.h	1998/11/27 11:55:52
+@@ -55,8 +55,10 @@
+ 	int	x_col;
+ 	char	kill;
+ 	char	cerase;
+ 	char	werase;
++	int     x_lspacecol;   /* column of last space character */
++	int     x_lspaceline;  /* line of last space character   */
+ } xwin_t;
+ 
+ extern	xwin_t my_win;
+ extern	xwin_t his_win;

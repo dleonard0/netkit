@@ -31,30 +31,14 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)talk.h	5.7 (Berkeley) 3/1/91
- *	$Id: talk.h,v 1.11 1997/06/12 15:53:20 dholland Exp $
+ *	$Id: talk.h,v 1.13 1998/11/27 10:55:58 dholland Exp $
  */
 
 #include <curses.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-/*
- * This is defined in <ncurses/term.h> but how to include that depends
- * on the system config in a way I'm unwilling to mess with at the
- * moment. Is there an equivalent function in <termcap.h>? XXX.
- */
-extern char *tigetstr(char *);
-
-
-/* 
- * Linux libc doesn't have osockaddr, but gnu libc does.
- * This has to come before include of protocols/talkd.h.
- */
-#ifndef GNU_LIBC
-#define osockaddr sockaddr
-#endif
-
-#include <protocols/talkd.h>
+#include "prot_talkd.h"
 
 extern int sockt;
 extern int curses_initialized;
@@ -82,7 +66,7 @@ void p_error(const char *string);
 void quit(int);
 void message(const char *mesg);
 void get_names(int argc, char *argv[]);
-void get_addrs(char *, char *);
+void get_addrs(const char *);
 void init_display(void);
 void open_ctl(void);
 void open_sockt(void);
@@ -94,5 +78,12 @@ void set_edit_chars(void);
 void talk(void);
 void send_delete(void);
 void display(xwin_t *, unsigned char *, int);
-struct in_addr;
-void ctl_transact(struct in_addr, CTL_MSG, int, CTL_RESPONSE *);
+
+#define HIS_DAEMON 0
+#define MY_DAEMON 1
+void send_one_delete(int ismydaemon, int);
+void ctl_transact(int ismydaemon, CTL_MSG, int, CTL_RESPONSE *);
+
+extern	struct in_addr his_machine_addr;
+extern	u_short daemon_port;
+extern	CTL_MSG msg;

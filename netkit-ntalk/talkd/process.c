@@ -35,7 +35,7 @@
  * From: @(#)process.c	5.10 (Berkeley) 2/26/91
  */
 char rcsid[] = 
-  "$Id: process.c,v 1.7 1997/04/06 01:01:38 dholland Exp $";
+"$Id: process.c,v 1.13 1998/11/27 12:31:33 dholland Exp $";
 
 /*
  * process.c handles the requests, which can be of three types:
@@ -45,6 +45,7 @@ char rcsid[] =
  *		  in the table for the local user
  *	DELETE - delete invitation
  */
+
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -56,18 +57,161 @@ char rcsid[] =
 #include <string.h>
 #include <paths.h>
 #include <utmp.h>
-#include "mytalkd.h"
+#include "prot_talkd.h"
 #include "proto.h"
 
-static void do_announce(CTL_MSG *mp, CTL_RESPONSE *rp);
-static int find_user(char *name, char *tty);
-extern int debug;
+static int
+check_one_utmp(const struct utmp *ut, const char *name)
+{
+	/* 
+	 * We've got uptr->ut_name, and name, neither of which is
+	 * necessarily null-terminated. Worse, either might be larger,
+	 * depending on libc version. name came from a talkd
+	 * structure, so it's at most NAME_SIZE.  ut->ut_name is at
+	 * most UT_NAMESIZE. So the sum is guaranteed to hold
+	 * either...
+	 * Worse, strncmp isn't good enough. Suppose UT_NAMESIZE is 6 and 
+	 * NAME_SIZE is 4, and ut_name is "abcdef" and name is "abcd".
+	 * We don't really want those to match. Now, NAME_SIZE is 12, but
+	 * UT_NAMESIZE is 256 on some platforms. I suppose maybe you *want*
+	 * to be able to have name be a prefix of ut_name in this case, or
+	 * you can't talk request people with huge names at all, but suppose
+	 * there are several such people? Argh. *punt*
+	 */
+	char nametmp1[UT_NAMESIZE+NAME_SIZE+1];
+	char nametmp2[UT_NAMESIZE+NAME_SIZE+1];
+
+	strncpy(nametmp1, name, NAME_SIZE);
+	strncpy(nametmp2, ut->ut_name, UT_NAMESIZE);
+	nametmp1[NAME_SIZE] = 0;
+	nametmp2[UT_NAMESIZE] = 0;
+
+	if (strcmp(nametmp1, nametmp2)!=0) {
+		debug("utmp: %s!=%s\n", nametmp1, nametmp2);
+		return NOT_HERE;
+	}
+	debug("utmp: %s==%s\n", nametmp1, nametmp2);
+	return SUCCESS;
+}
+
+static int
+check_tty_perms(const char *tty, time_t *atime)
+{
+	struct stat statb;
+
+	/* our current dir is /dev, no need to prepend it */
+	if (stat(tty, &statb) != 0) {
+		return FAILED;
+	}
+	if (!(statb.st_mode & 020)) {
+		return PERMISSION_DENIED;
+	}
+	*atime = statb.st_atime;
+	return SUCCESS;
+}
+
+/*
+ * Search utmp for the local user
+ */
+static int
+find_user(const char *name, char *tty)
+{
+	struct utmp *uptr;
+	int found=0, ok=0, ret;
+	time_t best_time = 0, this_time;
+	char besttty[PATH_MAX];
+
+	*besttty = 0;
+	setutent();
+	while ((uptr = getutent())!=NULL) {
+#ifdef USER_PROCESS
+		if (uptr->ut_type!=USER_PROCESS) continue;
+#endif
+		ret = check_one_utmp(uptr, name);
+		if (ret!=SUCCESS) {
+			/* wrong user */
+			continue;
+		}
+		if (*tty && !strcmp(tty, uptr->ut_line)) {
+			/* asked for a tty, found it */
+			endutent();
+			return SUCCESS;
+		}
+		ret = check_tty_perms(uptr->ut_line, &this_time);
+		if (ret != SUCCESS) {
+			found = 1; /* but don't set ok */
+			continue;
+		}
+		found = ok = 1;
+		if (this_time > best_time) {
+			best_time = this_time;
+			strcpy(besttty, uptr->ut_line);
+		}
+	}
+	endutent();
+	strcpy(tty, besttty);
+	return !found ? NOT_HERE : (!ok ? PERMISSION_DENIED : SUCCESS);
+}
+
+static void
+do_announce(CTL_MSG *mp, CTL_RESPONSE *rp, const char *fromhost)
+{
+	CTL_MSG *ptr;
+	int result;
+	u_int32_t temp;
+
+	/* 
+	 * See if the user is logged in.
+	 * Clobbers mp->r_tty, replacing it with the tty to page them on.
+	 * (If mp->r_tty is not empty, should only return that tty, or fail.)
+	 */
+	result = find_user(mp->r_name, mp->r_tty);
+	if (result != SUCCESS) {
+		rp->answer = result;
+		return;
+	}
+	ptr = find_request(mp);
+	if (ptr == NULL) {
+		insert_table(mp, rp);
+		rp->answer = announce(mp, fromhost);
+		return;
+	}
+
+	/*
+	 * Voodoo #1: if the client is opposite-endian and old/broken,
+	 * it will have added one to the id while it was byte-swapped.
+	 * Try undoing this. If it matches the id we have on file, it
+	 * was a broken attempt to re-announce.
+	 * We don't use ntohl because if we're big-endian ntohl is a nop.
+	 */
+	temp = byte_swap32(byte_swap32(mp->id_num)-1);
+
+	if (mp->id_num > ptr->id_num || temp==ptr->id_num) {
+		/*
+		 * This is an explicit re-announce, so update the id_num
+		 * field to avoid duplicates and re-announce the talk.
+		 */
+		ptr->id_num = new_id();
+		rp->id_num = htonl(ptr->id_num);
+		rp->answer = announce(mp, fromhost);
+	} 
+	else {
+		/* duplicated or garbage request, so ignore it */
+		rp->id_num = htonl(ptr->id_num);
+		rp->answer = SUCCESS;
+	}
+}
 
 void
-process_request(CTL_MSG *mp, CTL_RESPONSE *rp)
+process_request(CTL_MSG *mp, CTL_RESPONSE *rp, const char *fromhost)
 {
 	CTL_MSG *ptr;
 
+	/* Ensure null-termination */
+	mp->l_name[sizeof(mp->l_name)-1] = 0;
+	mp->r_name[sizeof(mp->r_name)-1] = 0;
+	mp->r_tty[sizeof(mp->r_tty)-1] = 0;
+  
 	rp->vers = TALK_VERSION;
 	rp->type = mp->type;
 	rp->id_num = htonl(0);
@@ -77,30 +221,16 @@ process_request(CTL_MSG *mp, CTL_RESPONSE *rp)
 		return;
 	}
 	mp->id_num = ntohl(mp->id_num);
-	mp->addr.sa_family = ntohs(mp->addr.sa_family);
-	if (mp->addr.sa_family != AF_INET) {
-		syslog(LOG_WARNING, "Bad address, family %d",
-		    mp->addr.sa_family);
-		rp->answer = BADADDR;
-		return;
-	}
-	mp->ctl_addr.sa_family = ntohs(mp->ctl_addr.sa_family);
-	if (mp->ctl_addr.sa_family != AF_INET) {
-		syslog(LOG_WARNING, "Bad control address, family %d",
-		    mp->ctl_addr.sa_family);
-		rp->answer = BADCTLADDR;
-		return;
-	}
 	mp->pid = ntohl(mp->pid);
-	if (debug) print_request("process_request", mp);
-
+	print_request("process_request", mp);
+  
 	switch (mp->type) {
 	  case ANNOUNCE:
-		do_announce(mp, rp);
+		do_announce(mp, rp, fromhost);
 		break;
 	  case LEAVE_INVITE:
 		ptr = find_request(mp);
-		if (ptr != (CTL_MSG *)0) {
+		if (ptr != NULL) {
 			rp->id_num = htonl(ptr->id_num);
 			rp->answer = SUCCESS;
 		} 
@@ -108,10 +238,10 @@ process_request(CTL_MSG *mp, CTL_RESPONSE *rp)
 		break;
 	  case LOOK_UP:
 		ptr = find_match(mp);
-		if (ptr != (CTL_MSG *)0) {
+		if (ptr != NULL) {
 			rp->id_num = htonl(ptr->id_num);
 			rp->addr = ptr->addr;
-			rp->addr.sa_family = htons(ptr->addr.sa_family);
+			rp->addr.ta_family = htons(ptr->addr.ta_family);
 			rp->answer = SUCCESS;
 		} 
 		else rp->answer = NOT_HERE;
@@ -123,99 +253,6 @@ process_request(CTL_MSG *mp, CTL_RESPONSE *rp)
 		rp->answer = UNKNOWN_REQUEST;
 		break;
 	}
-	if (debug) print_response("process_request", rp);
+	print_response("process_request", rp);
 }
 
-static void
-do_announce(CTL_MSG *mp, CTL_RESPONSE *rp)
-{
-	struct hostent *hp;
-	CTL_MSG *ptr;
-	int result;
-	struct in_addr the_addr;
-
-	/* see if the user is logged */
-	result = find_user(mp->r_name, mp->r_tty);
-	if (result != SUCCESS) {
-		rp->answer = result;
-		return;
-	}
-	the_addr = ((struct sockaddr_in *)(&mp->ctl_addr))->sin_addr;
-	hp = gethostbyaddr((char *)&the_addr, sizeof(the_addr), AF_INET);
-	if (hp == NULL) {
-		rp->answer = MACHINE_UNKNOWN;
-		return;
-	}
-	ptr = find_request(mp);
-	if (ptr == NULL) {
-		insert_table(mp, rp);
-		rp->answer = announce(mp, hp->h_name);
-		return;
-	}
-	if (mp->id_num > ptr->id_num) {
-		/*
-		 * This is an explicit re-announce, so update the id_num
-		 * field to avoid duplicates and re-announce the talk.
-		 */
-		ptr->id_num = new_id();
-		rp->id_num = htonl(ptr->id_num);
-		rp->answer = announce(mp, hp->h_name);
-	} 
-	else {
-		/* a duplicated request, so ignore it */
-		rp->id_num = htonl(ptr->id_num);
-		rp->answer = SUCCESS;
-	}
-}
-
-/*
- * Search utmp for the local user
- */
-static int
-find_user(char *name, char *tty)
-{
-	struct utmp *uptr;
-	int status;
-	struct stat statb;
-	char ftty[20];
-	time_t last_time = 0;
-	int notty;
-
-	notty = (*tty == '\0');
-
-	status = NOT_HERE;
-	strcpy(ftty, _PATH_DEV);
-	setutent();
-	while ((uptr = getutent())!=NULL) {
-#ifdef USER_PROCESS
-		if (uptr->ut_type!=USER_PROCESS) continue;
-#endif
-		if (!strncmp(uptr->ut_name, name, sizeof(uptr->ut_name))) {
-			if (notty) {
-				/* no particular tty was requested */
-				strncpy(ftty+5, uptr->ut_line, sizeof(ftty)-5);
-				ftty[sizeof(ftty)-1] = 0;
-
-				if (stat(ftty,&statb) == 0) {
-					if (!(statb.st_mode & 020)) {
-					    if (status!=SUCCESS)
-						status = PERMISSION_DENIED;
-					    continue;
-					}
-					if (statb.st_atime > last_time) {
-						last_time = statb.st_atime;
-						strcpy(tty, uptr->ut_line);
-						status = SUCCESS;
-					}
-					continue;
-				}
-			}
-			if (!strcmp(uptr->ut_line, tty)) {
-				status = SUCCESS;
-				break;
-			}
-		}
-	}
-	endutent();
-	return status;
-}

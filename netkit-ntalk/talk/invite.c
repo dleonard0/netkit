@@ -35,7 +35,7 @@
  * From: @(#)invite.c	5.8 (Berkeley) 3/1/91
  */
 char inv_rcsid[] = 
-  "$Id: invite.c,v 1.9 1997/06/08 20:13:51 dholland Exp $";
+  "$Id: invite.c,v 1.11 1998/11/27 10:55:58 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -46,7 +46,6 @@ char inv_rcsid[] =
 #include <setjmp.h>
 #include <unistd.h>
 #include "talk.h"
-#include "talk_ctl.h"
 
 static void announce_invite(void);
 
@@ -73,19 +72,23 @@ invite_remote(void)
 	volatile int new_sockt;
 	struct itimerval itimer;
 	CTL_RESPONSE response;
+	struct sockaddr_in sn;
+	size_t size = sizeof(sn);
 
 	itimer.it_value.tv_sec = RING_WAIT;
 	itimer.it_value.tv_usec = 0;
 	itimer.it_interval = itimer.it_value;
-	if (listen(sockt, 5) != 0)
+	if (listen(sockt, 5) != 0) {
 		p_error("Error on attempt to listen for caller");
-#ifdef MSG_EOR
-	/* copy new style sockaddr to old, swap family (short in old) */
-	msg.addr = *(struct osockaddr *)&my_addr;  /* XXX new to old  style*/
-	msg.addr.sa_family = htons(my_addr.sin_family);
-#else
-	msg.addr = *(struct sockaddr *)&my_addr;
-#endif
+	}
+
+	getsockname(sockt, (struct sockaddr *)&sn, &size);
+
+	/* copy new style sockaddr to old */
+	msg.addr.ta_family = htons(AF_INET);
+	msg.addr.ta_port = sn.sin_port;
+	msg.addr.ta_addr = 0;  /* will be patched up in ctl_transact */
+
 	msg.id_num = htonl(-1);		/* an impossible id_num */
 	invitation_waiting = 1;
 	announce_invite();
@@ -114,9 +117,9 @@ invite_remote(void)
 	start_msgs();
 
 	msg.id_num = htonl(local_id);
-	ctl_transact(my_machine_addr, msg, DELETE, &response);
+	ctl_transact(MY_DAEMON, msg, DELETE, &response);
 	msg.id_num = htonl(remote_id);
-	ctl_transact(his_machine_addr, msg, DELETE, &response);
+	ctl_transact(HIS_DAEMON, msg, DELETE, &response);
 	invitation_waiting = 0;
 }
 
@@ -159,7 +162,7 @@ announce_invite(void)
 	CTL_RESPONSE response;
 
 	current_state = "Trying to connect to your party's talk daemon";
-	ctl_transact(his_machine_addr, msg, ANNOUNCE, &response);
+	ctl_transact(HIS_DAEMON, msg, ANNOUNCE, &response);
 	remote_id = response.id_num;
 	if (response.answer != SUCCESS) {
 		if (response.answer < NANSWERS)
@@ -167,7 +170,7 @@ announce_invite(void)
 		quit(0);
 	}
 	/* leave the actual invitation on my talk daemon */
-	ctl_transact(my_machine_addr, msg, LEAVE_INVITE, &response);
+	ctl_transact(MY_DAEMON, msg, LEAVE_INVITE, &response);
 	local_id = response.id_num;
 }
 
@@ -177,22 +180,10 @@ announce_invite(void)
 void
 send_delete(void)
 {
-
-	msg.type = DELETE;
 	/*
 	 * This is just a extra clean up, so just send it
 	 * and don't wait for an answer
 	 */
-	msg.id_num = htonl(remote_id);
-	daemon_addr.sin_addr = his_machine_addr;
-	if (sendto(ctl_sockt, &msg, sizeof (msg), 0,
-	    (struct sockaddr *)&daemon_addr,
-	    sizeof (daemon_addr)) != sizeof(msg))
-		perror("send_delete (remote)");
-	msg.id_num = htonl(local_id);
-	daemon_addr.sin_addr = my_machine_addr;
-	if (sendto(ctl_sockt, &msg, sizeof (msg), 0,
-	    (struct sockaddr *)&daemon_addr,
-	    sizeof (daemon_addr)) != sizeof (msg))
-		perror("send_delete (local)");
+	send_one_delete(HIS_DAEMON, remote_id);
+	send_one_delete(MY_DAEMON, local_id);
 }

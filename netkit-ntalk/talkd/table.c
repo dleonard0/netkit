@@ -35,7 +35,7 @@
  * From: @(#)table.c	5.7 (Berkeley) 2/26/91
  */
 char table_rcsid[] = 
-  "$Id: table.c,v 1.6 1997/05/19 09:13:09 dholland Exp $";
+  "$Id: table.c,v 1.9 1998/11/27 07:58:47 dholland Exp $";
 
 /*
  * Routines to handle insertion, deletion, etc on the table
@@ -55,126 +55,19 @@ char table_rcsid[] =
 #include <string.h>
 #include <netinet/in.h>
 
-#include "mytalkd.h"
+#include "prot_talkd.h"
 #include "proto.h"
 
 #define MAX_ID 16000	/* << 2^15 so I don't have sign troubles */
 
-#define NIL ((TABLE_ENTRY *)0)
-
-extern	int debug;
-static struct timeval tp;
-
-typedef struct table_entry TABLE_ENTRY;
-
-struct table_entry {
+typedef struct table_entry {
+	struct table_entry *next;
+	struct table_entry *last;
 	CTL_MSG request;
-	long	time;
-	TABLE_ENTRY *next;
-	TABLE_ENTRY *last;
-};
+	time_t time;
+} TABLE_ENTRY;
 
-TABLE_ENTRY *table = NIL;
-static void deleteit(TABLE_ENTRY *ptr);
-
-/*
- * Look in the table for an invitation that matches the current
- * request looking for an invitation
- */
-CTL_MSG *
-find_match(CTL_MSG *request)
-{
-	TABLE_ENTRY *ptr;
-	time_t current_time;
-
-	gettimeofday(&tp, NULL);
-	current_time = tp.tv_sec;
-	if (debug)
-		print_request("find_match", request);
-	for (ptr = table; ptr != NIL; ptr = ptr->next) {
-		if ((ptr->time - current_time) > MAX_LIFE) {
-			/* the entry is too old */
-			if (debug)
-				print_request("deleting expired entry",
-				    &ptr->request);
-			deleteit(ptr);
-			continue;
-		}
-		if (debug)
-			print_request("", &ptr->request);
-		if (strcmp(request->l_name, ptr->request.r_name) == 0 &&
-		    strcmp(request->r_name, ptr->request.l_name) == 0 &&
-		     ptr->request.type == LEAVE_INVITE)
-			return (&ptr->request);
-	}
-	return NULL;
-}
-
-/*
- * Look for an identical request, as opposed to a complimentary
- * one as find_match does 
- */
-CTL_MSG *
-find_request(CTL_MSG *request)
-{
-	register TABLE_ENTRY *ptr;
-	time_t current_time;
-
-	gettimeofday(&tp, NULL);
-	current_time = tp.tv_sec;
-	/*
-	 * See if this is a repeated message, and check for
-	 * out of date entries in the table while we are it.
-	 */
-	if (debug)
-		print_request("find_request", request);
-	for (ptr = table; ptr != NIL; ptr = ptr->next) {
-		if ((ptr->time - current_time) > MAX_LIFE) {
-			/* the entry is too old */
-			if (debug)
-				print_request("deleting expired entry",
-				    &ptr->request);
-			deleteit(ptr);
-			continue;
-		}
-		if (debug)
-			print_request("", &ptr->request);
-		if (strcmp(request->r_name, ptr->request.r_name) == 0 &&
-		    strcmp(request->l_name, ptr->request.l_name) == 0 &&
-		    request->type == ptr->request.type &&
-		    request->pid == ptr->request.pid) {
-			/* update the time if we 'touch' it */
-			ptr->time = current_time;
-			return (&ptr->request);
-		}
-	}
-	return NULL;
-}
-
-void
-insert_table(CTL_MSG *request, CTL_RESPONSE *response)
-{
-	register TABLE_ENTRY *ptr;
-	time_t current_time;
-
-	gettimeofday(&tp, NULL);
-	current_time = tp.tv_sec;
-	request->id_num = new_id();
-	response->id_num = htonl(request->id_num);
-	/* insert a new entry into the top of the list */
-	ptr = (TABLE_ENTRY *)malloc(sizeof(TABLE_ENTRY));
-	if (ptr == NIL) {
-		syslog(LOG_ERR, "insert_table: Out of memory");
-		_exit(1);
-	}
-	ptr->time = current_time;
-	ptr->request = *request;
-	ptr->next = table;
-	if (ptr->next != NIL)
-		ptr->next->last = ptr;
-	ptr->last = NIL;
-	table = ptr;
-}
+static TABLE_ENTRY *table = NULL;
 
 /*
  * Generate a unique non-zero sequence number
@@ -192,6 +85,120 @@ new_id(void)
 }
 
 /*
+ * Classic delete from a double-linked list
+ */
+static void
+deleteit(TABLE_ENTRY *ptr)
+{
+	print_request("deleteit", &ptr->request);
+	if (table == ptr) {
+		table = ptr->next;
+	}
+	else if (ptr->last != NULL) {
+		ptr->last->next = ptr->next;
+	}
+	if (ptr->next != NULL) {
+		ptr->next->last = ptr->last;
+	}
+	free(ptr);
+}
+
+/*
+ * Go through the table and chuck out anything out of date
+ */
+static void
+expire(void)
+{
+	time_t current_time = time(NULL);
+	TABLE_ENTRY *ptr;
+
+	for (ptr = table; ptr != NULL; ptr = ptr->next) {
+		if ((current_time - ptr->time) > MAX_LIFE) {
+			/* the entry is too old */
+			print_request("deleting expired entry",
+				      &ptr->request);
+			deleteit(ptr);
+		}
+	}
+}
+
+/*
+ * Look in the table for an invitation that matches the current
+ * request looking for an invitation
+ */
+CTL_MSG *
+find_match(CTL_MSG *request)
+{
+	TABLE_ENTRY *ptr;
+
+	expire();
+
+	print_request("find_match", request);
+	for (ptr = table; ptr != NULL; ptr = ptr->next) {
+		print_request("", &ptr->request);
+		if (strcmp(request->l_name, ptr->request.r_name) == 0 &&
+		    strcmp(request->r_name, ptr->request.l_name) == 0 &&
+		     ptr->request.type == LEAVE_INVITE)
+			return (&ptr->request);
+	}
+	return NULL;
+}
+
+/*
+ * Look for an identical request, as opposed to a complementary
+ * one as find_match does 
+ */
+CTL_MSG *
+find_request(CTL_MSG *request)
+{
+	TABLE_ENTRY *ptr;
+
+	expire();
+
+	/*
+	 * See if this is a repeated message.
+	 */
+	print_request("find_request", request);
+	for (ptr = table; ptr != NULL; ptr = ptr->next) {
+		print_request("", &ptr->request);
+		if (strcmp(request->r_name, ptr->request.r_name) == 0 &&
+		    strcmp(request->l_name, ptr->request.l_name) == 0 &&
+		    request->type == ptr->request.type &&
+		    request->pid == ptr->request.pid) {
+			/* update the time if we 'touch' it */
+			ptr->time = time(NULL);
+			return (&ptr->request);
+		}
+	}
+	return NULL;
+}
+
+void
+insert_table(CTL_MSG *request, CTL_RESPONSE *response)
+{
+	TABLE_ENTRY *ptr;
+
+	request->id_num = new_id();
+	response->id_num = htonl(request->id_num);
+
+	/* insert a new entry into the top of the list */
+	ptr = malloc(sizeof(TABLE_ENTRY));
+	if (ptr == NULL) {
+		syslog(LOG_ERR, "insert_table: Out of memory");
+		_exit(1);
+	}
+	ptr->time = time(NULL);
+	ptr->request = *request;
+
+	ptr->next = table;
+	if (ptr->next != NULL) {
+		ptr->next->last = ptr;
+	}
+	ptr->last = NULL;
+	table = ptr;
+}
+
+/*
  * Delete the invitation with id 'id_num'
  */
 int
@@ -200,34 +207,17 @@ delete_invite(unsigned id_num)
 	TABLE_ENTRY *ptr;
 
 	ptr = table;
-	if (debug) syslog(LOG_DEBUG, "delete_invite(%d)", id_num);
+	debug("delete_invite(%d)\n", id_num);
 
-	for (ptr = table; ptr != NIL; ptr = ptr->next) {
+	for (ptr = table; ptr != NULL; ptr = ptr->next) {
 		if (ptr->request.id_num == id_num)
 			break;
-		if (debug) print_request("", &ptr->request);
+		print_request("", &ptr->request);
 	}
-	if (ptr != NIL) {
+	if (ptr != NULL) {
 		deleteit(ptr);
 		return SUCCESS;
 	}
 	return NOT_HERE;
 }
 
-/*
- * Classic delete from a double-linked list
- */
-static void
-deleteit(TABLE_ENTRY *ptr)
-{
-
-	if (debug)
-		print_request("deleteit", &ptr->request);
-	if (table == ptr)
-		table = ptr->next;
-	else if (ptr->last != NIL)
-		ptr->last->next = ptr->next;
-	if (ptr->next != NIL)
-		ptr->next->last = ptr->last;
-	free(ptr);
-}

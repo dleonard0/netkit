@@ -35,95 +35,36 @@
  * From: @(#)announce.c	5.9 (Berkeley) 2/26/91
  */
 char ann_rcsid[] = 
-  "$Id: announce.c,v 1.4 1996/12/29 17:13:53 dholland Exp $";
+  "$Id: announce.c,v 1.7 1998/11/27 07:08:22 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
-#include <sys/ioctl.h>
 #include <errno.h>
 #include <syslog.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <fcntl.h>
 #include <string.h>
 #include <paths.h>
-#include "mytalkd.h"
+#include "prot_talkd.h"
 #include "proto.h"
-
-static int announce_proc(CTL_MSG *request, const char *remote_machine);
-static void print_mesg(FILE *tf, CTL_MSG *request, const char *remote_machine);
-
-extern char hostname[];
 
 /*
  * Announce an invitation to talk.
  *
  * Because the tty driver insists on attaching a terminal-less
  * process to any terminal that it writes on, we must fork a child
- * to protect ourselves
+ * to protect ourselves.
+ *
+ * That hasn't been true since, hrm, 4.2BSD maybe? Even in System V,
+ * we can use O_NOCTTY. On the other hand, forking is a good idea in
+ * case the tty hangs. But at present we don't take advantage of that;
+ * we'd wait() forever.
  */
-int
-announce(CTL_MSG *request, const char *remote_machine)
-{
-	int pid, val, status;
 
-	if ((pid = fork())!=0) {
-		/* we are the parent, so wait for the child */
-		if (pid == -1)		/* the fork failed */
-			return FAILED;
-		do {
-			val = wait(&status);
-			if (val == -1) {
-				if (errno == EINTR)
-					continue;
-				/* shouldn't happen */
-				syslog(LOG_WARNING, "announce: wait: %m");
-				return (FAILED);
-			}
-		} while (val != pid);
-		if ((status&0377) > 0)	/* we were killed by some signal */
-			return FAILED;
-		/* Get the second byte, this is the exit/return code */
-		return ((status >> 8) & 0377);
-	}
-	/* we are the child, go and do it */
-	_exit(announce_proc(request, remote_machine));
-}
-	
-/*
- * See if the user is accepting messages. If so, announce that 
- * a talk is requested.
- */
-static int
-announce_proc(CTL_MSG *request, const char *remote_machine)
-{
-/*	int pid, status; */
-	char full_tty[32];
-	FILE *tf;
-	struct stat stbuf;
-
-	snprintf(full_tty, sizeof(full_tty), "%s/%s", _PATH_DEV, 
-		 request->r_tty);
-	if (access(full_tty, 0) != 0)
-		return FAILED;
-	if ((tf = fopen(full_tty, "w")) == NULL)
-		return PERMISSION_DENIED;
-	/*
-	 * On first tty open, the server will have
-	 * it's pgrp set, so disconnect us from the
-	 * tty before we catch a signal.
-	 */
-	ioctl(fileno(tf), TIOCNOTTY, NULL);
-	if (fstat(fileno(tf), &stbuf) < 0)
-		return (PERMISSION_DENIED);
-	if ((stbuf.st_mode&020) == 0)
-		return (PERMISSION_DENIED);
-	print_mesg(tf, request, remote_machine);
-	fclose(tf);
-	return SUCCESS;
-}
 
 /*
  * Reject control codes and other crap.
@@ -143,10 +84,10 @@ static int safechar(int ch) {
  * Build a block of characters containing the message. 
  * It is sent blank filled and in a single block to
  * try to keep the message in one piece if the recipient
- * in in vi at the time
+ * is in, say, vi at the time.
  */
 static void
-print_mesg(FILE *tf, CTL_MSG *request, const char *remote_machine)
+print_mesg(int fd, CTL_MSG *request, const char *remote_machine)
 {
 	struct timeval clocc;
 	struct timezone zone;
@@ -169,7 +110,7 @@ print_mesg(FILE *tf, CTL_MSG *request, const char *remote_machine)
 	i++;
 	snprintf(line_buf[i], N_CHARS, 
 		 "Message from Talk_Daemon@%s at %d:%02d ...",
-		 hostname, localclock->tm_hour, localclock->tm_min);
+		 ourhostname, localclock->tm_hour, localclock->tm_min);
 	sizes[i] = strlen(line_buf[i]);
 	max_size = max(max_size, sizes[i]);
 	i++;
@@ -203,7 +144,71 @@ print_mesg(FILE *tf, CTL_MSG *request, const char *remote_machine)
 		*(bptr++) = '\n';
 	}
 	*bptr = 0;
-	fprintf(tf, big_buf);
-	fflush(tf);
-	ioctl(fileno(tf), TIOCNOTTY, NULL);
+	write(fd, big_buf, strlen(big_buf));
+}
+
+/*
+ * See if the user is accepting messages. If so, announce that 
+ * a talk is requested.
+ */
+static int
+announce_proc(CTL_MSG *request, const char *remote_machine)
+{
+	char full_tty[32];
+	int fd;
+	struct stat stbuf;
+
+	snprintf(full_tty, sizeof(full_tty), "%s/%s", _PATH_DEV, 
+		 request->r_tty);
+	if (access(full_tty, F_OK) != 0)
+		return FAILED;
+	fd = open(full_tty, O_WRONLY|O_NOCTTY);
+	if (fd<0) {
+		return (PERMISSION_DENIED);
+	}
+	if (fstat(fd, &stbuf) < 0) {
+		return (PERMISSION_DENIED);
+	}
+	if ((stbuf.st_mode&020) == 0) {
+		return (PERMISSION_DENIED);
+	}
+	print_mesg(fd, request, remote_machine);
+	close(fd);
+	return SUCCESS;
+}
+
+int
+announce(CTL_MSG *request, const char *remote_machine)
+{
+	int pid, val, status;
+
+	pid = fork();
+	if (pid==-1) {
+		/* fork failed */
+		return FAILED;
+	}
+	if (pid==0) {
+		/* child */
+		status = announce_proc(request, remote_machine);
+		_exit(status);
+	}
+
+	/* we are the parent, so wait for the child */
+	do {
+		val = wait(&status);
+		if (val == -1) {
+			if (errno == EINTR || errno == EAGAIN)
+				continue;
+			/* shouldn't happen */
+			syslog(LOG_WARNING, "announce: wait: %m");
+			return (FAILED);
+		}
+	} while (val != pid);
+
+	if (WIFSIGNALED(status)) {
+		/* we were killed by some signal */
+		return FAILED;
+	}
+	/* Send back the exit/return code */
+	return (WEXITSTATUS(status));
 }

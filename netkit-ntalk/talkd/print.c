@@ -35,72 +35,163 @@
  * From: @(#)print.c	5.8 (Berkeley) 2/26/91
  */
 char print_rcsid[] = 
-  "$Id: print.c,v 1.5 1997/04/05 22:26:22 dholland Exp $";
+  "$Id: print.c,v 1.7 1998/11/27 07:58:47 dholland Exp $";
 
 /* debug print routines */
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <syslog.h>
+#include <string.h>
 #include <stdio.h>
-#include "mytalkd.h"
+#include <stdarg.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <paths.h>
+#include "prot_talkd.h"
 #include "proto.h"
 
-static const char *types[] = { 
-  "leave_invite", 
-  "look_up", 
-  "delete", 
-  "announce" 
-};
-#define	NTYPES	(sizeof (types) / sizeof (types[0]))
+#ifndef _PATH_VAR_LOG
+#define _PATH_VAR_LOG "/var/log/"
+#endif
 
-static const char *answers[] = { 
-  "success", 
-  "not_here", 
-  "failed", 
-  "machine_unknown", 
-  "permission_denied", 
-  "unknown_request", 
-  "badversion", 
-  "badaddr", 
-  "badctladdr" 
+#define	NTYPES 4
+static const char *types[NTYPES] = { 
+  "LEAVE_INVITE", 
+  "LOOK_UP", 
+  "DELETE", 
+  "ANNOUNCE" 
 };
-#define	NANSWERS	(sizeof (answers) / sizeof (answers[0]))
+
+#define NANSWERS 9
+static const char *answers[NANSWERS] = { 
+  "SUCCESS", 
+  "NOT_HERE", 
+  "FAILED", 
+  "MACHINE_UNKNOWN", 
+  "PERMISSION_DENIED", 
+  "UNKNOWN_REQUEST", 
+  "BADVERSION", 
+  "BADADDR", 
+  "BADCTLADDR" 
+};
+
+static int logging, badpackets;
+static int logfd, packfd;
+
+void
+set_debug(int l, int b)
+{
+	const char *file;
+	logging = l;
+	badpackets = b;
+	if (logging) {
+		file = _PATH_VAR_LOG "talkd.log";
+		logfd = open(file, O_WRONLY|O_APPEND);
+		if (logfd<0) {
+			syslog(LOG_WARNING, "%s: %s", file, strerror(errno));
+			logging = 0;
+		}
+	}
+	if (badpackets) {
+		file = _PATH_VAR_LOG "talkd.packets";
+		packfd = open(file, O_WRONLY|O_APPEND);
+		if (packfd<0) {
+			syslog(LOG_WARNING, "%s: %s", file, strerror(errno));
+			badpackets = 0;
+		}
+	}
+}
+
+static const char *
+print_type(int type)
+{
+	static char rv[80];
+	if (type > NTYPES) {
+		snprintf(rv, sizeof(rv), "type %d", type);
+		return rv;
+	} 
+	return types[type];
+}
+
+static const char *
+print_answer(int answer)
+{
+	static char rv[80];
+	if (answer > NANSWERS) {
+		snprintf(rv, sizeof(rv), "answer %d", answer);
+		return rv;
+	} 
+	return answers[answer];
+}
 
 void
 print_request(const char *cp, const CTL_MSG *mp)
 {
-	char tbuf[80];
+	char lu[NAME_SIZE+1], ru[NAME_SIZE+1], tt[TTY_SIZE+1];
+	char buf[1024];
 	const char *tp;
-	
-	if (mp->type > NTYPES) {
-		snprintf(tbuf, sizeof(tbuf), "type %d", mp->type);
-		tp = tbuf;
-	} 
-	else tp = types[mp->type];
+	if (!logging) return;
 
-	syslog(LOG_DEBUG, "%s: %s: id %d, l_user %s, r_user %s, r_tty %s",
-	    cp, tp, mp->id_num, mp->l_name, mp->r_name, mp->r_tty);
+	tp = print_type(mp->type);
+	strncpy(lu, mp->l_name, sizeof(lu));
+	strncpy(ru, mp->r_name, sizeof(ru));
+	strncpy(tt, mp->r_tty, sizeof(tt));
+	lu[sizeof(lu)-1]=0;
+	ru[sizeof(ru)-1]=0;
+	tt[sizeof(tt)-1]=0;
+	
+	snprintf(buf, sizeof(buf), 
+		 "%s: %s: id %lu, l_user %s, r_user %s, r_tty %s\n",
+		 cp, tp, mp->id_num, lu, ru, tt);
+	write(logfd, buf, strlen(buf));
 }
 
 void
 print_response(const char *cp, const CTL_RESPONSE *rp)
 {
-	char tbuf[80], abuf[80];
+	char buf[1024];
 	const char *tp, *ap;
+	if (!logging) return;
+
+	tp = print_type(rp->type);
+	ap = print_answer(rp->answer);
 	
-	if (rp->type > NTYPES) {
-		snprintf(tbuf, sizeof(tbuf), "type %d", rp->type);
-		tp = tbuf;
-	} 
-	else tp = types[rp->type];
+	snprintf(buf, sizeof(buf), 
+		 "%s: %s <-- %s, id %d\n",
+		 cp, tp, ap, ntohl(rp->id_num));
+	write(logfd, buf, strlen(buf));
+}
 
-	if (rp->answer > NANSWERS) {
-		snprintf(abuf, sizeof(abuf), "answer %d", rp->answer);
-		ap = abuf;
-	} 
-	else ap = answers[rp->answer];
+void
+debug(const char *format, ...)
+{
+	char buf[1024];
+	va_list ap;
+	if (!logging) return;
 
-	syslog(LOG_DEBUG, "%s: %s: %s, id %d", cp, tp, ap, ntohl(rp->id_num));
+	va_start(ap, format);
+	vsnprintf(buf, sizeof(buf), format, ap);
+	va_end(ap);
+	write(logfd, buf, strlen(buf));
+}
+
+void
+print_broken_packet(const char *pack, size_t len, struct sockaddr_in *from)
+{
+	size_t i;
+	char tmp[4], buf[128];
+	if (!badpackets) return;
+	snprintf(buf, sizeof(buf), "From: %s [%lu]", 
+		 inet_ntoa(from->sin_addr), from->sin_addr.s_addr);
+	write(packfd, buf, strlen(buf));
+	for (i=0; i<len; i++) {
+	    if (i%24 == 0) write(packfd, "\n    ", 5);
+	    snprintf(tmp, sizeof(tmp), "%02x ", pack[i]);
+	    write(packfd, tmp, strlen(tmp));
+	}
+	write(packfd, "\n", 1);
 }

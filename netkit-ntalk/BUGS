@@ -6,8 +6,6 @@ talk:
 	- there are reports that it sometimes goes into a one-line-only 
 	  mode where it only prints to the top line of the screen. I can't 
 	  reproduce this, I'm afraid... insight welcome.
-	- talk should behave more intelligently on systems with multiple
-	  interfaces. 
 
 talkd:
 	- talk request messages should check for 8 bit tty and not 

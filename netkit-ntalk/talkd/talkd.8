@@ -30,7 +30,7 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)talkd.8	6.5 (Berkeley) 3/16/91
-.\"	$Id: talkd.8,v 1.1 1996/07/16 03:32:02 dholland Exp $
+.\"	$Id: talkd.8,v 1.2 1998/11/27 07:59:52 dholland Exp $
 .\"
 .Dd March 16, 1991
 .Dt TALKD 8
@@ -40,6 +40,7 @@
 .Nd remote user communication server
 .Sh SYNOPSIS
 .Nm talkd
+.Op Fl dp
 .Sh DESCRIPTION
 .Nm Talkd
 is the server that notifies a user that someone else wants to
@@ -66,6 +67,15 @@ When the callee responds, the local server uses the
 recorded invitation to respond with the appropriate rendezvous
 address and the caller and callee client programs establish a
 stream connection through which the conversation takes place.
+.Sh OPTIONS
+.Op Fl d
+Debug mode; writes copious logging and debugging information to 
+.Pa /var/adm/talkd.log .
+.Pp
+.Op Fl p
+Packet logging mode; writes copies of malformed packets to
+.Pa /var/adm/talkd.packets .
+This is useful for debugging interoperability problems.
 .Sh SEE ALSO
 .Xr talk 1 ,
 .Xr write 1

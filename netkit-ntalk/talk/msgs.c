@@ -35,7 +35,7 @@
  * From: @(#)msgs.c	5.6 (Berkeley) 3/1/91
  */
 char msgs_rcsid[] = 
-  "$Id: msgs.c,v 1.4 1996/08/15 03:40:50 dholland Exp $";
+  "$Id: msgs.c,v 1.6 1998/11/27 10:55:58 dholland Exp $";
 
 /* 
  * A package to display what is happening every MSG_INTERVAL seconds
@@ -64,9 +64,16 @@ void
 start_msgs(void)
 {
 	struct itimerval itimer;
+	struct sigaction act;
 
 	message(current_state);
-	signal(SIGALRM, disp_msg);
+
+	act.sa_handler = disp_msg;
+	act.sa_flags = SA_RESTART;
+	sigemptyset(&act.sa_mask);
+	sigaddset(&act.sa_mask, SIGALRM);
+	sigaction(SIGALRM, &act, NULL);
+
 	itimer.it_value.tv_sec = itimer.it_interval.tv_sec = MSG_INTERVAL;
 	itimer.it_value.tv_usec = itimer.it_interval.tv_usec = 0;
 	setitimer(ITIMER_REAL, &itimer, (struct itimerval *)0);
@@ -76,9 +83,15 @@ void
 end_msgs(void)
 {
 	struct itimerval itimer;
+	struct sigaction act;
 
 	timerclear(&itimer.it_value);
 	timerclear(&itimer.it_interval);
 	setitimer(ITIMER_REAL, &itimer, (struct itimerval *)0);
-	signal(SIGALRM, SIG_DFL);
+
+	act.sa_handler = SIG_DFL;
+	act.sa_flags = SA_RESTART;
+	sigemptyset(&act.sa_mask);
+	sigaddset(&act.sa_mask, SIGALRM);
+	sigaction(SIGALRM, &act, NULL);
 }

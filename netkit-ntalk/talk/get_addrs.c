@@ -35,7 +35,7 @@
  * From: @(#)get_addrs.c	5.7 (Berkeley) 3/1/91
  */
 char ga_rcsid[] = 
-  "$Id: get_addrs.c,v 1.7 1997/05/19 09:13:20 dholland Exp $";
+  "$Id: get_addrs.c,v 1.10 1998/11/27 10:55:58 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -46,43 +46,26 @@ char ga_rcsid[] =
 #include <unistd.h>
 #include <string.h>
 #include "talk.h"
-#include "talk_ctl.h"
 
 void
-get_addrs(char *my_machine_name, char *his_machine_name)
+get_addrs(const char *his_machine_name)
 {
 	struct hostent *hp;
 	struct servent *sp;
 
 	msg.pid = htonl(getpid());
-	/* look up the address of the local host */
-	hp = gethostbyname(my_machine_name);
+
+	hp = gethostbyname(his_machine_name);
 	if (hp == NULL) {
-		fprintf(stderr, "talk: %s: ", my_machine_name);
+		fprintf(stderr, "talk: %s: ", his_machine_name);
 		herror((char *)NULL);
 		exit(-1);
 	}
-	if (hp->h_length > (int)sizeof(my_machine_addr)) {
-		hp->h_length = sizeof(my_machine_addr);
+	if (hp->h_length > (int)sizeof(his_machine_addr)) {
+		hp->h_length = sizeof(his_machine_addr);
 	}
-	memcpy(&my_machine_addr, hp->h_addr, hp->h_length);
-	/*
-	 * If the callee is on-machine, just copy the
-	 * network address, otherwise do a lookup...
-	 */
-	if (strcmp(his_machine_name, my_machine_name)) {
-		hp = gethostbyname(his_machine_name);
-		if (hp == NULL) {
-			fprintf(stderr, "talk: %s: ", his_machine_name);
-			herror((char *)NULL);
-			exit(-1);
-		}
-		if (hp->h_length > (int)sizeof(his_machine_addr)) {
-			hp->h_length = sizeof(his_machine_addr);
-		}
-		memcpy(&his_machine_addr, hp->h_addr, hp->h_length);
-	} else
-		his_machine_addr = my_machine_addr;
+	memcpy(&his_machine_addr, hp->h_addr, hp->h_length);
+
 	/* find the server's port */
 	sp = getservbyname("ntalk", "udp");
 	if (sp == 0) {
@@ -91,30 +74,4 @@ get_addrs(char *my_machine_name, char *his_machine_name)
 		exit(-1);
 	}
 	daemon_port = sp->s_port;
-#ifdef	BAD_LINUX_HACK
-	/* now some hacking to get my own address correctly routed */
-	{
-		FILE *fp;
-		long dest, mask;
-		char line[512];
-		struct	ifreq ifr;
-		int	s;
-
-		/* locate the proper device it has to go to */
-		fp = fopen("/proc/net/route","r");
-		fgets(line,sizeof(line),fp);
-		while (fscanf(fp,"%s %lx %*lx %*d %*d %*d %*d %lx %*d %*d\n",ifr.ifr_name,&dest,&mask)==3) {
-			if ((his_machine_addr.s_addr & mask) == dest) {
-				/* ok, now find out its addr, and use that as
-				   OUR address */
-				s = socket(AF_INET,SOCK_DGRAM,0);
-				ioctl(s,SIOCGIFADDR,&ifr);
-				close(s);				
-				my_machine_addr = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr;
-				break;
-			}
-		}
-		fclose(fp);
-	}
-#endif
 }

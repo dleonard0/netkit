@@ -35,7 +35,7 @@
  * From: @(#)get_names.c	5.9 (Berkeley) 3/1/91
  */
 char gn_rcsid[] = 
-  "$Id: get_names.c,v 1.6 1996/12/29 17:07:41 dholland Exp $";
+  "$Id: get_names.c,v 1.9 1998/11/27 11:12:02 dholland Exp $";
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -43,8 +43,6 @@ char gn_rcsid[] =
 #include <unistd.h>
 #include <string.h>
 #include "talk.h"
-
-extern	CTL_MSG msg;
 
 /*
  * Determine the local and remote user, tty, and machines
@@ -59,20 +57,20 @@ get_names(int argc, char *argv[])
 	register char *cp;
 	char *names;
 
-	if (argc < 2 ) {
+	if (argc < 2) {
 		printf("Usage: talk user [ttyname]\n");
-		exit(-1);
+		exit(1);
 	}
 	if (!isatty(0)) {
 		printf("Standard input must be a tty, not a pipe or a file\n");
-		exit(-1);
+		exit(1);
 	}
 	if ((my_name = getlogin()) == NULL || my_name[0] == 0) {
 		struct passwd *pw;
 
 		if ((pw = getpwuid(getuid())) == NULL) {
 			printf("You don't exist. Go away.\n");
-			exit(-1);
+			exit(1);
 		}
 		my_name = pw->pw_name;
 	}
@@ -102,18 +100,15 @@ get_names(int argc, char *argv[])
 		his_tty = argv[2];	/* tty name is arg 2 */
 	else
 		his_tty = "";
-	get_addrs(my_machine_name, his_machine_name);
+	get_addrs(his_machine_name);
 	/*
 	 * Initialize the message template.
 	 */
-	msg.vers = TALK_VERSION;
-	msg.addr.sa_family = htons(AF_INET);
-	msg.ctl_addr.sa_family = htons(AF_INET);
 	msg.id_num = htonl(0);
 	strncpy(msg.l_name, my_name, NAME_SIZE);
-	msg.l_name[NAME_SIZE - 1] = '\0';
+	msg.l_name[NAME_SIZE - 1] = 0;
 	strncpy(msg.r_name, his_name, NAME_SIZE);
-	msg.r_name[NAME_SIZE - 1] = '\0';
+	msg.r_name[NAME_SIZE - 1] = 0;
 	strncpy(msg.r_tty, his_tty, TTY_SIZE);
-	msg.r_tty[TTY_SIZE - 1] = '\0';
+	msg.r_tty[TTY_SIZE - 1] = 0;
 }

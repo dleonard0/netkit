@@ -7,12 +7,14 @@ ifeq ($(USE_GLIBC),1)
 CFLAGS += -DGNU_LIBC -D_GNU_SOURCE
 endif
 
-OBJS = talkd.o announce.o process.o table.o print.o
+CFLAGS += -I../include
+
+OBJS = talkd.o announce.o process.o table.o print.o repairs.o
 
 talkd: $(OBJS) 
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
-$(OBJS): proto.h
+$(OBJS): proto.h ../include/prot_talkd.h
 
 install: talkd
 	install -s -m$(DAEMONMODE) talkd $(INSTALLROOT)$(SBINDIR)/in.ntalkd
