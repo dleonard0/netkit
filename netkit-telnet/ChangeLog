@@ -1,3 +1,18 @@
+16-Oct-1997:
+	Added extra fun bits to the enviroment string so that ps aux shows up extra info
+	eg ... telnetd: zen.btc.uwe.ac.uk [xterm]
+	Added OPOST to the terminal stuff a la NCSA telnet fixup
+
+23-Sep-1997:
+	Assorted signed/unsigned character fixes and hacking in telnet.
+	(Martin Mares, mj@mj.gts.cz)
+	Fix various crashes in telnet arising from undefining environment
+	variables.
+	"telnet h" no longer prints a usage message.
+
+12-Jun-1997:
+	netkit-telnet-0.10 released.
+
 08-Jun-1997:
 	More adjustments for glibc.
 	Include kernel patch to fix hang on long input; thanks to Bill

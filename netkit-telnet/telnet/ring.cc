@@ -35,7 +35,7 @@
  * From: @(#)ring.c	5.2 (Berkeley) 3/1/91
  */
 char ring_rcsid[] =
-  "$Id: ring.cc,v 1.21 1997/03/26 09:56:56 dholland Exp $";
+  "$Id: ring.cc,v 1.22 1997/09/23 11:33:16 dholland Exp $";
 
 /*
  * This defines a structure for a ring buffer. 
@@ -86,7 +86,7 @@ int ringbuf::getch(int *ch) {
 	    marked = -1;
 	}
 	else rv = 1;
-	*ch = buf[tail++];
+	*ch = (unsigned char) buf[tail++];
 	if (tail>=size) tail -= size;
 	count--;
     }

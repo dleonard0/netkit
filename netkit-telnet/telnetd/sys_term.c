@@ -904,7 +904,7 @@ static int getptyslave(void) {
 #   define OXTABS	0
 #  endif
     termbuf.c_lflag |= ECHO;
-    termbuf.c_oflag |= ONLCR|OXTABS;
+    termbuf.c_oflag |= OPOST|ONLCR|OXTABS;
     termbuf.c_iflag |= ICRNL;
     termbuf.c_iflag &= ~IXOFF;
 # endif /* defined(USE_TERMIO) && !defined(CRAY) && (BSD <= 43) */

@@ -35,7 +35,7 @@
  * From: @(#)commands.c	5.5 (Berkeley) 3/22/91
  */
 char cmd_rcsid[] = 
-  "$Id: commands.cc,v 1.27 1996/11/25 18:42:46 dholland Exp $";
+  "$Id: commands.cc,v 1.29 1997/09/23 11:54:27 dholland Exp $";
 
 #include <string.h>
 
@@ -1085,7 +1085,7 @@ static int docharmode(int) {
 }
 
 static int dolmmode(int bit, int on) {
-    char c;
+    unsigned char c;
     extern int linemode;
 
     if (my_want_state_is_wont(TELOPT_LINEMODE)) {
@@ -1647,7 +1647,11 @@ int tn(int argc, const char *argv[]) {
     cmd = *argv;
     --argc; ++argv;
     while (argc) {
-	if (isprefix(*argv, "help") || isprefix(*argv, "?"))
+	/* 
+	 * Having "telnet h" print usage is really stupid... 
+	 * suppose your hostname is h?
+	 */
+	if (/*isprefix(*argv, "help") ||*/ isprefix(*argv, "?"))
 	    goto usage;
 	if (strcmp(*argv, "-l") == 0) {
 	    --argc; ++argv;

@@ -678,6 +678,11 @@ doit(struct sockaddr_in *who)
 	level = getterminaltype(user_name);
 	setenv("TERM", terminaltype ? terminaltype : "network", 1);
 
+	/* TODO list stuff provided by Laszlo Vecsey <master@internexus.net> */
+
+	sprintf(progname, "telnetd: %s [%s]", host, terminaltype);
+	setenv("REMOTEHOST", host, 0);
+
 	/*
 	 * Start up the login process on the slave side of the terminal
 	 */

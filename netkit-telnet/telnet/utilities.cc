@@ -35,7 +35,7 @@
  * From: @(#)utilities.c	5.3 (Berkeley) 3/22/91
  */
 char util_rcsid[] = 
-  "$Id: utilities.cc,v 1.17 1996/08/15 04:18:19 dholland Exp $";
+  "$Id: utilities.cc,v 1.18 1997/09/23 11:33:16 dholland Exp $";
 
 #define	TELOPTS
 #define	TELCMDS
@@ -249,7 +249,7 @@ void optionstatus(void) {
 /* direction: '<' or '>' */
 /* pointer: where suboption data sits */
 /* length: length of suboption data */
-void printsub(int direction, char *pointer, int length) {
+void printsub(int direction, unsigned char *pointer, int length) {
     register int i = 0;
 
     extern int want_status_response;
@@ -430,8 +430,8 @@ void printsub(int direction, char *pointer, int length) {
 						SLC_FLUSHOUT| SLC_LEVELBITS))
 			fprintf(NetTrace, "(0x%x)", pointer[i+SLC_FLAGS]);
 		    fprintf(NetTrace, " %d;", pointer[i+SLC_VALUE]);
-		    if ((pointer[i+SLC_VALUE] == (char)IAC) &&
-			(pointer[i+SLC_VALUE+1] == (char)IAC))
+		    if ((pointer[i+SLC_VALUE] == IAC) &&
+			(pointer[i+SLC_VALUE+1] == IAC))
 				i++;
 		}
 		for (; i < length; i++)
@@ -513,10 +513,10 @@ void printsub(int direction, char *pointer, int length) {
 			i++;
 			j = k = i;
 			while (j < length) {
-			    if (pointer[j] == (char)SE) {
+			    if (pointer[j] == SE) {
 				if (j+1 == length)
 				    break;
-				if (pointer[j+1] == (char)SE)
+				if (pointer[j+1] == SE)
 				    j++;
 				else
 				    break;

@@ -38,7 +38,7 @@ class enviro {
 static array<enviro> vars;
 
 static enviro *env_find(const char *var) {
-    for (int i=0; i<vars.num(); i++) {
+    for (int i=0; i<vars.num(); i++) if (vars[i].getname()) {
 	if (!strcmp(vars[i].getname(), var))
 	    return &vars[i];
     }
@@ -170,7 +170,7 @@ void env_send(const char *var) {
 }
 
 void env_list(void) {
-    for (int i=0; i<vars.num(); i++) {
+    for (int i=0; i<vars.num(); i++) if (vars[i].getname()) {
 	printf("%c %-20s %s\n", vars[i].getexport() ? '*' : ' ',
 	       vars[i].getname(), vars[i].getval());
     }
@@ -183,6 +183,9 @@ void env_iterate(int *iter, int /*exported_only*/) {
 const char *env_next(int *iter, int exported_only) {
     while (*iter>=0 && *iter<vars.num()) {
 	int k = (*iter)++;
+
+	if (!vars[k].getname()) continue; // deleted variable
+
 	if (vars[k].getexport() || !exported_only) {
 	    return vars[k].getname();
 	}

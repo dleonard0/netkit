@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)externs.h	5.3 (Berkeley) 3/22/91
- *	$Id: externs.h,v 1.18 1996/08/14 03:25:47 dholland Exp $
+ *	$Id: externs.h,v 1.19 1997/09/23 11:32:04 dholland Exp $
  */
 
 #ifndef	BSD
@@ -176,7 +176,7 @@ void command(int, const char *, int);
 void Dump (int, char *, int);
 void init_3270 (void);
 void printoption(const char *, int, int);
-void printsub (int, char *, int);
+void printsub (int, unsigned char *, int);
 void sendnaws (void);
 void setconnmode(int);
 void setcommandmode (void);
@@ -193,11 +193,11 @@ void upcase(char *);
 void willoption(int);
 void wontoption(int);
 
-void lm_will(char *, int);
-void lm_wont(char *, int);
-void lm_do(char *, int);
-void lm_dont(char *, int);
-void lm_mode(char *, int, int);
+void lm_will(unsigned char *, int);
+void lm_wont(unsigned char *, int);
+void lm_do(unsigned char *, int);
+void lm_dont(unsigned char *, int);
+void lm_mode(unsigned char *, int, int);
 
 void slc_init(void);
 void slcstate(void);
@@ -205,14 +205,14 @@ void slc_mode_export(void);
 void slc_mode_import(int);
 void slc_import(int);
 void slc_export(void);
-void slc (char *, int);
+void slc(unsigned char *, int);
 void slc_check(void);
 void slc_start_reply(void);
 void slc_add_reply(int, int, int);
 void slc_end_reply(void);
 int slc_update(void);
 
-void env_opt(char *, int);
+void env_opt(unsigned char *, int);
 void env_opt_start(void);
 void env_opt_start_info(void);
 void env_opt_add(const char *);

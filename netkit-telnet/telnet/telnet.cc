@@ -35,7 +35,7 @@
  * From: @(#)telnet.c	5.53 (Berkeley) 3/22/91
  */
 char telnet_rcsid[] = 
-  "$Id: telnet.cc,v 1.31 1996/08/15 04:18:19 dholland Exp $";
+  "$Id: telnet.cc,v 1.32 1997/09/23 11:33:16 dholland Exp $";
 
 #include <string.h>
 #include <sys/types.h>
@@ -66,16 +66,16 @@ char telnet_rcsid[] =
 
 #define	strip(x)	((x)&0x7f)
 
-static char subbuffer[SUBBUFSIZE];
-static char *subpointer, *subend;	 /* buffer for sub-options */
+static unsigned char subbuffer[SUBBUFSIZE];
+static unsigned char *subpointer, *subend;	 /* buffer for sub-options */
 #define	SB_CLEAR()	subpointer = subbuffer;
 #define	SB_TERM()	{ subend = subpointer; SB_CLEAR(); }
 #define	SB_ACCUM(c)	if (subpointer < (subbuffer+sizeof subbuffer)) { \
 				*subpointer++ = (c); \
 			}
 
-#define	SB_GET()	((*subpointer++)&0xff)
-#define	SB_PEEK()	((*subpointer)&0xff)
+#define	SB_GET()	(*subpointer++)
+#define	SB_PEEK()	(*subpointer)
 #define	SB_EOF()	(subpointer >= subend)
 #define	SB_LEN()	(subend - subpointer)
 
@@ -777,7 +777,7 @@ static void suboption(void) {
 
 //static char str_lm[] = { IAC, SB, TELOPT_LINEMODE, 0, 0, IAC, SE };
 
-void lm_will(char *cmd, int len) {
+void lm_will(unsigned char *cmd, int len) {
     if (len < 1) {
 /*@*/	printf("lm_will: no command!!!\n");	/* Should not happen... */
 	return;
@@ -787,7 +787,7 @@ void lm_will(char *cmd, int len) {
 		    DONT, cmd[0], IAC, SE);
 }
 
-void lm_wont(char * /*cmd*/, int len) {
+void lm_wont(unsigned char * /*cmd*/, int len) {
     if (len < 1) {
 /*@*/	printf("lm_wont: no command!!!\n");	/* Should not happen... */
 	return;
@@ -795,7 +795,7 @@ void lm_wont(char * /*cmd*/, int len) {
     /* We are always DONT, so don't respond */
 }
 
-void lm_do(char *cmd, int len) {
+void lm_do(unsigned char *cmd, int len) {
     if (len < 1) {
 /*@*/	printf("lm_do: no command!!!\n");	/* Should not happen... */
 	return;
@@ -804,7 +804,7 @@ void lm_do(char *cmd, int len) {
 		    WONT, cmd[0], IAC, SE);
 }
 
-void lm_dont(char * /*cmd*/, int len) {
+void lm_dont(unsigned char * /*cmd*/, int len) {
     if (len < 1) {
 /*@*/	printf("lm_dont: no command!!!\n");	/* Should not happen... */
 	return;
@@ -812,7 +812,7 @@ void lm_dont(char * /*cmd*/, int len) {
     /* we are always WONT, so don't respond */
 }
 
-void lm_mode(char *cmd, int len, int init) {
+void lm_mode(unsigned char *cmd, int len, int init) {
 	if (len != 1) return;
 	if ((linemode&MODE_MASK&~MODE_ACK) == *cmd) return;
 	if (*cmd&MODE_ACK) return;
@@ -949,7 +949,7 @@ void slc_export(void) {
     setconnmode(1);	/* Make sure the character values are set */
 }
 
-void slc(char *cp, int len) {
+void slc(unsigned char *cp, int len) {
 	register struct spc *spcp;
 	register int func,level;
 
@@ -1034,8 +1034,8 @@ void slc_check(void) {
 }
 
 
-char slc_reply[128];
-char *slc_replyp;
+unsigned char slc_reply[128];
+unsigned char *slc_replyp;
 
 void slc_start_reply(void) {
 	slc_replyp = slc_reply;
@@ -1046,11 +1046,11 @@ void slc_start_reply(void) {
 }
 
 void slc_add_reply(int func, int flags, int value) {
-	if ((*slc_replyp++ = func) == (char)IAC)
+	if ((*slc_replyp++ = func) == IAC)
 		*slc_replyp++ = IAC;
-	if ((*slc_replyp++ = flags) == (char)IAC)
+	if ((*slc_replyp++ = flags) == IAC)
 		*slc_replyp++ = IAC;
-	if ((*slc_replyp++ = value) == (char)IAC)
+	if ((*slc_replyp++ = value) == IAC)
 		*slc_replyp++ = IAC;
 }
 
@@ -1063,7 +1063,7 @@ void slc_end_reply(void) {
     if (len <= 6) return;
 
     printsub('>', &slc_reply[2], len - 2);
-    netoring.write(slc_reply, len);
+    netoring.write((char *)slc_reply, len);
 }
 
 int slc_update(void) {
@@ -1082,22 +1082,22 @@ int slc_update(void) {
 	return(need_update);
 }
 
-void env_opt(char *buf, int len) {
-	char *ep = 0, *epc = 0;
+void env_opt(unsigned char *buf, int len) {
+	unsigned char *ep = 0, *epc = 0;
 	int i;
 
-	switch(buf[0]&0xff) {
+	switch(buf[0]) {
 	case TELQUAL_SEND:
 		env_opt_start();
 		if (len == 1) {
 			env_opt_add(NULL);
 		} 
 		else for (i = 1; i < len; i++) {
-			switch (buf[i]&0xff) {
+			switch (buf[i]) {
 			case ENV_VALUE:
 				if (ep) {
 					*epc = 0;
-					env_opt_add(ep);
+					env_opt_add((const char *)ep);
 				}
 				ep = epc = &buf[i+1];
 				break;
@@ -1111,7 +1111,7 @@ void env_opt(char *buf, int len) {
 			}
 			if (ep) {
 				*epc = 0;
-				env_opt_add(ep);
+				env_opt_add((const char *)ep);
 			}
 		}
 		env_opt_end(1);
@@ -1128,15 +1128,15 @@ void env_opt(char *buf, int len) {
 }
 
 #define	OPT_REPLY_SIZE	256
-char *opt_reply;
-char *opt_replyp;
-char *opt_replyend;
+unsigned char *opt_reply;
+unsigned char *opt_replyp;
+unsigned char *opt_replyend;
 
 void env_opt_start(void) {
 	if (opt_reply)
-		opt_reply = (char *)realloc(opt_reply, OPT_REPLY_SIZE);
+		opt_reply = (unsigned char *)realloc(opt_reply, OPT_REPLY_SIZE);
 	else
-		opt_reply = ( char *)malloc(OPT_REPLY_SIZE);
+		opt_reply = (unsigned char *)malloc(OPT_REPLY_SIZE);
 	if (opt_reply == NULL) {
 /*@*/		printf("env_opt_start: malloc()/realloc() failed!!!\n");
 		opt_reply = opt_replyp = opt_replyend = NULL;
@@ -1158,7 +1158,7 @@ void env_opt_start_info(void) {
 
 void env_opt_add(const char *ep) {
 	const char *vp;
-	char c;
+	unsigned char c;
 
 	if (opt_reply == NULL)		/*XXX*/
 		return;			/*XXX*/
@@ -1175,7 +1175,7 @@ void env_opt_add(const char *ep) {
 		register int len;
 		opt_replyend += OPT_REPLY_SIZE;
 		len = opt_replyend - opt_reply;
-		opt_reply = (char *)realloc(opt_reply, len);
+		opt_reply = (unsigned char *)realloc(opt_reply, len);
 		if (opt_reply == NULL) {
 /*@*/			printf("env_opt_add: realloc() failed!!!\n");
 			opt_reply = opt_replyp = opt_replyend = NULL;
@@ -1187,7 +1187,7 @@ void env_opt_add(const char *ep) {
 	*opt_replyp++ = ENV_VAR;
 	for (;;) {
 		while ((c = *ep++)!=0) {
-			switch(c&0xff) {
+			switch(c) {
 			case IAC:
 				*opt_replyp++ = IAC;
 				break;
@@ -1215,7 +1215,7 @@ void env_opt_end(int emptyok) {
 	*opt_replyp++ = IAC;
 	*opt_replyp++ = SE;
 	printsub('>', &opt_reply[2], len - 2);
-	netoring.write(opt_reply, len);
+	netoring.write((char *)opt_reply, len);
     }
     if (opt_reply) {
 	free(opt_reply);
@@ -1234,9 +1234,7 @@ int telrcv(void) {
 	    break;
 	}
 	returnValue = 1;
-
-	c = (c & 0xff);
-
+	
         switch (telrcv_state) {
 	 case TS_CR:
 	    telrcv_state = TS_DATA;
@@ -1261,7 +1259,6 @@ int telrcv(void) {
 	    if (In3270) {
 		*Ifrontp++ = c;
 		while (netiring.getch(&c)) {
-		    c = (c & 0xff);
 		    if (c == IAC) {
 			telrcv_state = TS_IAC;
 			break;
@@ -1279,8 +1276,6 @@ int telrcv(void) {
 		     */
 	    if ((c == '\r') && my_want_state_is_dont(TELOPT_BINARY)) {
 		if (netiring.getch(&c)) {
-		    c = (c & 0xff);
-
 		    if (c == 0) {
 			/* a "true" CR */
 			TTYADD('\r');
@@ -1495,7 +1490,6 @@ static int telsnd(void) {
 	}
 	returnValue = 1;
 
-	c = (c & 0xff);
 	sc = strip(c);
 
 	if (rlogin != _POSIX_VDISABLE) {
@@ -1805,11 +1799,11 @@ void telnet(const char * /*user*/) {
  * character.
  */
 
-static char *nextitem(char *current) {
-    if ((*current&0xff) != IAC) {
+static unsigned char *nextitem(unsigned char *current) {
+    if (*current != IAC) {
 	return current+1;
     }
-    switch (*(current+1)&0xff) {
+    switch (current[1]) {
     case DO:
     case DONT:
     case WILL:
@@ -1817,11 +1811,11 @@ static char *nextitem(char *current) {
 	return current+3;
     case SB:		/* loop forever looking for the SE */
 	{
-	    register char *look = current+2;
+	    unsigned char *look = current+2;
 
 	    for (;;) {
-		if ((*look++&0xff) == IAC) {
-		    if ((*look++&0xff) == SE) {
+		if (*look++ == IAC) {
+		    if (*look++ == SE) {
 			return look;
 		    }
 		}
@@ -1854,8 +1848,8 @@ static void netclear(void) {
 #if	0	/* XXX */
     register char *thisitem, *next;
     char *good;
-#define	wewant(p)	((nfrontp > p) && ((*p&0xff) == IAC) && \
-				((*(p+1)&0xff) != EC) && ((*(p+1)&0xff) != EL))
+#define	wewant(p)	((nfrontp > p) && (*p == IAC) && \
+				(p[1] != EC) && (p[1] != EL))
 
     thisitem = netobuf;
 
@@ -1933,8 +1927,8 @@ int dosynch(void) {
 int want_status_response = 0;
 
 int get_status(char *, char *) {
-    char tmp[16];
-    register char *cp;
+    unsigned char tmp[16];
+    unsigned char *cp;
 
     if (my_want_state_is_dont(TELOPT_STATUS)) {
 	printf("Remote side does not support STATUS option\n");
@@ -1949,7 +1943,7 @@ int get_status(char *, char *) {
     *cp++ = IAC;
     *cp++ = SE;
     printsub('>', tmp+2, cp - tmp - 2);
-    netoring.write(tmp, cp-tmp);
+    netoring.write((char *)tmp, cp-tmp);
     ++want_status_response;
     return 1;
 }
@@ -2018,14 +2012,14 @@ void sendayt(void) {
 
 void sendnaws(void) {
     long rows, cols;
-    char tmp[16];
-    char *cp;
+    unsigned char tmp[16];
+    unsigned char *cp;
 
     if (my_state_is_wont(TELOPT_NAWS))
 	return;
 
-#define	PUTSHORT(cp, x) { if ((*cp++ = ((x)>>8)&0xff) == (char)IAC) *cp++ = (char)IAC; \
-			    if ((*cp++ = ((x))&0xff) == (char)IAC) *cp++ = (char)IAC; }
+#define	PUTSHORT(cp, x) { if ((*cp++ = ((x)>>8)&0xff) == IAC) *cp++ = IAC; \
+			    if ((*cp++ = ((x))&0xff) == IAC) *cp++ = IAC; }
 
     if (TerminalWindowSize(&rows, &cols) == 0) {	/* Failed */
 	return;
@@ -2041,7 +2035,7 @@ void sendnaws(void) {
     *cp++ = IAC;
     *cp++ = SE;
     printsub('>', tmp+2, cp - tmp - 2);
-    netoring.write(tmp, cp-tmp);
+    netoring.write((char *)tmp, cp-tmp);
 }
 
 void tel_enter_binary(int rw) {
