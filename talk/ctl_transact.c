@@ -35,16 +35,16 @@
  * From: @(#)ctl_transact.c	5.8 (Berkeley) 3/1/91
  */
 char ctlt_rcsid[] = 
-  "$Id: ctl_transact.c,v 1.5 1996/08/15 03:40:50 dholland Exp $";
+  "$Id: ctl_transact.c,v 1.8 1996/12/29 17:07:41 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <netinet/in.h>
-#include <protocols/talkd.h>
+#include <netinet/ip.h>
 #include <errno.h>
-#include "talk_ctl.h"
 #include "talk.h"
+#include "talk_ctl.h"
 
 #define CTL_WAIT 2	/* time to wait for a response, in seconds */
 
@@ -56,13 +56,15 @@ char ctlt_rcsid[] =
 void
 ctl_transact(struct in_addr target, CTL_MSG mesg, int type, CTL_RESPONSE *rp)
 {
-	int read_mask, ctl_mask, nready=0, cc;
+	fd_set read_mask, ctl_mask;
+	int nready=0, cc;
 	struct timeval wait;
 
 	mesg.type = type;
 	daemon_addr.sin_addr = target;
 	daemon_addr.sin_port = daemon_port;
-	ctl_mask = 1 << ctl_sockt;
+	FD_ZERO(&ctl_mask);
+	FD_SET(ctl_sockt, &ctl_mask);
 
 	/*
 	 * Keep sending the message until a response of
@@ -82,7 +84,7 @@ ctl_transact(struct in_addr target, CTL_MSG mesg, int type, CTL_RESPONSE *rp)
 			read_mask = ctl_mask;
 			wait.tv_sec = CTL_WAIT;
 			wait.tv_usec = 0;
-			nready = select(32, (fd_set *)&read_mask, 0, 0, &wait);
+			nready = select(ctl_sockt+1, &read_mask, 0, 0, &wait);
 			if (nready < 0) {
 				if (errno == EINTR)
 					continue;
@@ -104,7 +106,7 @@ ctl_transact(struct in_addr target, CTL_MSG mesg, int type, CTL_RESPONSE *rp)
 			read_mask = ctl_mask;
 			/* an immediate poll */
 			timerclear(&wait);
-			nready = select(32, (fd_set *)&read_mask, 0, 0, &wait);
+			nready = select(ctl_sockt+1, &read_mask, 0, 0, &wait);
 		} while (nready > 0 && (rp->vers != TALK_VERSION ||
 		    rp->type != type));
 	} while (rp->vers != TALK_VERSION || rp->type != type);

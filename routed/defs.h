@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 1983, 1988 Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1983, 1988, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,7 +31,8 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)defs.h	5.10 (Berkeley) 2/28/91
- *	$Id: defs.h,v 1.3 1996/07/15 17:45:59 dholland Exp $
+ *	from: @(#)defs.h	8.1 (Berkeley) 6/5/93
+ *	$Id: defs.h,v 1.6 1996/11/25 17:28:24 dholland Exp $
  */
 
 /*
@@ -40,16 +41,21 @@
  * protocol specs with mods relevant to more
  * general addressing scheme.
  */
+
 #include <sys/param.h>
 #include <sys/socket.h>
 #include <sys/time.h>
-
-#include <linux/route.h>
+#include <net/if_route.h>
 #include <netinet/in.h>
 #include <protocols/routed.h>
+#include <arpa/inet.h>
 
-#include <stdio.h>
 #include <netdb.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "trace.h"
 #include "interface.h"
@@ -64,33 +70,61 @@
 #define	CHECK_INTERVAL	(1*60)
 
 #define equal(a1, a2) \
-	(bcmp((caddr_t)(a1), (caddr_t)(a2), sizeof (struct sockaddr)) == 0)
+	(memcmp((a1), (a2), sizeof (struct sockaddr)) == 0)
 
-struct	sockaddr_in addr;	/* address of daemon's socket */
+extern struct sockaddr_in addr;	/* address of daemon's socket */
 
-int	s;			/* source and sink of all data */
-int	kmem;
-int	supplier;		/* process should supply updates */
-int	install;		/* if 1 call kernel */
-int	lookforinterfaces;	/* if 1 probe kernel for new up interfaces */
-int	performnlist;		/* if 1 check if /vmunix has changed */
-int	externalinterfaces;	/* # of remote and local interfaces */
-struct	timeval now;		/* current idea of time */
-struct	timeval lastbcast;	/* last time all/changes broadcast */
-struct	timeval lastfullupdate;	/* last time full table broadcast */
-struct	timeval nextbcast;	/* time to wait before changes broadcast */
-int	needupdate;		/* true if we need update at nextbcast */
+extern int s;			/* source and sink of all data */
+extern int supplier;		/* process should supply updates */
+extern int lookforinterfaces;	/* if 1 probe kernel for new up interfaces */
+extern struct timeval now;		/* current idea of time */
+extern struct timeval lastbcast;	/* last time all/changes broadcast */
+extern struct timeval lastfullupdate;	/* last time full table broadcast */
+extern struct timeval nextbcast;    /* time to wait before changes broadcast */
+extern int needupdate;		    /* true if we need update at nextbcast */
+extern struct sockaddr_in inet_default;	/* default inet addr */
+extern int kernel_version;		/* kernel we are running under */
 
-char	packet[MAXPACKETSIZE+1];
-struct	rip *msg;
+extern char	packet[MAXPACKETSIZE+1];
+extern struct	rip *msg;
 
-char	**argv0;
-struct	servent *sp;
+extern struct	servent *sp;
 
-struct	in_addr inet_makeaddr();
-int	sndmsg();
-void supply(struct sockaddr *, int flags, struct interface *ifp, int rtstate);
-int	cleanup();
+void supply(struct sockaddr *, int, struct interface *, int);
+
+void addrouteforif __P((struct interface *));
+void bumploglevel(void);
+void dumppacket(FILE *, char *, struct sockaddr *, char *,int, struct timeval *);
+void gwkludge(void);
+void hup(int);
+void ifinit(void);
+int inet_maskof(u_long);
+u_long inet_netof_subnet(struct in_addr);
+int inet_rtflags(struct sockaddr *);
+int inet_sendroute(struct rt_entry *, struct sockaddr *);
+void quit(char *);
+void rip_input(struct sockaddr *, struct rip *, int);
+void rtadd(struct sockaddr *, struct sockaddr *, int, int);
+void rtchange(struct rt_entry *, struct sockaddr *, short);
+void rtdefault(void);
+void rtdelete(struct rt_entry *);
+void rtdeleteall(int);
+void rtinit(void);
+int rtioctl(int, struct rtuentry *);
+void sigtrace(int);
+void sndmsg(struct sockaddr *, int, struct interface *, int);
+void timer(int);
 void timevaladd(struct timeval *t1, struct timeval *t2);
 void timevalsub(struct timeval *t1, struct timeval *t2);
-void bumploglevel(void);
+void toall(void (*)(struct sockaddr *, int, struct interface *, int), 
+		int, struct interface *);
+void traceoff(void);
+void traceon(char *);
+void trace(struct ifdebug *, struct sockaddr *, char *, int, int);
+void traceaction(FILE *, char *, struct rt_entry *);
+void traceinit(struct interface *);
+void tracenewmetric(FILE *, struct rt_entry *, int);
+
+#define ADD 1
+#define DELETE 2
+#define CHANGE 3

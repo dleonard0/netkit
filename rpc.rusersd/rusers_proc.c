@@ -27,7 +27,7 @@
  */
 
 char rp_rcsid[] = 
-  "$Id: rusers_proc.c,v 1.7 1996/08/15 06:54:14 dholland Exp $";
+  "$Id: rusers_proc.c,v 1.8 1996/12/29 18:05:44 dholland Exp $";
 
 #include <signal.h>
 #include <sys/types.h>
@@ -35,6 +35,7 @@ char rp_rcsid[] =
 #include <utmp.h>
 #include <stdio.h>
 #include <syslog.h>
+#include <string.h>
 #include <rpc/rpc.h>
 #include <sys/socket.h>
 #include <sys/param.h>
@@ -43,6 +44,15 @@ char rp_rcsid[] =
 #include <setjmp.h>
 #include <X11/Xlib.h>
 #include <X11/extensions/xidle.h>
+#endif
+
+/*
+ * Sigh.
+ */
+#ifdef GNU_LIBC
+#define UTTIME rut_time
+#else
+#define UTTIME ut_time
 #endif
 
 #include "rusers.h"
@@ -253,7 +263,7 @@ do_names_3(int all)
 #endif
                     ) {
                         utmps[nusers].ut_type = RUSERS_USER_PROCESS;
-                        utmps[nusers].ut_time =
+                        utmps[nusers].UTTIME =
                                 usr.ut_time;
                         utmps[nusers].ut_idle =
                                 getidle(usr.ut_line, usr.ut_host);
@@ -318,7 +328,7 @@ do_names_2(int all)
 #endif
                     ) {
                         utmp_idlep[nusers] = &utmp_idle[nusers];
-                        utmp_idle[nusers].ui_utmp.ut_time =
+                        utmp_idle[nusers].ui_utmp.UTTIME =
                                 usr.ut_time;
                         utmp_idle[nusers].ui_idle =
                                 getidle(usr.ut_line, usr.ut_host);

@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -156,6 +157,9 @@ int netlink::connect(int debug, struct hostent *host,
 	    errno = oerrno;
 	    perror(NULL);
 	    host->h_addr_list++;
+	    if (host->h_length > (int)sizeof(sn->sin_addr)) {
+		host->h_length = sizeof(sn->sin_addr);
+	    }
 	    memcpy(&sn->sin_addr, host->h_addr_list[0], host->h_length);
 	    close(net);
 	    return 1;

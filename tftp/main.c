@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)main.c	5.10 (Berkeley) 3/1/91
  */
 char main_rcsid[] = 
-  "$Id: main.c,v 1.6 1996/08/15 05:30:59 dholland Exp $";
+  "$Id: main.c,v 1.9 1996/11/25 18:42:46 dholland Exp $";
 
 /* Many bug fixes are from Jim Guyton <guyton@rand-unix> */
 
@@ -50,8 +50,9 @@ char main_rcsid[] =
 #include <sys/socket.h>
 #include <sys/file.h>
 
-#include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/ip.h>
+#include <arpa/inet.h>
 
 #include <signal.h>
 #include <stdio.h>
@@ -106,7 +107,7 @@ void setmode(const char *newmode);
 void putusage(const char *s);
 void getusage(const char *s);
 
-#define HELPINDENT (sizeof("connect"))
+#define HELPINDENT ((int) sizeof("connect"))
 
 struct cmd {
 	const char *name;
@@ -204,14 +205,16 @@ setpeer(int argc, char *argv[])
 	host = gethostbyname(argv[1]);
 	if (host) {
 		s_inn.sin_family = host->h_addrtype;
+		if (host->h_length > (int)sizeof(s_inn.sin_addr)) {
+			host->h_length = sizeof(s_inn.sin_addr);
+		}
 		memcpy(&s_inn.sin_addr, host->h_addr, host->h_length);
 		strncpy(hostname, host->h_name, sizeof(hostname));
 		hostname[sizeof(hostname)-1] = 0;
 	} 
 	else {
 		s_inn.sin_family = AF_INET;
-		s_inn.sin_addr.s_addr = inet_addr(argv[1]);
-		if (s_inn.sin_addr.s_addr == (unsigned long)-1) {
+		if (!inet_aton(argv[1], &s_inn.sin_addr)) {
 			connected = 0;
 			printf("%s: unknown host\n", argv[1]);
 			return;
@@ -343,7 +346,10 @@ put(int argc, char *argv[])
 			herror((char *)NULL);
 			return;
 		}
-		bcopy(hp->h_addr, (caddr_t)&s_inn.sin_addr, hp->h_length);
+		if (hp->h_length > (int)sizeof(s_inn.sin_addr)) {
+			hp->h_length = sizeof(s_inn.sin_addr);
+		}
+		memcpy(&s_inn.sin_addr, hp->h_addr, hp->h_length);
 		s_inn.sin_family = hp->h_addrtype;
 		connected = 1;
 		strncpy(hostname, hp->h_name, sizeof(hostname));
@@ -437,6 +443,9 @@ get(int argc, char *argv[])
 				fprintf(stderr, "tftp: %s: ", argv[n]);
 				herror(NULL);
 				continue;
+			}
+			if (hp->h_length > (int)sizeof(s_inn.sin_addr)) {
+				hp->h_length = sizeof(s_inn.sin_addr);
 			}
 			memcpy(&s_inn.sin_addr, hp->h_addr, hp->h_length);
 			s_inn.sin_family = hp->h_addrtype;

@@ -14,8 +14,9 @@ rshd: $(OBJS)
 	$(CC) $(LDFLAGS) $^ $(LIBS) -lbsd -o $@
 
 install: rshd
-	install -s -m744 rshd /usr/sbin/in.rshd
-	install -m644 rshd.8 /usr/man/man8/in.rshd.8
+	install -s -m$(DAEMONMODE) rshd $(SBINDIR)/in.rshd
+	install -m$(MANMODE) rshd.8 $(MANDIR)/man8/in.rshd.8
+	ln -sf in.rshd.8 $(MANDIR)/man8/rshd.8
 
 clean:
 	rm -f *.o rshd

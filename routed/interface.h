@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 1983 Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1983, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,8 +30,9 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	from: @(#)interface.h	5.6 (Berkeley) 6/1/90
- *	$Id: interface.h,v 1.3 1996/07/15 17:45:59 dholland Exp $
+ *	From: @(#)interface.h	5.6 (Berkeley) 6/1/90
+ *	From: @(#)interface.h	8.1 (Berkeley) 6/5/93
+ *	$Id: interface.h,v 1.6 1996/11/25 17:28:24 dholland Exp $
  */
 
 /*
@@ -80,15 +81,14 @@ struct interface {
 #define	IFF_LOOPBACK	0x8		/* software loopback net */
 #define	IFF_POINTOPOINT	0x10		/* interface is point-to-point link */
 
-#define	IFF_SUBNET	0x1000		/* interface on subnetted network */
-#define	IFF_PASSIVE	0x2000		/* can't tell if up/down */
-#define	IFF_INTERFACE	0x4000		/* hardware interface */
-#define	IFF_REMOTE	0x8000		/* interface isn't on this machine */
+#define	IFF_SUBNET	0x100000	/* interface on subnetted network */
+#define	IFF_PASSIVE	0x200000	/* can't tell if up/down */
+#define	IFF_INTERFACE	0x400000	/* hardware interface */
+#define	IFF_REMOTE	0x800000	/* interface isn't on this machine */
 
-struct	interface *if_ifwithaddr();
-struct	interface *if_ifwithdstaddr();
-struct	interface *if_ifwithnet();
-struct	interface *if_iflookup();
+extern struct interface *ifnet;
 
-void addrouteforif(struct interface *ifp);
-void toall(int (*f)(), int, int, struct interface *skipif);
+struct	interface *if_ifwithaddr(struct sockaddr *);
+struct	interface *if_ifwithdstaddr(struct sockaddr *);
+struct	interface *if_ifwithnet(struct sockaddr *);
+struct	interface *if_iflookup(struct sockaddr *);

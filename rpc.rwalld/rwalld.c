@@ -28,7 +28,7 @@
  */
 
 char rcsid[] = 
-  "$Id: rwalld.c,v 1.7 1996/08/15 07:02:31 dholland Exp $";
+  "$Id: rwalld.c,v 1.9 1996/12/29 18:00:21 dholland Exp $";
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -54,7 +54,7 @@ int daemon(int, int);
 /*
  * Note: check to see if your wall accepts -n or not (check the source,
  * it's not documented) and modify as necessary. The -n flag is supposed
- * to suppress the banner.
+ * to suppress the banner. The util-linux wall supports the -n flag.
  */
 #ifdef OSF
 #define WALL_CMD "/usr/sbin/wall"
@@ -73,7 +73,8 @@ int
 main(int argc, char *argv[])
 {
 	SVCXPRT *transp;
-	int s, salen;
+	int s;
+	size_t salen;
 	struct sockaddr_in sa;
         int sock = 0;
         int proto = 0;
@@ -161,7 +162,10 @@ void killkids(int ignore)
 
 void *wallproc_wall_1(char **s, CLIENT *tmp1)
 {
+	static int retval = 0;
 	(void)tmp1;
+
+	retval++;
 
 	/* fork, popen wall with special option, and send the message */
 	if (fork() == 0) {
@@ -174,7 +178,7 @@ void *wallproc_wall_1(char **s, CLIENT *tmp1)
 			exit(0);
 		}
 	}
-	return NULL;  /* ? */
+	return &retval;
 }
 
 void

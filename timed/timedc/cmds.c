@@ -35,10 +35,10 @@
  * From: @(#)cmds.c	5.1 (Berkeley) 5/11/93
  */
 char cmds_rcsid[] =
-  "$Id: cmds.c,v 1.6 1996/08/15 06:12:04 dholland Exp $";
+  "$Id: cmds.c,v 1.7 1996/11/23 18:27:26 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.6 $"
+#ident "$Revision: 1.7 $"
 #endif
 
 #include "timedc.h"
@@ -208,7 +208,10 @@ clockdiff(argc, argv)
 		}
 
 		server.sin_family = hp->h_addrtype;
-		bcopy(hp->h_addr, &server.sin_addr.s_addr, hp->h_length);
+		if (hp->h_length > (int)sizeof(server.sin_addr.s_addr)) {
+			hp->h_length = sizeof(server.sin_addr.s_addr);
+		}
+		memcpy(&server.sin_addr.s_addr, hp->h_addr, hp->h_length);
 		for (avg_cnt = 0, avg = 0; avg_cnt < 16; avg_cnt++) {
 			measure_status = measure(10000,100, *argv, &server, 1);
 			if (measure_status != GOOD)
@@ -306,6 +309,9 @@ msite(int argc, char *argv[])
 			herror(NULL);
 			continue;
 		}
+		if (hp->h_length > (int)sizeof(dest.sin_addr.s_addr)) {
+			hp->h_length = sizeof(server.sin_addr.s_addr);
+		}
 		memcpy(&dest.sin_addr.s_addr, hp->h_addr, hp->h_length);
 
 		strcpy(msg.tsp_name, myname);  /* can't overflow */
@@ -392,6 +398,9 @@ testing(int argc, char *argv[])
 		}
 		sn.sin_port = srvp->s_port;
 		sn.sin_family = hp->h_addrtype;
+		if (hp->h_length > (int)sizeof(sn.sin_addr.s_addr)) {
+			hp->h_length = sizeof(sn.sin_addr.s_addr);
+		}
 		memcpy(&sn.sin_addr.s_addr, hp->h_addr, hp->h_length);
 
 		msg.tsp_type = TSP_TEST;
@@ -443,6 +452,9 @@ tracing(int argc, char *argv[])
 	    fprintf(stderr, "timedc: %s: ", myname);
 	    herror(NULL);
 	    return;
+	}
+	if (hp->h_length > (int)sizeof(dest.sin_addr.s_addr)) {
+		hp->h_length = sizeof(dest.sin_addr.s_addr);
 	}
 	memcpy(&dest.sin_addr.s_addr, hp->h_addr, hp->h_length);
 

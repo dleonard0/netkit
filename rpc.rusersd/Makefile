@@ -17,8 +17,9 @@ rusersd: rusersd.o rusers_proc.o rusers_xdr.o
 	$(CC) $(LDFLAGS) $^ $(LIBS) -lbsd -o $@
 
 install: rusersd
-	install -s -m744 rusersd /usr/sbin/rpc.rusersd
-	install -m644 rpc.rusersd.8 /usr/man/man8
+	install -s -m$(DAEMONMODE) rusersd $(SBINDIR)/rpc.rusersd
+	install -m$(MANMODE) rpc.rusersd.8 $(MANDIR)/man8
+	ln -sf rpc.rusersd.8 $(MANDIR)/man8/rusersd.8
 
 clean:
 	rm -f *.o rusersd rusers.h rusers_xdr.c rusers.x

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 1983, 1988 Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1983, 1988, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,59 +32,62 @@
  */
 
 char copyright[] =
-  "@(#) Copyright (c) 1983, 1988 Regents of the University of California.\n"
-  "All rights reserved.\n";
+  "@(#) Copyright (c) 1983, 1988, 1993\n"
+  "      The Regents of the University of California.  All rights reserved.\n";
 
 /*
  * From: @(#)main.c	5.23 (Berkeley) 7/1/91
+ * From: @(#)main.c	8.1 (Berkeley) 6/5/93
  */
 char main_rcsid[] = 
-  "$Id: main.c,v 1.3 1996/07/15 17:45:59 dholland Exp $";
+  "$Id: main.c,v 1.6 1996/11/25 17:28:24 dholland Exp $";
 
 
 /*
  * Routing Table Management Daemon
  */
+
 #include "defs.h"
 #include <sys/ioctl.h>
 #include <sys/file.h>
 
 #include <net/if.h>
 
-#include <sys/errno.h>
-#include <sys/signal.h>
-#include <sys/syslog.h>
-#include <unistd.h>
+#include <errno.h>
+#include <signal.h>
+#include <syslog.h>
 #include "pathnames.h"
+#include <sys/utsname.h>
+
+struct sockaddr_in addr;	/* address of daemon's socket */
+int s;				/* source and sink of all data */
+char	packet[MAXPACKETSIZE+1];
+struct	servent *sp;
 
 int	supplier = -1;		/* process should supply updates */
 int	gateway = 0;		/* 1 if we are a gateway to parts beyond */
 int	debug = 0;
 int	bufspace = 127*1024;	/* max. input buffer size to request */
-
 struct	rip *msg = (struct rip *)packet;
-void	hup(), rtdeleteall(), sigtrace(), timer();
+int	kernel_version;
+void	getkversion(void);
 
-int
-main(int argc, char *argv[])
+int getsocket(int, int, struct sockaddr *);
+void process(int);
+
+int main(int argc, char *argv[])
 {
-	int n, cc, nfd, omask, tflags = 0;
-	struct sockaddr from;
+	int n, nfd, tflags = 0;
 	struct timeval *tvp, waittime;
 	struct itimerval itval;
-	register struct rip *query = msg;
+	struct rip *query = msg;
 	fd_set ibits;
-	u_char retry;
+	sigset_t sigset, osigset;
 	
-	argv0 = argv;
-#if BSD >= 43 || defined(__linux__)
 	openlog("routed", LOG_PID | LOG_ODELAY, LOG_DAEMON);
 	setlogmask(LOG_UPTO(LOG_WARNING));
-#else
-	openlog("routed", LOG_PID);
-#define LOG_UPTO(x) (x)
-#define setlogmask(x) (x)
-#endif
+	getkversion();
+
 	sp = getservbyname("router", "udp");
 	if (sp == NULL) {
 		fprintf(stderr, "routed: router/udp: unknown service\n");
@@ -92,7 +95,8 @@ main(int argc, char *argv[])
 	}
 	addr.sin_family = AF_INET;
 	addr.sin_port = sp->s_port;
-	s = getsocket(AF_INET, SOCK_DGRAM, &addr);
+
+	s = getsocket(AF_INET, SOCK_DGRAM, (struct sockaddr *)&addr);
 	if (s < 0)
 		exit(1);
 	argv++, argc--;
@@ -129,18 +133,27 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-	if (debug == 0)
-		daemon(0, 0);
+	if (debug == 0 && tflags == 0)
+	{
+		if (fork() != 0) exit(0);
+		close(0);
+		close(1);
+		close(2);
+		setsid();
+	}
+
 	/*
 	 * Any extra argument is considered
 	 * a tracing log file.
 	 */
+
 	if (argc > 0)
 		traceon(*argv);
 	while (tflags-- > 0)
 		bumploglevel();
 
 	(void) gettimeofday(&now, (struct timezone *)NULL);
+
 	/*
 	 * Collect an initial view of the world by
 	 * checking the interface configuration and the gateway kludge
@@ -148,6 +161,7 @@ main(int argc, char *argv[])
 	 * directly connected networks to find out what
 	 * everyone else thinks.
 	 */
+
 	rtinit();
 	ifinit();
 	gwkludge();
@@ -162,7 +176,7 @@ main(int argc, char *argv[])
 	else
 		query->rip_nets[0].rip_dst.sa_family = AF_UNSPEC;
 	query->rip_nets[0].rip_metric = htonl((u_long)HOPCNT_INFINITY);
-	toall(sndmsg);
+	toall(sndmsg, 0, NULL);
 	signal(SIGALRM, timer);
 	signal(SIGHUP, hup);
 	signal(SIGTERM, hup);
@@ -215,7 +229,9 @@ main(int argc, char *argv[])
 					continue;
 				syslog(LOG_ERR, "select: %m");
 			}
-			omask = sigblock(sigmask(SIGALRM));
+			sigemptyset(&sigset);
+			sigaddset(&sigset, SIGALRM);
+			sigprocmask(SIG_BLOCK, &sigset, &osigset);
 			if (n == 0 && needupdate) {
 				if (traceactions)
 					fprintf(ftrace,
@@ -228,35 +244,38 @@ main(int argc, char *argv[])
 				needupdate = 0;
 				nextbcast.tv_sec = 0;
 			}
-			sigsetmask(omask);
+			sigprocmask(SIG_SETMASK, &osigset, NULL);
 			continue;
 		}
 		(void) gettimeofday(&now, (struct timezone *)NULL);
-		omask = sigblock(sigmask(SIGALRM));
-#ifdef doesntwork
-/*
-printf("s %d, ibits %x index %d, mod %d, sh %x, or %x &ibits %x\n",
-	s,
-	ibits.fds_bits[0],
-	(s)/(sizeof(fd_mask) * 8),
-	((s) % (sizeof(fd_mask) * 8)),
-	(1 << ((s) % (sizeof(fd_mask) * 8))),
-	ibits.fds_bits[(s)/(sizeof(fd_mask) * 8)] & (1 << ((s) % (sizeof(fd_mask) * 8))),
-	&ibits
-	);
-*/
-		if (FD_ISSET(s, &ibits))
-#else
+		sigemptyset(&sigset);
+		sigaddset(&sigset, SIGALRM);
+		sigprocmask(SIG_BLOCK, &sigset, &osigset);
 		if (ibits.fds_bits[s/32] & (1 << s))
-#endif
 			process(s);
 		/* handle ICMP redirects */
-		sigsetmask(omask);
+		sigprocmask(SIG_SETMASK, &osigset, NULL);
 	}
 }
 
-void
-timevaladd(struct timeval *t1, struct timeval *t2)
+/*
+ * Put Linux kernel version into
+ * the global variable kernel_version.
+ * Example: 1.2.8 = 0x010208
+ */
+
+void getkversion(void)
+{
+  struct utsname uts;
+  int maj, min, pl;
+
+  maj = min = pl = 0;
+  uname(&uts);
+  sscanf(uts.release, "%d.%d.%d", &maj, &min, &pl);
+  kernel_version = (maj << 16) | (min << 8) | pl;
+}
+
+void timevaladd(struct timeval *t1, struct timeval *t2)
 {
 
 	t1->tv_sec += t2->tv_sec;
@@ -266,8 +285,7 @@ timevaladd(struct timeval *t1, struct timeval *t2)
 	}
 }
 
-void
-timevalsub(struct timeval *t1, struct timeval *t2)
+void timevalsub(struct timeval *t1, struct timeval *t2)
 {
 
 	t1->tv_sec -= t2->tv_sec;
@@ -277,8 +295,7 @@ timevalsub(struct timeval *t1, struct timeval *t2)
 	}
 }
 
-void
-process(int fd)
+void process(int fd)
 {
 	struct sockaddr from;
 	int fromlen, cc;
@@ -301,9 +318,9 @@ process(int fd)
 	}
 }
 
-int
-getsocket(int domain, int type, struct sockaddr_in *sin)
+int getsocket(int domain, int type, struct sockaddr *sa)
 {
+	struct sockaddr_in *sin=(struct sockaddr_in *)sa;
 	int sock, on = 1;
 
 	if ((sock = socket(domain, type, 0)) < 0) {

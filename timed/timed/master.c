@@ -35,10 +35,10 @@
  * From: @(#)master.c	5.1 (Berkeley) 5/11/93
  */
 char master_rcsid[] =
-  "$Id: master.c,v 1.3 1996/08/15 05:56:12 dholland Exp $";
+  "$Id: master.c,v 1.4 1996/08/29 19:53:54 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.3 $"
+#ident "$Revision: 1.4 $"
 #endif
 
 #include "globals.h"
@@ -93,7 +93,7 @@ master()
 #define POLLRATE 4
 	int polls;
 	struct timeval wait, ntime;
-	time_t tyme;
+	time_t tmpt;
 	struct tsp *msg, *answer, to;
 	char newdate[32];
 	struct sockaddr_in taddr;
@@ -190,8 +190,8 @@ loop:
 #ifdef sgi
 			(void)cftime(newdate, "%D %T", &msg->tsp_time.tv_sec);
 #else
-			tyme = msg->tsp_time.tv_sec;
-			(void)strcpy(newdate, ctime(&tyme));
+			tmpt = msg->tsp_time.tv_sec;
+			(void)strcpy(newdate, ctime(&tmpt));
 #endif /* sgi */
 			if (!good_host_name(msg->tsp_name)) {
 				syslog(LOG_NOTICE,
@@ -212,8 +212,8 @@ loop:
 #ifdef sgi
 			(void)cftime(newdate, "%D %T", &msg->tsp_time.tv_sec);
 #else
-			tyme = msg->tsp_time.tv_sec;
-			(void)strcpy(newdate, ctime(&tyme));
+			tmpt = msg->tsp_time.tv_sec;
+			(void)strcpy(newdate, ctime(&tmpt));
 #endif /* sgi */
 			htp = findhost(msg->tsp_name);
 			if (htp == 0) {

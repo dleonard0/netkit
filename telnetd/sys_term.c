@@ -35,10 +35,11 @@
  * From: @(#)sys_term.c	5.16 (Berkeley) 3/22/91
  */
 char st_rcsid[] = 
-  "$Id: sys_term.c,v 1.7 1996/08/16 18:49:26 dholland Exp $";
+  "$Id: sys_term.c,v 1.9 1996/08/30 02:32:22 dholland Exp $";
 
 #include "telnetd.h"
 #include "pathnames.h"
+#include "logout.h"
 #include "logwtmp.h"
 
 #if defined(AUTHENTICATE)
@@ -157,8 +158,6 @@ struct termbuf {
 struct termios termbuf, termbuf2;	/* pty control structure */
 #endif	/* USE_TERMIO */
 
-void logwtmp(const char *, const char *, const char *);
-int logout(const char *);
 static int cleanopen(char *_line);
 
 /*
@@ -1173,7 +1172,7 @@ void start_login(const char *host, int autologin, const char *name) {
      *
      * -f : force this login, he has already been authenticated
      */
-    argv = addarg(0, "login");
+    argv = addarg(0, loginprg);
     argv = addarg(argv, "-h");
     argv = addarg(argv, host);
 #if !defined(NO_LOGIN_P)
@@ -1230,10 +1229,10 @@ void start_login(const char *host, int autologin, const char *name) {
 	}
     }
     closelog();
-    execv(_PATH_LOGIN, (char **) argv);
+    execv(loginprg, (char **) argv);
 
-    syslog(LOG_ERR, "%s: %m\n", _PATH_LOGIN);
-    fatalperror(net, _PATH_LOGIN);
+    syslog(LOG_ERR, "%s: %m\n", loginprg);
+    fatalperror(net, loginprg);
 }
 
 static const char **addarg(const char **argv, const char *val) {
@@ -1437,7 +1436,7 @@ int cleantmp(struct utmp *wtp) {
     
     utp = getutid(wtp);
 	if (utp == 0) {
-	    syslog(LOG_ERR, "Can't get /etc/utmp entry to clean TMPDIR");
+	    syslog(LOG_ERR, "Can't get /var/run/utmp entry to clean TMPDIR");
 	    return -1;
 	}
     /*

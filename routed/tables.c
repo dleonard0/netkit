@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 1983, 1988 Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1983, 1988, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,37 +33,36 @@
 
 /*
  * From: @(#)tables.c	5.17 (Berkeley) 6/1/90
+ * From: @(#)tables.c	8.1 (Berkeley) 6/5/93
  */
 char tables_rcsid[] = 
-  "$Id: tables.c,v 1.3 1996/07/15 17:45:59 dholland Exp $";
+  "$Id: tables.c,v 1.6 1996/11/25 17:28:24 dholland Exp $";
 
 
 /*
  * Routing Table Management Daemon
  */
+
 #include "defs.h"
 #include <sys/ioctl.h>
+#include <syslog.h>
 #include <errno.h>
-#include <stdlib.h>
-#include <sys/syslog.h>
+#include <search.h>
 
 #ifndef DEBUG
 #define	DEBUG	0
 #endif
 
-#ifdef RTM_ADD
-#define FIXLEN(s) {if ((s)->sa_len == 0) (s)->sa_len = sizeof *(s);}
-#else
 #define FIXLEN(s) { }
-#endif
 
-int	install = !DEBUG;		/* if 1 call kernel */
+static int install = !DEBUG;		/* if 1 call kernel */
+struct rthash nethash[ROUTEHASHSIZ];
+struct rthash hosthash[ROUTEHASHSIZ];
 
 /*
  * Lookup dst in the tables for an exact match.
  */
-struct rt_entry *
-rtlookup(struct sockaddr *dst)
+struct rt_entry *rtlookup(struct sockaddr *dst)
 {
 	register struct rt_entry *rt;
 	register struct rthash *rh;
@@ -97,16 +96,15 @@ struct sockaddr wildcard;	/* zero valued cookie for wildcard searches */
 /*
  * Find a route to dst as the kernel would.
  */
-struct rt_entry *
-rtfind(struct sockaddr *dst)
+
+struct rt_entry *rtfind(struct sockaddr *dst)
 {
 	register struct rt_entry *rt;
 	register struct rthash *rh;
 	register u_int hash;
 	struct afhash h;
 	int af = dst->sa_family;
-	int doinghost = 1;
-	int (*match)() = NULL;
+	int doinghost = 1, (*match)(struct sockaddr *,struct sockaddr *)=NULL;
 
 	if (af >= af_max)
 		return (0);
@@ -134,26 +132,17 @@ again:
 		match = afswitch[af].af_netmatch;
 		goto again;
 	}
-#ifdef notyet
-	/*
-	 * Check for wildcard gateway, by convention network 0.
-	 */
-	if (dst != &wildcard) {
-		dst = &wildcard, hash = 0;
-		goto again;
-	}
-#endif
 	return (0);
 }
 
-void
-rtadd(struct sockaddr *dst, struct sockaddr *gate, int metric, int state)
+void rtadd(struct sockaddr *dst, struct sockaddr *gate, int metric, int state)
 {
 	struct afhash h;
 	register struct rt_entry *rt;
 	struct rthash *rh;
 	int af = dst->sa_family, flags;
 	u_int hash;
+	char buf1[256], buf2[256];
 
 	if (af >= af_max)
 		return;
@@ -175,7 +164,7 @@ rtadd(struct sockaddr *dst, struct sockaddr *gate, int metric, int state)
 		hash = h.afh_nethash;
 		rh = &nethash[hash & ROUTEHASHMASK];
 	}
-	rt = malloc(sizeof (*rt));
+	rt = (struct rt_entry *)malloc(sizeof (*rt));
 	if (rt == 0)
 		return;
 	rt->rt_hash = hash;
@@ -190,35 +179,35 @@ rtadd(struct sockaddr *dst, struct sockaddr *gate, int metric, int state)
 	if ((state & RTS_INTERFACE) == 0)
 		rt->rt_flags |= RTF_GATEWAY;
 	rt->rt_metric = metric;
-	rt->rt_dev = NULL;
-	insque(rt, rh);
+	insque((struct qelem *)rt, (struct qelem *)rh);
 	TRACE_ACTION("ADD", rt);
 	/*
 	 * If the ioctl fails because the gateway is unreachable
 	 * from this host, discard the entry.  This should only
 	 * occur because of an incorrect entry in /etc/gateways.
 	 */
-	if (install && (rt->rt_state & (RTS_INTERNAL | RTS_EXTERNAL)) == 0 &&
-	    ioctl(s, SIOCADDRT, (char *)&rt->rt_rt) < 0) {
+	if ((rt->rt_state & (RTS_INTERNAL | RTS_EXTERNAL)) == 0 &&
+	    rtioctl(ADD, &rt->rt_rt) < 0) {
 		if (errno != EEXIST && gate->sa_family < af_max)
 			syslog(LOG_ERR,
 			"adding route to net/host %s through gateway %s: %m\n",
-			   (*afswitch[dst->sa_family].af_format)(dst),
-			   (*afswitch[gate->sa_family].af_format)(gate));
-		perror("SIOCADDRT");
+			   (*afswitch[dst->sa_family].af_format)(dst, buf1,
+							     sizeof(buf1)),
+			   (*afswitch[gate->sa_family].af_format)(gate, buf2,
+							      sizeof(buf2)));
+		perror("ADD ROUTE");
 		if (errno == ENETUNREACH) {
 			TRACE_ACTION("DELETE", rt);
-			remque(rt);
+			remque((struct qelem *)rt);
 			free((char *)rt);
 		}
 	}
 }
 
-void
-rtchange(struct rt_entry *rt, struct sockaddr *gate, short metric)
+void rtchange(struct rt_entry *rt, struct sockaddr *gate, short metric)
 {
 	int add = 0, delete = 0, newgateway = 0;
-	struct rtentry oldroute;
+	struct rtuentry oldroute;
 
 	FIXLEN(gate);
 	FIXLEN(&(rt->rt_router));
@@ -245,6 +234,16 @@ rtchange(struct rt_entry *rt, struct sockaddr *gate, short metric)
 		else if (rt->rt_metric == HOPCNT_INFINITY)
 			add++;
 	}
+	/* Linux 1.3.12 and up */
+	if (kernel_version >= 0x01030b) {
+		if (add && delete && rt->rt_metric == metric)
+			delete = 0;
+	} else {
+	/* Linux 1.2.x and 1.3.7 - 1.3.11 */
+		if (add && delete)
+			delete = 0;
+	}
+
 	if (delete)
 		oldroute = rt->rt_rt;
 	if ((rt->rt_state & RTS_INTERFACE) && delete) {
@@ -253,7 +252,7 @@ rtchange(struct rt_entry *rt, struct sockaddr *gate, short metric)
 		if (metric > rt->rt_metric && delete)
 			syslog(LOG_ERR, "%s route to interface %s (timed out)",
 			    add? "changing" : "deleting",
-			    rt->rt_ifp->int_name);
+			    rt->rt_ifp ? rt->rt_ifp->int_name : "?");
 	}
 	if (add) {
 		rt->rt_router = *gate;
@@ -265,26 +264,13 @@ rtchange(struct rt_entry *rt, struct sockaddr *gate, short metric)
 	rt->rt_state |= RTS_CHANGED;
 	if (newgateway)
 		TRACE_ACTION("CHANGE TO   ", rt);
-#ifndef RTM_ADD
-	if (add && install)
-		if (ioctl(s, SIOCADDRT, (char *)&rt->rt_rt) < 0)
-			perror("SIOCADDRT");
-	if (delete && install)
-		if (ioctl(s, SIOCDELRT, (char *)&oldroute) < 0)
-			perror("SIOCDELRT");
-#else
-	if (delete && install)
-		if (ioctl(s, SIOCDELRT, (char *)&oldroute) < 0)
-			perror("SIOCDELRT");
-	if (add && install) {
-		if (ioctl(s, SIOCADDRT, (char *)&rt->rt_rt) < 0)
-			perror("SIOCADDRT");
-	}
-#endif
+	if (add && rtioctl(ADD, &rt->rt_rt) < 0)
+		perror("ADD ROUTE");
+	if (delete && rtioctl(DELETE, &oldroute) < 0)
+		perror("DELETE ROUTE");
 }
 
-void
-rtdelete(struct rt_entry *rt)
+void rtdelete(struct rt_entry *rt)
 {
 
 	TRACE_ACTION("DELETE", rt);
@@ -295,24 +281,20 @@ rtdelete(struct rt_entry *rt)
 		syslog(LOG_ERR,
 		    "deleting route to interface %s? (timed out?)",
 		    rt->rt_ifp->int_name);
-	    if (install &&
-		(rt->rt_state & (RTS_INTERNAL | RTS_EXTERNAL)) == 0 &&
-		ioctl(s, SIOCDELRT, (char *)&rt->rt_rt))
-		    perror("SIOCDELRT");
+	    if ((rt->rt_state & (RTS_INTERNAL | RTS_EXTERNAL)) == 0 &&
+					    rtioctl(DELETE, &rt->rt_rt) < 0)
+		    perror("rtdelete");
 	}
-	remque(rt);
+	remque((struct qelem *)rt);
 	free((char *)rt);
 }
 
-void
-rtdeleteall(int sig)
+void rtdeleteall(int sig)
 {
 	register struct rthash *rh;
 	register struct rt_entry *rt;
 	struct rthash *base = hosthash;
 	int doinghost = 1;
-
-	(void) signal(sig, rtdeleteall);
 
 again:
 	for (rh = base; rh < &base[ROUTEHASHSIZ]; rh++) {
@@ -323,8 +305,8 @@ again:
 				continue;
 			TRACE_ACTION("DELETE", rt);
 			if ((rt->rt_state & (RTS_INTERNAL|RTS_EXTERNAL)) == 0 &&
-			    ioctl(s, SIOCDELRT, (char *)&rt->rt_rt))
-				perror("SIOCDELRT");
+			    rtioctl(DELETE, &rt->rt_rt) < 0)
+				perror("rtdeleteall");
 		}
 	}
 	if (doinghost) {
@@ -342,17 +324,16 @@ again:
  * but this entry prevents us from listening to other people's defaults
  * and installing them in the kernel here.
  */
-void
-rtdefault(void)
-{
-	extern struct sockaddr inet_default;
 
-	rtadd(&inet_default, &inet_default, 1,
+void rtdefault(void)
+{
+
+	rtadd((struct sockaddr *)&inet_default, 
+		(struct sockaddr *)&inet_default, 1,
 		RTS_CHANGED | RTS_PASSIVE | RTS_INTERNAL);
 }
 
-void
-rtinit(void)
+void rtinit(void)
 {
 	register struct rthash *rh;
 
@@ -362,29 +343,50 @@ rtinit(void)
 		rh->rt_forw = rh->rt_back = (struct rt_entry *)rh;
 }
 
-
-#ifndef __linux__
-/* ffrom /sys/i386/i386/machdep.c */
-/*
- * insert an element into a queue 
- */
-void
-insque(struct rthash *element, struct rthash *head)
+int rtioctl(int action, struct rtuentry *ort)
 {
-	element->rt_forw = head->rt_forw;
-	head->rt_forw = (struct rt_entry *)element;
-	element->rt_back = (struct rt_entry *)head;
-	((struct rthash *)(element->rt_forw))->rt_back=(struct rt_entry *)element;
-}
+	struct rtentry rt;
+	unsigned int netmask;
+	unsigned int dst;
 
-/*
- * remove an element from a queue
- */
-void
-remque(struct rthash *element)
-{
-	((struct rthash *)(element->rt_forw))->rt_back = element->rt_back;
-	((struct rthash *)(element->rt_back))->rt_forw = element->rt_forw;
-	element->rt_back = (struct rt_entry *)0;
+	if (install == 0)
+		return (errno = 0);
+
+#undef rt_flags
+#undef rt_ifp
+#undef rt_metric
+#undef rt_dst
+
+	rt.rt_flags = (ort->rtu_flags & (RTF_UP|RTF_GATEWAY|RTF_HOST));
+	rt.rt_metric = ort->rtu_metric;
+	rt.rt_dev = NULL;
+	rt.rt_dst     = *(struct sockaddr *)&ort->rtu_dst;
+	dst = ((struct sockaddr_in *)&rt.rt_dst)->sin_addr.s_addr;
+	rt.rt_gateway = *(struct sockaddr *)&ort->rtu_router;
+	if (rt.rt_flags & RTF_HOST)
+		netmask = 0xffffffff;
+	else
+		netmask = inet_maskof(dst);
+	((struct sockaddr_in *)&rt.rt_genmask)->sin_family = AF_INET;
+	((struct sockaddr_in *)&rt.rt_genmask)->sin_addr.s_addr = netmask;
+	
+	if (traceactions) {
+		fprintf(ftrace, "rtioctl %s %08lx/%08lx\n",
+			action == ADD ? "ADD" : "DEL",
+			ntohl(dst),
+			ntohl(netmask));
+		fflush(ftrace);
+	}
+
+	switch (action) {
+
+	case ADD:
+		return (ioctl(s, SIOCADDRT, (char *)&rt));
+
+	case DELETE:
+		return (ioctl(s, SIOCDELRT, (char *)&rt));
+
+	default:
+		return (-1);
+	}
 }
-#endif

@@ -33,6 +33,8 @@ void tel_leave_binary(int);
 int telrcv(void);
 int tn(int argc, const char *argv[]);
 int ttyflush(int);
+void sendayt(void);
+void ayt_status(int);
 
 /* commands.c */
 void cmdtab_init(void);

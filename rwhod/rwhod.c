@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)rwhod.c	5.20 (Berkeley) 3/2/91
  */
 char rcsid[] = 
-  "$Id: rwhod.c,v 1.7 1996/08/15 08:19:25 dholland Exp $";
+  "$Id: rwhod.c,v 1.8 1996/08/29 22:45:22 dholland Exp $";
 
 #include <sys/param.h>
 #include <sys/socket.h>
@@ -50,6 +50,7 @@ char rcsid[] =
 
 #include <net/if.h>
 #include <netinet/in.h>
+#include <netinet/ip.h>
 
 #include <nlist.h>
 #include <errno.h>
@@ -180,7 +181,8 @@ main(void)
 	onalrm(0);
 	for (;;) {
 		struct whod wd;
-		int cc, whod, len = sizeof(from);
+		int cc, whod;
+		size_t len = sizeof(from);
 
 		cc = recvfrom(sk, (char *)&wd, sizeof(struct whod), 0,
 			      (struct sockaddr *)&from, &len);

@@ -35,7 +35,7 @@
  * from: @(#)cmds.c	5.26 (Berkeley) 3/5/91
  */
 char cmds_rcsid[] = 
-   "$Id: cmds.c,v 1.10 1996/08/18 21:19:42 dholland Exp $";
+   "$Id: cmds.c,v 1.15 1996/12/31 19:15:36 dholland Exp $";
 
 /*
  * FTP User Program -- Command Routines.
@@ -44,6 +44,7 @@ char cmds_rcsid[] =
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include <netinet/ip.h>
 
 #include <arpa/ftp.h>
 
@@ -58,6 +59,10 @@ char cmds_rcsid[] =
 #include <string.h>
 #include <unistd.h>
 #include <netinet/in.h>
+#ifdef __USE_READLINE__
+#include <readline/readline.h>
+#include <readline/history.h>
+#endif
 
 #include "ftp_var.h"
 #include "pathnames.h"
@@ -167,7 +172,7 @@ setpeer(int argc, char *argv[])
 		(void) strcpy(structname, "file"), stru = STRU_F;
 		(void) strcpy(bytename, "8"), bytesize = 8;
 		if (autologin)
-			(void) login(argv[1]);
+			(void) dologin(argv[1]);
 
 #if defined(unix) && CHAR_BIT == 8
 /*
@@ -790,7 +795,6 @@ remglob(char *argv[], int doswitch)
 	static char **args;
 	int oldverbose, oldhash;
 	char *cp;
-	const char *modestr;
 
 	if (!mflag) {
 		if (!doglob) {
@@ -812,24 +816,37 @@ remglob(char *argv[], int doswitch)
 		return (cp);
 	}
 	if (ftemp == NULL) {
+		int oldumask, fd;
 		(void) strcpy(temp, _PATH_TMP);
-		(void) mktemp(temp);
+
+		/* libc 5.2.18 creates with mode 0666, which is dumb */
+		oldumask = umask(077);
+		fd = mkstemp(temp);
+		umask(oldumask);
+
+		if (fd<0) {
+			printf("Error creating temporary file, oops\n");
+			return NULL;
+		}
+		
 		oldverbose = verbose, verbose = 0;
 		oldhash = hash, hash = 0;
 		if (doswitch) {
 			pswitch(!proxy);
 		}
-		for (modestr = "w"; *++argv != NULL; modestr = "a")
-			recvrequest ("NLST", temp, *argv, modestr, 0);
+		while (*++argv != NULL) {
+			recvrequest ("NLST", temp, *argv, "a", 0);
+		}
+		unlink(temp);
+
 		if (doswitch) {
 			pswitch(!proxy);
 		}
 		verbose = oldverbose; hash = oldhash;
-		ftemp = fopen(temp, "r");
-		(void) unlink(temp);
+		ftemp = fdopen(fd, "r");
 		if (ftemp == NULL) {
-			printf("can't find list of remote files, oops\n");
-			return (NULL);
+			printf("fdopen failed, oops\n");
+			return NULL;
 		}
 	}
 	if (fgets(buf, sizeof (buf), ftemp) == NULL) {
@@ -1077,13 +1094,18 @@ lcd(int argc, char *argv[])
 	char buf[MAXPATHLEN];
 	const char *dir = NULL;
 
-	if (argc == 1) dir = home;
+	if (argc == 1) {
+	    /*dir = home;*/
+	    dir = ".";
+	}
 	else if (argc != 2) {
 		printf("usage: %s local-directory\n", argv[0]);
 		code = -1;
 		return;
 	}
-	dir = globulize(argv[1]);
+	else {
+	    dir = globulize(argv[1]);
+	}
 	if (!dir) {
 		code = -1;
 		return;
@@ -1579,10 +1601,26 @@ confirm(const char *cmd, const char *file)
 
 	if (!interactive)
 		return (1);
-	printf("%s %s? ", cmd, file);
-	(void) fflush(stdout);
-	if (fgets(lyne, sizeof(lyne), stdin) == NULL)
-		return (0);
+
+#ifdef __USE_READLINE__
+	if (fromatty) {
+		char *lineread;
+		snprintf(lyne, BUFSIZ, "%s %s? ", cmd, file);
+		lineread = readline(lyne);
+		if (!lineread) return 0;
+		strcpy(lyne, lineread);
+		free(lineread);
+	}
+	else {
+#endif
+		printf("%s %s? ", cmd, file);
+		fflush(stdout);
+		if (fgets(lyne, sizeof(lyne), stdin) == NULL) {
+		    return 0;
+		}
+#ifdef __USE_READLINE__
+	}
+#endif
 	return (*lyne != 'n' && *lyne != 'N');
 }
 
@@ -1621,10 +1659,10 @@ globulize(char *cpp)
 	if (globbed) {
 		rv = globbed[0];
 		/* don't waste too much memory */
-		if (globbed[1]) {
+		if (globbed[0]) {
 			blkfree(globbed+1);
-			free(globbed);
 		}
+		free(globbed);
 	}
 	return rv;
 }

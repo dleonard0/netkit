@@ -41,7 +41,7 @@ char copyright[] =
  *     Exp Locker: kfall
  */
 char rcsid[] = 
-  "$Id: rlogin.c,v 1.12 1996/08/22 22:43:58 dholland Exp $";
+  "$Id: rlogin.c,v 1.14 1996/11/25 17:44:22 dholland Exp $";
 
 
 /*
@@ -57,6 +57,7 @@ char rcsid[] =
 #include <sys/wait.h>
 #include <sys/ioctl.h>
 #include <netinet/in.h>
+#include <netinet/ip.h>
 #include <netdb.h>
 #include <termios.h>
 #include <setjmp.h>
@@ -103,13 +104,6 @@ static int eight, litout, rem;
 static int noescape;
 static u_char escapechar = '~';
 
-static const char *speeds[] = {
-	"0",    "50",   "75",    "110", 
-	"134",  "150",  "200",   "300", 
-	"600",  "1200", "1800",  "2400", 
-        "4800", "9600", "19200", "38400"
-};
-
 static int childpid;
 
 static char defkill, defquit, defstart, defstop, defeol, defeof, defintr;
@@ -146,6 +140,37 @@ static void copytochild(int);
 static void writeroob(int);
 static void lostpeer(int);
 static u_char getescape(const char *p);
+
+/*
+ * It is beyond me why code of this nature should be necessary.
+ * Why can't termios hand back an integer?
+ */
+static const char *getspeedstr(speed_t speed) 
+{
+	switch(speed) {
+	  case B0: return "0";
+	  case B50: return "50";
+	  case B75: return "75";
+	  case B110: return "110";
+	  case B134: return "134";
+	  case B150: return "150";
+	  case B200: return "200";
+	  case B300: return "300";
+	  case B600: return "600";
+	  case B1200: return "1200";
+	  case B1800: return "1800";
+	  case B2400: return "2400";
+	  case B4800: return "4800";
+	  case B9600: return "9600";
+	  case B19200: return "19200";
+	  case B38400: return "38400";
+	  case B57600: return "57600";
+	  case B115200: return "115200";
+	  case B230400: return "230400";
+	  case B460800: return "460800";
+	}
+	return "9600";
+}
 
 int
 main(int argc, char **argv)
@@ -235,7 +260,8 @@ main(int argc, char **argv)
 	if (!t) t = "network";
   	if (tcgetattr(0, &tios) == 0) {
 		speed_t speed = cfgetispeed(&tios);
-		snprintf(term, sizeof(term), "%.256s/%s", t, speeds[speed]);
+		const char *speedstr = getspeedstr(speed);
+		snprintf(term, sizeof(term), "%.256s/%s", t, speedstr);
   	}
 	else snprintf(term, sizeof(term), "%.256s", t);
 

@@ -4,13 +4,13 @@ include ../MCONFIG
 include ../MRULES
 
 finger: finger.o lprint.o net.o sprint.o util.o
-	$(CC) $(LDFLAGS) $^ $(LIBS) -lbsd -o $@
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 finger.o lprint.o net.o sprint.o util.o: finger.h
 
 install: finger
-	install -s finger /usr/bin
-	install -m644 finger.1 /usr/man/man1
+	install -s -m$(BINMODE) finger $(BINDIR)
+	install -m$(MANMODE) finger.1 $(MANDIR)/man1
 
 clean:
 	rm -f *.o finger

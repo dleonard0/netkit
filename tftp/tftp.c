@@ -35,7 +35,7 @@
  * From: @(#)tftp.c	5.10 (Berkeley) 3/1/91
  */
 char tftp_rcsid[] = 
-  "$Id: tftp.c,v 1.5 1996/08/15 05:16:38 dholland Exp $";
+  "$Id: tftp.c,v 1.6 1996/08/29 22:25:27 dholland Exp $";
 
 /* Many bug fixes are from Jim Guyton <guyton@rand-unix> */
 
@@ -47,6 +47,7 @@ char tftp_rcsid[] =
 #include <sys/time.h>
 
 #include <netinet/in.h>
+#include <netinet/ip.h>
 #include <arpa/tftp.h>
 
 #include <signal.h>
@@ -54,6 +55,7 @@ char tftp_rcsid[] =
 #include <errno.h>
 #include <setjmp.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "tftpsubs.h"
 
@@ -108,7 +110,7 @@ sendfile(int fd, char *name, char *mode)
 	int n;
 	volatile unsigned long amount = 0;
 	struct sockaddr_in from;
-	int fromlen;
+	size_t fromlen;
 	volatile int convert;            /* true if doing nl->crlf conversion */
 	FILE *file;
 
@@ -209,7 +211,7 @@ recvfile(int fd, char *name, char *mode)
 	int n; 
 	volatile unsigned long amount = 0;
 	struct sockaddr_in from;
-	int fromlen;
+	size_t fromlen;
 	volatile int firsttrip = 1;
 	FILE *file;
 	volatile int convert;            /* true if converting crlf -> lf */

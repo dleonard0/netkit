@@ -3,10 +3,10 @@ all: timed
 include ../../MCONFIG
 include ../../MRULES
 
-LIBS += -lbsd
+LIBS += -L../lib -ltimed -lbsd
 
 OBJS = timed.o acksend.o candidate.o correct.o master.o networkdelta.o \
-	readmsg.o slave.o byteorder.o measure.o cksum.o
+	readmsg.o slave.o 
 
 timed: $(OBJS)
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
@@ -14,8 +14,8 @@ timed: $(OBJS)
 $(OBJS): globals.h pathnames.h timed-extern.h
 
 install: timed
-	install -s -m744 timed /usr/sbin/
-	install -m644 timed.8 /usr/man/man8
+	install -s -m$(DAEMONMODE) timed $(SBINDIR)
+	install -m$(MANMODE) timed.8 $(MANDIR)/man8
 
 clean:
 	rm -f *.o timed

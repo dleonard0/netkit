@@ -9,8 +9,9 @@ fingerd: fingerd.o
 fingerd.o: pathnames.h
 
 install: fingerd
-	install -s -m755 fingerd /usr/sbin/in.fingerd
-	install -m644 fingerd.8 /usr/man/man8/in.fingerd.8
+	install -s -m$(DAEMONMODE) fingerd $(SBINDIR)/in.fingerd
+	install -m$(MANMODE) fingerd.8 $(MANDIR)/man8/in.fingerd.8
+	ln -sf in.fingerd.8 $(MANDIR)/man8/fingerd.8
 
 clean:
 	rm -f *.o fingerd

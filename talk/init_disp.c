@@ -35,7 +35,7 @@
  * From: @(#)init_disp.c	5.4 (Berkeley) 6/1/90
  */
 char id_rcsid[] = 
-  "$Id: init_disp.c,v 1.5 1996/08/15 03:40:50 dholland Exp $";
+  "$Id: init_disp.c,v 1.8 1996/12/29 16:54:22 dholland Exp $";
 
 /*
  * Initialization code for the display package,
@@ -66,17 +66,16 @@ init_display(void)
 		exit(-1);
 	}
 	(void) sigaction(SIGTSTP, NULL, &sigac);
-	sigac.sa_mask |= sigmask(SIGALRM);
+	sigaddset(&sigac.sa_mask, SIGALRM);
 	(void) sigaction(SIGTSTP, &sigac, NULL);
 	curses_initialized = 1;
 	clear();
 	refresh();
 	noecho();
-	crmode();
+	cbreak();
 	signal(SIGINT, sig_sent);
 	signal(SIGPIPE, sig_sent);
-	/* curses takes care of ^Z */
-	signal(SIGTSTP, SIG_DFL);	/* No, it doesn't. */
+	/* curses takes care of SIGTSTP (^Z) */
 	my_win.x_nlines = LINES / 2;
 	my_win.x_ncols = COLS;
 	my_win.x_win = newwin(my_win.x_nlines, my_win.x_ncols, 0, 0);
@@ -114,7 +113,7 @@ set_edit_chars(void)
 	my_win.kill = tios.c_cc[VKILL];
 	my_win.werase = tios.c_cc[VWERASE];
 
-	if (my_win.werase == (char) -1) {
+	if ((unsigned char)my_win.werase == 0xff) {
 		my_win.werase = '\027';	 /* control W */
 	}
 

@@ -9,8 +9,8 @@ rsh: $(OBJS)
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 install: rsh
-	install -s -o root -m4755 rsh /usr/bin/rsh
-	install -m644 rsh.1 /usr/man/man1
+	install -s -o root -m$(SUIDMODE) rsh $(BINDIR)
+	install -m$(MANMODE) rsh.1 $(MANDIR)/man1
 
 clean:
 	rm -f *.o rsh

@@ -38,7 +38,7 @@ char copyright[] =
 /*
  * From: @(#)rsh.c	5.24 (Berkeley) 7/1/91
  */
-char rcsid[] = "$Id: rsh.c,v 1.7 1996/08/22 22:45:20 dholland Exp $";
+char rcsid[] = "$Id: rsh.c,v 1.9 1996/09/21 01:53:51 dholland Exp $";
 
 #include <sys/types.h>
 #include <signal.h>
@@ -77,7 +77,9 @@ main(int argc, char *argv[])
 	char *p;
 	char *args, *host, *user;
 	char *null = NULL;
+	char **saved_environ;
 
+	saved_environ = __environ;
 	__environ = &null;
 
 	argoff = asrsh = dflag = nflag = 0;
@@ -131,7 +133,7 @@ main(int argc, char *argv[])
 	if (!argv[optind]) {
 		setuid(getuid());
 		if (asrsh) (const char *)(*argv) = "rlogin";
-		execv(_PATH_RLOGIN, argv);
+		execve(_PATH_RLOGIN, argv, saved_environ);
 		fprintf(stderr, "rsh: can't exec %s.\n", _PATH_RLOGIN);
 		exit(1);
 	}
@@ -228,7 +230,7 @@ reread:		errno = 0;
 
 rewrite:	FD_ZERO(&rembits);
 		FD_SET(rem, &rembits);
-		if (select(16, 0, &rembits, 0, 0) < 0) {
+		if (select(rem+1, 0, &rembits, 0, 0) < 0) {
 			if (errno != EINTR) {
 				fprintf(stderr,
 				    "rsh: select: %s.\n", strerror(errno));
@@ -262,7 +264,8 @@ done:
 			FD_SET(rfd2, &readfrom);
 		if (rem_ok)
 			FD_SET(rem, &readfrom);
-		if (select(16, &readfrom, 0, 0, 0) < 0) {
+		if (select(rfd2 > rem ? rfd2+1 : rem+1, 
+			   &readfrom, 0, 0, 0) < 0) {
 			if (errno != EINTR) {
 				fprintf(stderr,
 				    "rsh: select: %s.\n", strerror(errno));

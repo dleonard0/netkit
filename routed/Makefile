@@ -1,21 +1,24 @@
-all: routed
+all: routed ripquery
+
 include ../MCONFIG
 include ../MRULES
 
-CFLAGS += -I .
+OBJS=	af.o if.o input.o main.o output.o startup.o \
+	tables.o timer.o trace.o inet.o
 
-OBJECTS = af.o if.o inet.o input.o main.o output.o startup.o tables.o \
-		timer.o trace.o
+routed: $(OBJS)
+	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
-routed: $(OBJECTS)
-	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
-
-$(OBJECTS): defs.h pathnames.h trace.h table.h af.h interface.h
+ripquery:
+	$(MAKE) -C query 
 
 install: routed
-	install -s -m744 routed /usr/sbin
-	install -m644 routed.8 /usr/man/man8
+	install -s -m$(DAEMONMODE) routed $(SBINDIR)
+	install -m$(MANMODE) routed.8 $(MANDIR)/man8
+	$(MAKE) -C query install
 
 clean:
 	rm -f *.o routed
+	$(MAKE) -C query clean
 
+$(OBJS): defs.h trace.h interface.h table.h af.h pathnames.h

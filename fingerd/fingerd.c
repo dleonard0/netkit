@@ -39,7 +39,7 @@ char copyright[] =
  * from: @(#)fingerd.c	5.6 (Berkeley) 6/1/90"
  */
 char rcsid[] = 
-  "$Id: fingerd.c,v 1.9 1996/08/16 21:58:17 dholland Exp $";
+  "$Id: fingerd.c,v 1.12 1996/12/30 07:58:07 dholland Exp $";
 
 
 #include <pwd.h>
@@ -92,7 +92,7 @@ main(int argc, char *argv[])
 
 
 	struct sockaddr_in sn;
-	int sval = sizeof(sn);
+	size_t sval = sizeof(sn);
 	if (getpeername(0, (struct sockaddr *) &sn, &sval) < 0) {
 		fatal("getpeername", 0);
 	}
@@ -103,7 +103,7 @@ main(int argc, char *argv[])
 	}
 
 	opterr = 0;
-	while ((ca = getopt(argc, argv, "wlLuh?")) != EOF) {
+	while ((ca = getopt(argc, argv, "wlLpuh?")) != EOF) {
 		switch(ca) {
 		  case 'w':
 			welcome = 1;
@@ -111,7 +111,8 @@ main(int argc, char *argv[])
 		  case 'l':
 		        heavylogging = 1;
 			break;
-		  case 'L':
+		  case 'L': 
+		  case 'p':
 		        fingerpath = optarg;
 			break;
 		  case 'u':
@@ -169,7 +170,7 @@ main(int argc, char *argv[])
 		if (!strncasecmp(s, "/w", 2)) memcpy(s, "-l", 2);
 		t = strchr(s, '@');
 		if (t) {
-			fprintf(stderr, "fingerd: fowarding not allowed\r\n");
+			fprintf(stderr, "fingerd: forwarding not allowed\r\n");
 			syslog(LOG_WARNING, "rejected %s\n", s);
 			exit(1);
 		}

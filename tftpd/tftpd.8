@@ -30,7 +30,7 @@
 .\" SUCH DAMAGE.
 .\"
 .\"	from: @(#)tftpd.8	6.7 (Berkeley) 5/13/91
-.\"	$Id: tftpd.8,v 1.1 1996/07/16 11:15:55 dholland Exp $
+.\"	$Id: tftpd.8,v 1.2 1996/12/29 18:43:05 dholland Exp $
 .\"
 .Dd May 13, 1991
 .Dt TFTPD 8
@@ -76,13 +76,19 @@ this may not be appropriate on all systems, and its implications
 should be considered before enabling tftp service.
 The server should have the user ID with the lowest possible privilege.
 .Pp
-Access to files may be restricted by invoking
+Access to files may be controlled by invoking
 .Nm tftpd
 with a list of directories by including pathnames
 as server program arguments in
 .Pa /etc/inetd.conf .
-In this case access is restricted to files whose
-names are prefixed by the one of the given directories.
+In this case access is restricted to files whose names are prefixed by
+the one of the given directories. If no directories are supplied the
+default is
+.Pa /tftpboot .
+To give out access to the whole filesystem, should this be desired for
+some reason, supply 
+.Pa / 
+as an argument.
 .Sh SEE ALSO
 .Xr tftp 1 ,
 .Xr inetd 8

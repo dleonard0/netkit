@@ -35,10 +35,10 @@
  * From: @(#)readmsg.c	5.1 (Berkeley) 5/11/93
  */
 char readmsg_rcsid[] =
-  "$Id: readmsg.c,v 1.2 1996/07/20 19:45:38 dholland Exp $";
+  "$Id: readmsg.c,v 1.3 1996/08/29 19:53:54 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.2 $"
+#ident "$Revision: 1.3 $"
 #endif
 
 #include "globals.h"
@@ -434,7 +434,7 @@ struct tsp *msg;
 struct sockaddr_in *addr;
 {
 	char tm[26];
-	time_t tyme;
+	time_t msgtime;
 	switch (msg->tsp_type) {
 
 	case TSP_LOOP:
@@ -453,8 +453,8 @@ struct sockaddr_in *addr;
 #ifdef sgi
 		(void)cftime(tm, "%D %T", &msg->tsp_time.tv_sec);
 #else
-		tyme = msg->tsp_time.tv_sec;
-		strncpy(tm, ctime(&tyme)+3+1, sizeof(tm));
+		msgtime = msg->tsp_time.tv_sec;
+		strncpy(tm, ctime(&msgtime)+3+1, sizeof(tm));
 		tm[15] = '\0';		/* ugh */
 #endif /* sgi */
 		fprintf(fd, "%s %d %-6u %s %-15s %s\n",

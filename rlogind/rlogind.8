@@ -30,7 +30,7 @@
 .\" SUCH DAMAGE.
 .\"
 .\"     from: @(#)rlogind.8	6.12 (Berkeley) 3/16/91
-.\"	$Id: rlogind.8,v 1.1 1996/07/15 11:02:06 dholland Exp $
+.\"	$Id: rlogind.8,v 1.2 1996/11/23 19:21:24 dholland Exp $
 .\"
 .Dd March 16, 1991
 .Dt RLOGIND 8
@@ -40,7 +40,7 @@
 .Nd remote login server
 .Sh SYNOPSIS
 .Nm rlogind
-.Op Fl aln
+.Op Fl ahlLn
 .Sh DESCRIPTION
 .Nm Rlogind
 is the server for the 
@@ -53,13 +53,31 @@ Options supported by
 .Bl -tag -width Ds
 .It Fl a
 Ask hostname for verification.
+.It Fl h
+Permit use of superuser 
+.Dq Pa .rhosts
+files.
 .It Fl l
 Prevent any authentication based on the user's
 .Dq Pa .rhosts
-file, unless the user is logging in as the superuser.
+file. If the user is logging in as the superuser and the \-h
+option is used,
+.Dq Pa .rhosts
+processing is still enabled.
+.It Fl L
+Prevent any authentication based on 
+.Dq Pa .rhosts
+or
+.Dq Pa hosts.equiv
+information.
 .It Fl n
 Disable keep-alive messages.
 .El
+.Pp
+The \-h, \-l, and \-L flags are not used if PAM (Pluggable
+Authentication Module) support is in use. In this case the same
+effects can be achieved by editing
+.Pa /etc/pam.conf .
 .Pp
 .Nm Rlogind
 listens for service requests at the port indicated in

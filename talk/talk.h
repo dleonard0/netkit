@@ -31,10 +31,20 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)talk.h	5.7 (Berkeley) 3/1/91
- *	$Id: talk.h,v 1.4 1996/08/23 00:09:05 dholland Exp $
+ *	$Id: talk.h,v 1.8 1996/12/29 17:08:03 dholland Exp $
  */
 
 #include <curses.h>
+#include <sys/socket.h>
+
+/* 
+ * Linux libc doesn't have osockaddr, but gnu libc does.
+ * This has to come before include of protocols/talkd.h.
+ */
+#ifndef GNU_LIBC
+#define osockaddr sockaddr
+#endif
+
 #include <protocols/talkd.h>
 
 extern int sockt;
@@ -74,6 +84,6 @@ void end_msgs(void);
 void set_edit_chars(void);
 void talk(void);
 void send_delete(void);
-void display(xwin_t *, char *, int);
+void display(xwin_t *, unsigned char *, int);
 struct in_addr;
 void ctl_transact(struct in_addr, CTL_MSG, int, CTL_RESPONSE *);

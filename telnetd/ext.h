@@ -31,7 +31,7 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)ext.h	5.7 (Berkeley) 3/1/91
- *	$Id: ext.h,v 1.6 1996/08/16 18:49:26 dholland Exp $
+ *	$Id: ext.h,v 1.7 1996/08/30 01:26:14 dholland Exp $
  */
 
 /*
@@ -73,6 +73,8 @@ extern int auth_level;
 extern slcfun slctab[NSLC + 1];	/* slc mapping table */
 
 extern char *terminaltype;
+
+extern char *loginprg;
 
 /*
  * I/O data buffers, pointers, and counters.

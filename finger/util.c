@@ -36,9 +36,10 @@
 
 #ifndef lint
 /*static char sccsid[] = "from: @(#)util.c	5.14 (Berkeley) 1/17/91";*/
-char util_rcsid[] = "$Id: util.c,v 1.8 1996/08/16 22:03:09 dholland Exp $";
+char util_rcsid[] = "$Id: util.c,v 1.12 1996/11/23 17:16:50 dholland Exp $";
 #endif /* not lint */
 
+#include <sys/types.h>
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/file.h>
@@ -51,6 +52,10 @@ char util_rcsid[] = "$Id: util.c,v 1.8 1996/08/16 22:03:09 dholland Exp $";
 #include <unistd.h>
 #include <stdlib.h>
 #include "finger.h"
+
+#ifdef GNU_LIBC
+typedef off_t loff_t;
+#endif
 
 #define	HBITS	8			/* number of bits in hash code */
 #define	HSIZE	(1 << 8)		/* hash table size */
@@ -80,9 +85,11 @@ static void find_idle_and_ttywrite(register WHERE *w) {
 }
 
 static void userinfo(PERSON *pn, struct passwd *pw) {
-	char *p, *t;
+	char *p;
 	struct stat sb;
-	char *bp, name[1024];
+	char *bp;
+	char *rname;
+	int i, j, ct;
 
 	pn->realname = pn->office = pn->officephone = pn->homephone = NULL;
 
@@ -91,25 +98,45 @@ static void userinfo(PERSON *pn, struct passwd *pw) {
 	pn->dir = strdup(pw->pw_dir);
 	pn->shell = strdup(pw->pw_shell);
 
-	/* why do we skip asterisks!?!? */
-	(void)strcpy(bp = tbuf, pw->pw_gecos);
-	if (*bp == '*')
-		++bp;
+	/* make a private copy of gecos to munge */
+	strncpy(tbuf, pw->pw_gecos, TBUFLEN);
+	tbuf[TBUFLEN-1] = 0;  /* ensure null termination */
+	bp = tbuf;
 
-	/* ampersands get replaced by the login name */
+	/* why do we skip asterisks!?!? */
+	if (*bp == '*') ++bp;
+
+	/* 
+	 * Ampersands in gecos get replaced by the capitalized login name.
+	 * This is a major nuisance and whoever thought it up should be shot.
+	 */
 	p = strsep(&bp, ",");
 	if (!p)	return;
 
-	for (t = name; (*t = *p) != 0; ++p)
-		if (*t == '&') {
-			(void)strcpy(t, pw->pw_name);
-			if (islower(*t))
-				*t = toupper(*t);
-			while (*++t);
-		}
-		else
-			++t;
-	pn->realname = strdup(name);
+	/* First, count the number of ampersands. */
+	for (ct=i=0; p[i]; i++) if (p[i]=='&') ct++;
+	
+	/* This tells us how much space we need to copy the name. */
+	rname = malloc(strlen(p) + ct*strlen(pw->pw_name) + 1);
+	if (!rname) {
+		fprintf(stderr, "finger: out of space.\n");
+		exit(1);
+	}
+
+	/* Now, do it */
+	for (i=j=0; p[i]; i++) {
+	    if (p[i]=='&') {
+		strcpy(rname + j, pw->pw_name);
+		if (islower(rname[j])) rname[j] = toupper(rname[j]);
+		j += strlen(pw->pw_name);
+	    }
+	    else {
+		rname[j++] = p[i];
+	    }
+	}
+	rname[j] = 0;
+
+	pn->realname = rname;
 	pn->office = ((p = strsep(&bp, ",")) && *p) ?
 	    strdup(p) : NULL;
 	pn->officephone = ((p = strsep(&bp, ",")) && *p) ?
@@ -124,7 +151,8 @@ static void userinfo(PERSON *pn, struct passwd *pw) {
 			    "finger: %s: %s\n", tbuf, strerror(errno));
 			return;
 		}
-	} else if (sb.st_size != 0) {
+	} 
+	else if (sb.st_size != 0) {
 		pn->mailrecv = sb.st_mtime;
 		pn->mailread = sb.st_atime;
 	}
@@ -134,10 +162,12 @@ int
 match(struct passwd *pw, const char *user)
 {
 	char *p;
-	int i, j;
-	char name[1024];
+	int i, j, ct, rv=0;
+	char *rname;
 
-	strcpy(p = tbuf, pw->pw_gecos);
+	strncpy(tbuf, pw->pw_gecos, TBUFLEN);
+	tbuf[TBUFLEN-1] = 0;  /* guarantee null termination */
+	p = tbuf;
 
 	/* why do we skip asterisks!?!? */
 	if (*p == '*') ++p;
@@ -146,22 +176,40 @@ match(struct passwd *pw, const char *user)
 	p = strtok(p, ",");
 	if (!p)	return 0;
 
-	/* ampersands get replaced by the login name */
-	for (i=j=0; p[i] && j < (int)sizeof(name)-1; p++) {
-	    if (p[i]=='&') {
-		strncpy(name+j, pw->pw_name, sizeof(name)-j);
-		name[sizeof(name)-1] = 0;
-		j += strlen(name+j);
-	    }
-	    else name[j++] = p[i];
-	}
-	name[j] = 0;
+	/* 
+	 * Ampersands get replaced by the login name. 
+	 */
 
-	for (p = strtok(name, "\t "); p; p = strtok(NULL, "\t ")) {
-		if (!strcasecmp(p, user))
-			return 1;
+	/* First, count the number of ampersands. */
+	for (ct=i=0; p[i]; i++) if (p[i]=='&') ct++;
+
+	/* This tells us how much space we need to copy the name. */
+	rname = malloc(strlen(p) + ct*strlen(pw->pw_name) + 1);
+	if (!rname) {
+		fprintf(stderr, "finger: out of space.\n");
+		exit(1);
 	}
-	return 0;
+
+	/* Now, do it */
+	for (i=j=0; p[i]; i++) {
+	    if (p[i]=='&') {
+		strcpy(rname + j, pw->pw_name);
+		if (islower(rname[j])) rname[j] = toupper(rname[j]);
+		j += strlen(pw->pw_name);
+	    }
+	    else {
+		rname[j++] = p[i];
+	    }
+	}
+	rname[j] = 0;
+
+	for (p = strtok(rname, "\t "); p && !rv; p = strtok(NULL, "\t ")) {
+	    if (!strcasecmp(p, user)) 
+		rv = 1;
+	}
+	free(rname);
+
+	return rv;
 }
 
 static int get_lastlog(int fd, uid_t uid, struct lastlog *ll) {

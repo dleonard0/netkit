@@ -31,17 +31,15 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1980 The Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1980 The Regents of the University of California.\n"
+  "All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)biff.c	5.3 (Berkeley) 6/1/90";*/
-char rcsid[] = "$Id: biff.c,v 1.3 1996/07/13 20:25:04 dholland Exp $";
-char pkg[] = "NetKit-B-0.07";
-#endif /* not lint */
+/*
+ * From: @(#)biff.c	5.3 (Berkeley) 6/1/90
+ */
+char rcsid[] = "$Id: biff.c,v 1.4 1996/10/30 07:19:09 dholland Exp $";
+char pkg[] = "NetKit-B-0.09";
 
 /*
  * biff
@@ -55,7 +53,6 @@ int main(int argc, char *argv[])
 	char *cp = ttyname(2);
 	struct stat stb;
 
-	argc--, argv++;
 	if (cp == NULL) {
 		fprintf(stderr, "Where are you?\n");
 		exit(1);
@@ -64,11 +61,10 @@ int main(int argc, char *argv[])
 		perror(cp);
 		exit(1);
 	}
-	if (argc == 0) {
+	if (argc == 1) {
 		printf("is %s\n", stb.st_mode&0100 ? "y" : "n");
-		exit((stb.st_mode&0100) ? 0 : 1);
 	}
-	switch (argv[0][0]) {
+	else switch (argv[1][0]) {
 	  case 'y':
 		if (chmod(cp, stb.st_mode|0100) < 0)
 			perror(cp);
@@ -82,5 +78,5 @@ int main(int argc, char *argv[])
 	  default:
 		fprintf(stderr, "usage: biff [y|n]\n");
 	}
-	exit((stb.st_mode&0100) ? 0 : 1);
+	return (stb.st_mode&0100) ? 0 : 1;
 }

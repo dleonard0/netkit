@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 1989 The Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1988, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,11 +29,47 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- *	from: @(#)pathnames.h	5.2 (Berkeley) 6/1/90
- *	$Id: pathnames.h,v 1.1 1996/07/14 20:24:23 dholland Exp $
  */
 
-#include <paths.h>
+/*
+ * From: @(#)logout.c	8.1 (Berkeley) 6/4/93
+ * From: NetBSD: logout.c,v 1.5 1996/05/15 21:42:28 jtc Exp
+ */
+char rcsid_logout[] = 
+  "$Id";
 
-#define	_PATH_FTPUSERS	"/etc/ftpusers"
+#include <sys/types.h>
+#include <sys/time.h>
+
+#include <fcntl.h>
+#include <utmp.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/file.h>
+#include "logout.h"
+
+typedef struct utmp UTMP;
+
+int
+logout(const char *line)
+{
+	int fd, rval;
+	UTMP ut;
+
+	if ((fd = open(_PATH_UTMP, O_RDWR, 0)) < 0)
+		return(0);
+	rval = 0;
+	while (read(fd, &ut, sizeof(UTMP)) == sizeof(UTMP)) {
+		if (!ut.ut_name[0] || strncmp(ut.ut_line, line, UT_LINESIZE))
+			continue;
+		bzero(ut.ut_name, UT_NAMESIZE);
+		bzero(ut.ut_host, UT_HOSTSIZE);
+		(void)time(&ut.ut_time);
+		(void)lseek(fd, -(off_t)sizeof(UTMP), L_INCR);
+		(void)write(fd, &ut, sizeof(UTMP));
+		rval = 1;
+	}
+	(void)close(fd);
+	return(rval);
+}

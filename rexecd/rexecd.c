@@ -39,7 +39,7 @@ char copyright[] =
  * From: @(#)rexecd.c	5.12 (Berkeley) 2/25/91
  */
 char rcsid[] = 
-  "$Id: rexecd.c,v 1.11 1996/08/15 00:15:55 dholland Exp $";
+  "$Id: rexecd.c,v 1.14 1996/12/29 17:19:59 dholland Exp $";
 
 
 #include <sys/param.h>
@@ -58,6 +58,10 @@ char rcsid[] =
 #include <string.h>
 #include <paths.h>
 #include <grp.h>
+
+#ifdef USE_SHADOW
+#include <shadow.h>
+#endif
 
 #ifdef USE_PAM
 #include <security/pam_appl.h>
@@ -121,7 +125,7 @@ main(int argc, char **argv)
 		return 1;
 	}
 	/* Be advised that this may be utter nonsense. */
-	remote = h->h_name;
+	remote = strdup(h->h_name);
 	}
 #endif
 	syslog(allow_severity, "connect from %.128s", remote);
@@ -236,22 +240,7 @@ doit(int f, struct sockaddr_in *fromp)
 		port = port * 10 + c - '0';
 	}
 	alarm(0);
-	if (port != 0) {
-		s = socket(AF_INET, SOCK_STREAM, 0);
-		if (s < 0)
-			exit(1);
 
-#if 0 /* this shouldn't be necessary */
-		struct	sockaddr_in asin = { AF_INET };
-		if (bind(s, (struct sockaddr *)&asin, sizeof (asin)) < 0)
-			exit(1);
-#endif
-		alarm(60);
-		fromp->sin_port = htons(port);
-		if (connect(s, (struct sockaddr *)fromp, sizeof (*fromp)) < 0)
-			exit(1);
-		alarm(0);
-	}
 	getstr(user, sizeof(user), "username too long\n");
 	getstr(pass, sizeof(pass), "password too long\n");
 	getstr(cmdbuf, sizeof(cmdbuf), "command too long\n");
@@ -287,6 +276,15 @@ doit(int f, struct sockaddr_in *fromp)
 		fatal("Login incorrect.\n");
 	}
 	endpwent();
+#ifdef USE_SHADOW
+	{
+		struct spwd *sp = getspnam(pwd->pw_name);
+		endspent();
+		if (sp) {
+			pwd->pw_passwd = sp->sp_pwdp;
+		}
+	}
+#endif
 	if (*pwd->pw_passwd != '\0') {
 		namep = crypt(pass, pwd->pw_passwd);
 		if (strcmp(namep, pwd->pw_passwd)) {
@@ -326,6 +324,24 @@ doit(int f, struct sockaddr_in *fromp)
 	if (chdir(pwd->pw_dir) < 0) {
 		fatal("No remote directory.\n");
 	}
+
+	if (port != 0) {
+		s = socket(AF_INET, SOCK_STREAM, 0);
+		if (s < 0)
+			exit(1);
+
+#if 0 /* this shouldn't be necessary */
+		struct	sockaddr_in asin = { AF_INET };
+		if (bind(s, (struct sockaddr *)&asin, sizeof (asin)) < 0)
+			exit(1);
+#endif
+		alarm(60);
+		fromp->sin_port = htons(port);
+		if (connect(s, (struct sockaddr *)fromp, sizeof (*fromp)) < 0)
+			exit(1);
+		alarm(0);
+	}
+
 	write(2, "\0", 1);
 	if (port) {
 		if (pipe(pv)) fatal("Try again later.\n");

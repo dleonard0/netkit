@@ -32,7 +32,7 @@
  * From: @(#)rpc_hout.c 1.12 89/02/22 (C) 1987 SMI
  */
 char hout_rcsid[] = 
-  "$Id: rpc_hout.c,v 1.3 1996/08/15 02:53:26 dholland Exp $";
+  "$Id: rpc_hout.c,v 1.4 1996/12/29 21:23:48 dholland Exp $";
 
 /*
  * rpc_hout.c, Header file outputter for the RPC protocol compiler 
@@ -158,7 +158,7 @@ pargdef(definition *def)
 				}
 				f_print(fout, "};\n");
 				f_print(fout, "typedef struct %s %s;\n", name, name);
-				pxdrfuncdecl(name, 0);
+				pxdrfuncdecl(name, 1);
 				f_print( fout, "\n" );
 			}
 		}

@@ -35,10 +35,10 @@
  * From: @(#)slave.c	5.1 (Berkeley) 5/11/93
  */
 char slave_rcsid[] =
-  "$Id: slave.c,v 1.3 1996/08/15 05:56:12 dholland Exp $";
+  "$Id: slave.c,v 1.4 1996/08/29 19:53:54 dholland Exp $";
 
 #ifdef sgi
-#ident "$Revision: 1.3 $"
+#ident "$Revision: 1.4 $"
 #endif
 
 #include "globals.h"
@@ -79,7 +79,7 @@ slave(void)
 	char tname[MAXHOSTNAMELEN];
 	struct tsp *msg, to;
 	struct timeval ntime, wait;
-	time_t tyme;
+	time_t tmpt;
 	struct tsp *answer;
 	char olddate[32];
 	char newdate[32];
@@ -268,8 +268,8 @@ loop:
 			 * calling ctime() which clobbers the static buffer
 			 */
 			(void)strcpy(olddate, date());
-			tyme = msg->tsp_time.tv_sec;
-			(void)strcpy(newdate, ctime(&tyme));
+			tmpt = msg->tsp_time.tv_sec;
+			(void)strcpy(newdate, ctime(&tmpt));
 #endif /* sgi */
 
 			if (!good_host_name(msg->tsp_name)) {
@@ -360,8 +360,8 @@ loop:
 #ifdef sgi
 			(void)cftime(newdate, "%D %T", &msg->tsp_time.tv_sec);
 #else
-			tyme = msg->tsp_time.tv_sec;
-			(void)strcpy(newdate, ctime(&tyme));
+			tmpt = msg->tsp_time.tv_sec;
+			(void)strcpy(newdate, ctime(&tmpt));
 #endif /* sgi */
 			schgdate(msg, newdate);
 			break;
@@ -372,8 +372,8 @@ loop:
 #ifdef sgi
 			(void)cftime(newdate, "%D %T", &msg->tsp_time.tv_sec);
 #else
-			tyme = msg->tsp_time.tv_sec;
-			(void)strcpy(newdate, ctime(&tyme));
+			tmpt = msg->tsp_time.tv_sec;
+			(void)strcpy(newdate, ctime(&tmpt));
 #endif /* sgi */
 			htp = findhost(msg->tsp_name);
 			if (0 == htp) {

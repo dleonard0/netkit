@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 1983, 1988 Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1983, 1988, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,17 +32,17 @@
  */
 
 /*
- * From: @(#)timer.c	5.10 (Berkeley) 2/28/91
+ * From: @(#)timer.c	5.10 (Berkeley) 2/28/91 
+ * From: @(#)timer.c	8.1 (Berkeley) 6/5/93
  */
 char timer_rcsid[] = 
-  "$Id: timer.c,v 1.3 1996/07/15 17:45:59 dholland Exp $";
+  "$Id: timer.c,v 1.6 1996/11/25 16:54:04 dholland Exp $";
 
 
 /*
  * Routing Table Management Daemon
  */
 #include "defs.h"
-#include <signal.h>
 
 int	faketime;
 
@@ -52,16 +52,16 @@ int	faketime;
  * Management of the RTS_CHANGED bit assumes that we broadcast
  * each time called.
  */
-void
-timer(void)
+
+void timer(int signum)
 {
 	register struct rthash *rh;
 	register struct rt_entry *rt;
 	struct rthash *base = hosthash;
 	int doinghost = 1, timetobroadcast;
-	extern int externalinterfaces;
 
-	(void) signal(SIGALRM, timer);
+	(void)signum;
+
 	(void) gettimeofday(&now, (struct timezone *)NULL);
 	faketime += TIMER_RATE;
 	if (lookforinterfaces && (faketime % CHECK_INTERVAL) == 0)
@@ -107,13 +107,15 @@ again:
 /*
  * On hangup, let everyone know we're going away.
  */
-void
-hup(void)
+ 
+void hup(int signum)
 {
 	register struct rthash *rh;
 	register struct rt_entry *rt;
 	struct rthash *base = hosthash;
 	int doinghost = 1;
+
+	(void)signum;
 
 	if (supplier) {
 again:

@@ -32,7 +32,7 @@
  * From: @(#)rpc_cout.c 1.13 89/02/22 (C) 1987 SMI
  */
 char cout_rcsid[] = 
-  "$Id: rpc_cout.c,v 1.3 1996/08/15 02:53:26 dholland Exp $";
+  "$Id: rpc_cout.c,v 1.4 1996/12/29 20:41:39 dholland Exp $";
 
 /*
  * rpc_cout.c, XDR routine outputter for the RPC protocol compiler 
@@ -172,7 +172,8 @@ print_header(definition *def)
   if(inlineflag == 0 )
     return;
   /*May cause lint to complain. but  ... */
-f_print(fout, "\t register long *buf;\n\n");
+  /* dholland 12/29/96 add (void)buf to avoid gcc warnings if buf unused */
+  f_print(fout, "\t register long *buf;\n(void)buf;\n\n");
 
 }
 

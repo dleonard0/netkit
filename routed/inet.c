@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 1983 Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1983, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,9 +33,10 @@
 
 /*
  * From: @(#)inet.c	5.8 (Berkeley) 6/1/90
+ * From: @(#)inet.c	8.2 (Berkeley) 8/14/93
  */
 char inet_rcsid[] = 
-  "$Id: inet.c,v 1.2 1996/07/15 17:45:59 dholland Exp $";
+  "$Id: inet.c,v 1.4 1996/11/25 16:37:43 dholland Exp $";
 
 
 /*
@@ -49,11 +50,10 @@ extern struct interface *ifnet;
 /*
  * Formulate an Internet address from network + host.
  */
-struct in_addr
-inet_makeaddr(u_long net, u_long host)
+struct in_addr inet_makeaddr(u_long net, u_long host)
 {
-	register struct interface *ifp;
-	register u_long mask;
+	struct interface *ifp;
+	u_long mask;
 	u_long addr;
 
 	if (IN_CLASSA(net))
@@ -75,12 +75,11 @@ inet_makeaddr(u_long net, u_long host)
 /*
  * Return the network number from an internet address.
  */
-int
-inet_netof(struct in_addr in)
+u_long inet_netof_subnet(struct in_addr in)
 {
-	register u_long i = ntohl(in.s_addr);
-	register u_long net;
-	register struct interface *ifp;
+	u_long i = ntohl(in.s_addr);
+	u_long net;
+	struct interface *ifp;
 
 	if (IN_CLASSA(i))
 		net = i & IN_CLASSA_NET;
@@ -100,34 +99,32 @@ inet_netof(struct in_addr in)
 }
 
 /*
- * Return the host portion of an internet address.
+ * Return the netmask pertaining to an internet address.
  */
-int
-inet_lnaof(struct in_addr in)
-{
-	register u_long i = ntohl(in.s_addr);
-	register u_long net, host;
-	register struct interface *ifp;
 
-	if (IN_CLASSA(i)) {
-		net = i & IN_CLASSA_NET;
-		host = i & IN_CLASSA_HOST;
+int inet_maskof(u_long inaddr)
+{
+	u_long i = ntohl(inaddr);
+	u_long mask;
+	struct interface *ifp;
+
+	if (i == 0) {
+		mask = 0;
+	} else if (IN_CLASSA(i)) {
+		mask = IN_CLASSA_NET;
 	} else if (IN_CLASSB(i)) {
-		net = i & IN_CLASSB_NET;
-		host = i & IN_CLASSB_HOST;
-	} else {
-		net = i & IN_CLASSC_NET;
-		host = i & IN_CLASSC_HOST;
-	}
+		mask = IN_CLASSB_NET;
+	} else
+		mask = IN_CLASSC_NET;
 
 	/*
 	 * Check whether network is a subnet;
 	 * if so, use the modified interpretation of `host'.
 	 */
 	for (ifp = ifnet; ifp; ifp = ifp->int_next)
-		if ((ifp->int_netmask & net) == ifp->int_net)
-			return (host &~ ifp->int_subnetmask);
-	return (host);
+		if ((ifp->int_netmask & i) == ifp->int_net)
+			mask = ifp->int_subnetmask;
+	return (htonl(mask));
 }
 
 /*
@@ -135,12 +132,13 @@ inet_lnaof(struct in_addr in)
  * for an Internet host, RTF_SUBNET for a subnet,
  * 0 for a network.
  */
-int
-inet_rtflags(struct sockaddr_in *sin)
+
+int inet_rtflags(struct sockaddr *sa)
 {
-	register u_long i = ntohl(sin->sin_addr.s_addr);
-	register u_long net, host;
-	register struct interface *ifp;
+	struct sockaddr_in *sin=(struct sockaddr_in *)sa;
+	u_long i = ntohl(sin->sin_addr.s_addr);
+	u_long net, host;
+	struct interface *ifp;
 
 	if (IN_CLASSA(i)) {
 		net = i & IN_CLASSA_NET;
@@ -177,12 +175,13 @@ inet_rtflags(struct sockaddr_in *sin)
  * Send it only if dst is on the same logical network if not "internal",
  * otherwise only if the route is the "internal" route for the logical net.
  */
-int
-inet_sendroute(struct rt_entry *rt, struct sockaddr_in *dst)
+
+int inet_sendroute(struct rt_entry *rt, struct sockaddr *sa)
 {
-	register u_long r =
+	struct sockaddr_in *dst=(struct sockaddr_in *)sa;
+	u_long r =
 	    ntohl(((struct sockaddr_in *)&rt->rt_dst)->sin_addr.s_addr);
-	register u_long d = ntohl(dst->sin_addr.s_addr);
+	u_long d = ntohl(dst->sin_addr.s_addr);
 
 	if (IN_CLASSA(r)) {
 		if ((r & IN_CLASSA_NET) == (d & IN_CLASSA_NET)) {

@@ -40,7 +40,7 @@ char copyright[] =
 /*
  * From: @(#)ping.c	5.9 (Berkeley) 5/12/91
  */
-char rcsid[] = "$Id: ping.c,v 1.9 1996/08/22 22:41:30 dholland Exp $";
+char rcsid[] = "$Id: ping.c,v 1.17 1996/12/29 16:12:44 dholland Exp $";
 
 /*
  *			P I N G . C
@@ -65,11 +65,11 @@ char rcsid[] = "$Id: ping.c,v 1.9 1996/08/22 22:41:30 dholland Exp $";
 #include <sys/file.h>
 #include <sys/time.h>
 #include <sys/signal.h>
-#include <arpa/inet.h>
 
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -77,6 +77,16 @@ char rcsid[] = "$Id: ping.c,v 1.9 1996/08/22 22:41:30 dholland Exp $";
 #include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
+
+/*
+ * Note: on some systems dropping root makes the process dumpable or
+ * traceable. In that case if you enable dropping root and someone
+ * traces ping, they get control of a raw socket and can start
+ * spoofing whatever packets they like. SO BE CAREFUL.
+ */
+#ifdef __linux__
+#define SAFE_TO_DROP_ROOT
+#endif
 
 #define ICMP_MINLEN	28
 
@@ -169,12 +179,33 @@ main(int argc, char *argv[])
 	u_char *datap, *packet;
 	char *target, hnamebuf[MAXHOSTNAMELEN];
 	u_char ttl, loop;
+	int am_i_root;
 #ifdef IP_OPTIONS
 	char rspace[3 + 4 * NROUTES + 1];	/* record route space */
 #endif
 
 	static char *null = NULL;
 	__environ = &null;
+	am_i_root = (getuid()==0);
+
+	/*
+	 * Pull this stuff up front so we can drop root if desired.
+	 */
+	if (!(proto = getprotobyname("icmp"))) {
+		(void)fprintf(stderr, "ping: unknown protocol icmp.\n");
+		exit(2);
+	}
+	if ((s = socket(AF_INET, SOCK_RAW, proto->p_proto)) < 0) {
+		if (errno==EPERM) {
+			fprintf(stderr, "ping: ping must run as root\n");
+		}
+		else perror("ping: socket");
+		exit(2);
+	}
+
+#ifdef SAFE_TO_DROP_ROOT
+	setuid(getuid());
+#endif
 
 	preload = 0;
 	datap = &outpack[8 + sizeof(struct timeval)];
@@ -185,17 +216,17 @@ main(int argc, char *argv[])
 			if (npackets <= 0) {
 				(void)fprintf(stderr,
 				    "ping: bad number of packets to transmit.\n");
-				exit(1);
+				exit(2);
 			}
 			break;
 		case 'd':
 			options |= F_SO_DEBUG;
 			break;
 		case 'f':
-			if (getuid()) {
+			if (!am_i_root) {
 				(void)fprintf(stderr,
 				    "ping: %s\n", strerror(EPERM));
-				exit(1);
+				exit(2);
 			}
 			options |= F_FLOOD;
 			setbuf(stdout, NULL);
@@ -205,21 +236,21 @@ main(int argc, char *argv[])
 			if (interval <= 0) {
 				(void)fprintf(stderr,
 				    "ping: bad timing interval.\n");
-				exit(1);
+				exit(2);
 			}
 			options |= F_INTERVAL;
 			break;
 		case 'l':
-			if (getuid()) {
+			if (!am_i_root) {
 				(void)fprintf(stderr,
 				    "ping: %s\n", strerror(EPERM));
-				exit(1);
+				exit(2);
 			}
 			preload = atoi(optarg);
 			if (preload < 0) {
 				(void)fprintf(stderr,
 				    "ping: bad preload value.\n");
-				exit(1);
+				exit(2);
 			}
 			break;
 		case 'n':
@@ -243,12 +274,12 @@ main(int argc, char *argv[])
 			if (datalen > MAXPACKET) {
 				(void)fprintf(stderr,
 				    "ping: packet size too large.\n");
-				exit(1);
+				exit(2);
 			}
 			if (datalen <= 0) {
 				(void)fprintf(stderr,
 				    "ping: illegal packet size.\n");
-				exit(1);
+				exit(2);
 			}
 			break;
 		case 'v':
@@ -263,7 +294,7 @@ main(int argc, char *argv[])
 			i = atoi(optarg);
 			if (i < 0 || i > 255) {
 				printf("ttl %u out of range\n", i);
-				exit(1);
+				exit(2);
 			}
 			ttl = i;
 			break;
@@ -277,7 +308,7 @@ main(int argc, char *argv[])
 					   &i1, &i2, &i3, &i4, &junk) != 4) {
 					printf("bad interface address '%s'\n",
 					       optarg);
-					exit(1);
+					exit(2);
 				}
 				ifaddr.s_addr = (i1<<24)|(i2<<16)|(i3<<8)|i4;
 				ifaddr.s_addr = htonl(ifaddr.s_addr);
@@ -296,17 +327,20 @@ main(int argc, char *argv[])
 	memset(&whereto, 0, sizeof(struct sockaddr));
 	to = (struct sockaddr_in *)&whereto;
 	to->sin_family = AF_INET;
-	to->sin_addr.s_addr = inet_addr(target);
-	if (to->sin_addr.s_addr != (u_int)-1)
+	if (inet_aton(target, &to->sin_addr)) {
 		hostname = target;
+	}
 	else {
 		hp = gethostbyname(target);
 		if (!hp) {
 			(void)fprintf(stderr,
 			    "ping: unknown host %s\n", target);
-			exit(1);
+			exit(2);
 		}
 		to->sin_family = hp->h_addrtype;
+		if (hp->h_length > (int)sizeof(to->sin_addr)) {
+			hp->h_length = sizeof(to->sin_addr);
+		}
 		memcpy(&to->sin_addr, hp->h_addr, hp->h_length);
 		(void)strncpy(hnamebuf, hp->h_name, sizeof(hnamebuf) - 1);
 		hostname = hnamebuf;
@@ -315,7 +349,7 @@ main(int argc, char *argv[])
 	if (options & F_FLOOD && options & F_INTERVAL) {
 		(void)fprintf(stderr,
 		    "ping: -f and -i incompatible options.\n");
-		exit(1);
+		exit(2);
 	}
 
 	if (datalen >= (int)sizeof(struct timeval)) /* can we time transfer */
@@ -324,26 +358,19 @@ main(int argc, char *argv[])
 	packet = malloc((u_int)packlen);
 	if (!packet) {
 		(void)fprintf(stderr, "ping: out of memory.\n");
-		exit(1);
+		exit(2);
 	}
 	if (!(options & F_PINGFILLED))
 		for (i = 8; i < datalen; ++i)
 			*datap++ = i;
 
 	ident = getpid() & 0xFFFF;
-
-	if (!(proto = getprotobyname("icmp"))) {
-		(void)fprintf(stderr, "ping: unknown protocol icmp.\n");
-		exit(1);
-	}
-	if ((s = socket(AF_INET, SOCK_RAW, proto->p_proto)) < 0) {
-		perror("ping: socket");
-		exit(1);
-	}
 	hold = 1;
+
 	if (options & F_SO_DEBUG)
 		(void)setsockopt(s, SOL_SOCKET, SO_DEBUG, (char *)&hold,
 		    sizeof(hold));
+
 	if (options & F_SO_DONTROUTE)
 		(void)setsockopt(s, SOL_SOCKET, SO_DONTROUTE, (char *)&hold,
 		    sizeof(hold));
@@ -360,12 +387,12 @@ main(int argc, char *argv[])
 		if (setsockopt(s, IPPROTO_IP, IP_OPTIONS, rspace,
 		    sizeof(rspace)) < 0) {
 			perror("ping: record route");
-			exit(1);
+			exit(2);
 		}
 #else
 		(void)fprintf(stderr,
 		  "ping: record route not available in this implementation.\n");
-		exit(1);
+		exit(2);
 #endif /* IP_OPTIONS */
 	}
 
@@ -379,7 +406,7 @@ main(int argc, char *argv[])
 	(void)setsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *)&hold,
 	    sizeof(hold));
 
-#if 0
+/*#if 0*/
 	if (moptions & MULTICAST_NOLOOP) {
 		if (setsockopt(s, IPPROTO_IP, IP_MULTICAST_LOOP,
 							&loop, 1) == -1) {
@@ -401,7 +428,7 @@ main(int argc, char *argv[])
 			exit(94);
 		}
 	}
-#endif
+/*#endif*/
 
 	if (to->sin_family == AF_INET)
 		(void)printf("PING %s (%s): %d data bytes\n", hostname,
@@ -422,7 +449,7 @@ main(int argc, char *argv[])
 	for (;;) {
 		struct sockaddr_in from;
 		register int cc;
-		int fromlen;
+		size_t fromlen;
 
 		if (options & F_FLOOD) {
 			pinger();
@@ -475,6 +502,8 @@ catcher(int ignore)
 			waittime = 2 * tmax / 1000;
 			if (!waittime)
 				waittime = 1;
+			if (waittime > MAXWAIT)
+				waittime = MAXWAIT;
 		} else
 			waittime = MAXWAIT;
 		(void)signal(SIGALRM, finish);
@@ -818,6 +847,8 @@ finish(int ignore)
 			(tsum / (nreceived + nrepeats))/10,
 			(tsum / (nreceived + nrepeats))%10,
 			tmax/10, tmax%10);
+
+	if (nreceived==0) exit(1);
 	exit(0);
 }
 
@@ -869,8 +900,38 @@ pr_icmph(struct icmphdr *icp)
 		case ICMP_SR_FAILED:
 			(void)printf("Source Route Failed\n");
 			break;
+		case ICMP_NET_UNKNOWN:
+			(void)printf("Network Unknown\n");
+			break;
+		case ICMP_HOST_UNKNOWN:
+			(void)printf("Host Unknown\n");
+			break;
+		case ICMP_HOST_ISOLATED:
+			(void)printf("Host Isolated\n");
+			break;
+		case ICMP_NET_UNR_TOS:
+			printf("Destination Network Unreachable At This TOS\n");
+			break;
+		case ICMP_HOST_UNR_TOS:
+			printf("Destination Host Unreachable At This TOS\n");
+			break;
+#ifdef ICMP_PKT_FILTERED
+		case ICMP_PKT_FILTERED:
+			(void)printf("Packet Filtered\n");
+			break;
+#endif
+#ifdef ICMP_PREC_VIOLATION
+		case ICMP_PREC_VIOLATION:
+			(void)printf("Precedence Violation\n");
+			break;
+#endif
+#ifdef ICMP_PREC_CUTOFF
+		case ICMP_PREC_CUTOFF:
+			(void)printf("Precedence Cutoff\n");
+			break;
+#endif
 		default:
-			(void)printf("Dest Unreachable, Bad Code: %d\n",
+			(void)printf("Dest Unreachable, Unknown Code: %d\n",
 			    icp->icmp_code);
 			break;
 		}
@@ -1059,7 +1120,7 @@ fill(void *bp1, char *patp)
 		if (!isxdigit(*cp)) {
 			(void)fprintf(stderr,
 			    "ping: patterns must be specified as hex digits.\n");
-			exit(1);
+			exit(2);
 		}
 	ii = sscanf(patp,
 	    "%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x%2x",
@@ -1084,5 +1145,5 @@ usage(void)
 {
 	(void)fprintf(stderr,
 	    "usage: ping [-LRdfnqrv] [-c count] [-i wait] [-l preload]\n\t[-p pattern] [-s packetsize] [-t ttl] [-I interface address] host\n");
-	exit(1);
+	exit(2);
 }

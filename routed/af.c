@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 1983 Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1983, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,20 +33,25 @@
 
 /*
  * From: @(#)af.c	5.11 (Berkeley) 2/28/91
+ * From: @(#)af.c	8.1 (Berkeley) 6/5/93
  */
 char af_rcsid[] = 
-  "$Id: af.c,v 1.3 1996/07/15 17:45:59 dholland Exp $";
+  "$Id: af.c,v 1.5 1996/11/25 16:54:04 dholland Exp $";
 
-#include <arpa/inet.h>
 #include "defs.h"
 
 /*
  * Address family support routines
  */
-int	inet_hash(), inet_netmatch(), inet_output(),
-	inet_portmatch(), inet_portcheck(),
-	inet_checkhost(), inet_rtflags(), inet_sendroute(), inet_canon();
-char	*inet_format();
+
+void inet_canon(struct sockaddr *);
+int inet_checkhost(struct sockaddr *);
+char *inet_format(struct sockaddr *, char *, size_t);
+void inet_hash(struct sockaddr *, struct afhash *);
+int inet_netmatch(struct sockaddr *, struct sockaddr *);
+int inet_portcheck(struct sockaddr *);
+int inet_portmatch(struct sockaddr *);
+void inet_output(int, int, struct sockaddr *, int);
 
 #define NIL	{ 0 }
 #define	INET \
@@ -56,7 +61,8 @@ char	*inet_format();
 	  inet_format \
 	}
 
-struct afswitch afswitch[AF_MAX] = {
+struct afswitch afswitch[AF_MAX] = 
+{
 	NIL,		/* 0- unused */
 	NIL,		/* 1- Unix domain, unused */
 	INET,		/* Internet */
@@ -64,18 +70,17 @@ struct afswitch afswitch[AF_MAX] = {
 
 int af_max = sizeof(afswitch) / sizeof(afswitch[0]);
 
-struct sockaddr_in inet_default = {
-#ifdef RTM_ADD
-	sizeof (inet_default),
-#endif
-	AF_INET, INADDR_ANY };
-
-void
-inet_hash(struct sockaddr_in *sin, struct afhash *hp)
+struct sockaddr_in inet_default = 
 {
-	register u_long n;
+	AF_INET, INADDR_ANY 
+};
 
-	n = inet_netof(sin->sin_addr);
+void inet_hash(struct sockaddr *sa, struct afhash *hp)
+{
+	struct sockaddr_in *sin=(struct sockaddr_in *)sa;
+	u_long n;
+
+	n = inet_netof_subnet(sin->sin_addr);
 	if (n)
 	    while ((n & 0xff) == 0)
 		n >>= 8;
@@ -84,47 +89,44 @@ inet_hash(struct sockaddr_in *sin, struct afhash *hp)
 	hp->afh_hosthash &= 0x7fffffff;
 }
 
-int
-inet_netmatch(struct sockaddr_in *sin1, struct sockaddr_in *sin2)
+int inet_netmatch(struct sockaddr *sa1, struct sockaddr *sa2)
 {
-	return (inet_netof(sin1->sin_addr) == inet_netof(sin2->sin_addr));
+	struct sockaddr_in *sin1=(struct sockaddr_in *)sa1;
+	struct sockaddr_in *sin2=(struct sockaddr_in *)sa2;
+	return (inet_netof_subnet(sin1->sin_addr) ==
+	    inet_netof_subnet(sin2->sin_addr));
 }
 
 /*
  * Verify the message is from the right port.
  */
-int
-inet_portmatch(struct sockaddr_in *sin)
+int inet_portmatch(struct sockaddr *sa)
 {
+	struct sockaddr_in *sin=(struct sockaddr_in *)sa;
 	return (sin->sin_port == sp->s_port);
 }
 
 /*
  * Verify the message is from a "trusted" port.
  */
-int
-inet_portcheck(struct sockaddr_in *sin)
+int inet_portcheck(struct sockaddr *sa)
 {
+	struct sockaddr_in *sin=(struct sockaddr_in *)sa;
 	return (ntohs(sin->sin_port) <= IPPORT_RESERVED);
 }
 
 /*
  * Internet output routine.
  */
-void
-inet_output(int s, int flags, struct sockaddr_in *sin, int size)
+void inet_output(int s, int flags, struct sockaddr *sa, int size)
 {
+	struct sockaddr_in *sin=(struct sockaddr_in *)sa;
 	struct sockaddr_in dst;
 
 	dst = *sin;
 	sin = &dst;
 	if (sin->sin_port == 0)
 		sin->sin_port = sp->s_port;
-#ifndef __linux__
-	if (sin->sin_len == 0)
-		sin->sin_len = sizeof (*sin);
-#endif
-	flags = 0;
 	if (sendto(s, packet, size, flags,
 	    (struct sockaddr *)sin, sizeof (*sin)) < 0)
 		perror("sendto");
@@ -134,39 +136,31 @@ inet_output(int s, int flags, struct sockaddr_in *sin, int size)
  * Return 1 if the address is believed
  * for an Internet host -- THIS IS A KLUDGE.
  */
-int
-inet_checkhost(struct sockaddr_in *sin)
+int inet_checkhost(struct sockaddr *sa)
 {
+	struct sockaddr_in *sin=(struct sockaddr_in *)sa;
 	u_long i = ntohl(sin->sin_addr.s_addr);
-
-#undef	IN_EXPERIMENTAL
-#ifndef IN_EXPERIMENTAL
-#define	IN_EXPERIMENTAL(i)	(((long) (i) & 0xe0000000) == 0xe0000000)
-#endif
 
 	if (IN_EXPERIMENTAL(i) || sin->sin_port != 0)
 		return (0);
 	if (i != 0 && (i & 0xff000000) == 0)
 		return (0);
-#ifndef __linux__
 	for (i = 0; i < sizeof(sin->sin_zero)/sizeof(sin->sin_zero[0]); i++)
 		if (sin->sin_zero[i])
 			return (0);
-#endif
 	return (1);
 }
 
-void
-inet_canon(struct sockaddr_in *sin)
+void inet_canon(struct sockaddr *sa)
 {
+	struct sockaddr_in *sin=(struct sockaddr_in *)sa;
 	sin->sin_port = 0;
-#ifndef __linux__
-	sin->sin_len = sizeof(*sin);
-#endif
 }
 
-char *
-inet_format(struct sockaddr_in *sin);
+char *inet_format(struct sockaddr *sa, char *buf, size_t sz)
 {
-	return (inet_ntoa(sin->sin_addr));
+	struct sockaddr_in *sin=(struct sockaddr_in *)sa;
+	strncpy(buf, inet_ntoa(sin->sin_addr), sz);
+	buf[sz - 1] = '\0';
+	return (buf);
 }

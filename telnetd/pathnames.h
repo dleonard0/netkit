@@ -31,8 +31,11 @@
  * SUCH DAMAGE.
  *
  *	from: @(#)pathnames.h	5.5 (Berkeley) 6/28/90
- *	$Id: pathnames.h,v 1.2 1996/07/16 08:58:22 dholland Exp $
+ *	$Id: pathnames.h,v 1.3 1996/08/29 22:31:24 dholland Exp $
  */
 
 #include <paths.h>
 
+#ifndef _PATH_LOGIN
+#define _PATH_LOGIN  "/bin/login"
+#endif

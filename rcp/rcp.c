@@ -38,7 +38,7 @@ char copyright[] =
 /*
  * From: @(#)rcp.c	5.32 (Berkeley) 2/25/91
  */
-char rcsid[] = "$Id: rcp.c,v 1.7 1996/08/22 22:49:59 dholland Exp $";
+char rcsid[] = "$Id: rcp.c,v 1.8 1996/08/30 01:21:53 dholland Exp $";
 
 /*
  * rcp
@@ -317,8 +317,10 @@ tolocal(int argc, char *argv[])
 		(void)snprintf(bp, len, "%s -f %s", cmd, src);
 			rem = rcmd(&host, port, pwd->pw_name, suser, bp, 0);
 		(void)free(bp);
-		if (rem < 0)
+		if (rem < 0) {
+			++errs;
 			continue;
+		}
 		(void)seteuid(userid);
 #ifdef IP_TOS
 		tos = IPTOS_THROUGHPUT;

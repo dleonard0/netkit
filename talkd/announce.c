@@ -35,7 +35,7 @@
  * From: @(#)announce.c	5.9 (Berkeley) 2/26/91
  */
 char ann_rcsid[] = 
-  "$Id: announce.c,v 1.3 1996/08/15 03:44:13 dholland Exp $";
+  "$Id: announce.c,v 1.4 1996/12/29 17:13:53 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -43,13 +43,13 @@ char ann_rcsid[] =
 #include <sys/wait.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
-#include <protocols/talkd.h>
 #include <errno.h>
 #include <syslog.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <paths.h>
+#include "mytalkd.h"
 #include "proto.h"
 
 static int announce_proc(CTL_MSG *request, const char *remote_machine);

@@ -28,7 +28,7 @@
 
 #ifndef lint
 char rusers_rcsid[] = 
-  "$Id: rusers.c,v 1.6 1996/08/15 07:54:48 dholland Exp $";
+  "$Id: rusers.c,v 1.8 1996/12/29 18:03:38 dholland Exp $";
 #endif /* not lint */
 
 #include <sys/types.h>
@@ -36,7 +36,8 @@ char rusers_rcsid[] =
 #include <sys/socket.h>
 #include <netdb.h>
 #include <stdio.h>
-#include <strings.h>
+#include <getopt.h>
+#include <string.h>
 #include <rpc/rpc.h>
 #include <rpc/pmap_clnt.h>
 #include <arpa/inet.h>
@@ -97,6 +98,15 @@ remember_host(struct in_addr addr)
 	hosts = hp;
 }
 
+/* 
+ * Sigh.
+ */
+#ifdef GNU_LIBC
+#define UTTIME rut_time
+#else
+#define UTTIME ut_time
+#endif
+
 static
 int
 rusers_reply(char *replyp, struct sockaddr_in *raddrp)
@@ -126,7 +136,7 @@ rusers_reply(char *replyp, struct sockaddr_in *raddrp)
 	
 	for (x = 0; x < up->uia_cnt; x++) {
 		strncpy(date,
-			&(ctime((time_t *)&(up->uia_arr[x]->ui_utmp.ut_time))[4]),
+			&(ctime((time_t *)&(up->uia_arr[x]->ui_utmp.UTTIME))[4]),
 			sizeof(date)-1);
 
 		idlee = up->uia_arr[x]->ui_idle;
@@ -207,13 +217,17 @@ onehost(char *host)
 		exit(1);
 	}
 
-	bzero((char *)&up, sizeof(up));
+	memset(&up, 0, sizeof(up));
+	memset(&addr, 0, sizeof(addr));
 	if (clnt_call(rusers_clnt, RUSERSPROC_NAMES, (xdrproc_t)xdr_void, NULL,
 	    (xdrproc_t) xdr_utmpidlearr, &up, timeout) != RPC_SUCCESS) {
 		clnt_perror(rusers_clnt, argv0);
 		exit(1);
 	}
-	addr.sin_addr.s_addr = *(int *)hp->h_addr;
+	if (hp->h_length > (int)sizeof(addr.sin_addr)) {
+		hp->h_length = sizeof(addr.sin_addr);
+	}
+	memcpy(&addr.sin_addr, hp->h_addr, hp->h_length);
 	rusers_reply((char *)&up, &addr);
 }
 

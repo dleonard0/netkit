@@ -35,19 +35,18 @@
  * From: @(#)invite.c	5.8 (Berkeley) 3/1/91
  */
 char inv_rcsid[] = 
-  "$Id: invite.c,v 1.6 1996/08/15 03:40:50 dholland Exp $";
+  "$Id: invite.c,v 1.7 1996/12/29 17:07:41 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <signal.h>
 #include <netinet/in.h>
-#include <protocols/talkd.h>
 #include <errno.h>
 #include <setjmp.h>
 #include <unistd.h>
-#include "talk_ctl.h"
 #include "talk.h"
+#include "talk_ctl.h"
 
 static void announce_invite(void);
 

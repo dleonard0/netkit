@@ -35,7 +35,7 @@
  * From: @(#)utility.c	5.8 (Berkeley) 3/22/91
  */
 char util_rcsid[] = 
-  "$Id: utility.c,v 1.5 1996/08/15 04:51:15 dholland Exp $";
+  "$Id: utility.c,v 1.6 1996/11/24 16:33:07 dholland Exp $";
 
 #define PRINTOPTIONS
 
@@ -483,7 +483,6 @@ putf(const char *cp, char *where)
 					|| buff[0] == '\0'
 					|| strcmp(buff, "(none)") == 0)
 					break;
-				putchr('.');
 				putstr(buff);
 			}
 			break;

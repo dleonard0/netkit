@@ -16,8 +16,8 @@ rusers: rusers.o rusers_xdr.o
 	$(CC) $(LDFLAGS) $^ $(LIBS) -o $@
 
 install: rusers
-	install -s rusers /usr/bin/
-	install -m644 rusers.1 /usr/man/man1
+	install -s -m$(BINMODE) rusers $(BINDIR)
+	install -m$(MANMODE) rusers.1 $(MANDIR)/man1
 
 clean:
 	rm -f *.o rusers rusers.h rusers_xdr.c rusers.x

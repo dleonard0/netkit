@@ -35,16 +35,15 @@
  * From: @(#)look_up.c	5.7 (Berkeley) 3/1/91
  */
 char lu_rcsid[] = 
-  "$Id: look_up.c,v 1.3 1996/07/20 20:59:41 dholland Exp $";
+  "$Id: look_up.c,v 1.4 1996/12/29 17:07:41 dholland Exp $";
 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <protocols/talkd.h>
 #include <unistd.h>
 #include <errno.h>
-#include "talk_ctl.h"
 #include "talk.h"
+#include "talk_ctl.h"
 
 static int look_for_invite(CTL_RESPONSE *rp);
 

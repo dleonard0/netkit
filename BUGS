@@ -1,3 +1,23 @@
+reconcile with debian:
+	rlogin 
+	rlogind
+	rsh
+	rshd
+	finger
+	fingerd 	(-f permits forwarding)
+	talk		(8-bit clean)
+	talkd
+	ftp		(uses ports above 40000)
+	inetd		(bug fixes)
+	tftp		"file search" mode
+	tftpd
+
+reconcile with netbsd:
+	everything.
+
+reconcile with openbsd:
+	everything.
+
 finger: 
 	- prints nonsense timezone stuff
 	- add option to issue CRs so fingerd doesn't need to fork
@@ -9,22 +29,24 @@ fingerd:
 inetd:
 	- will shut down services respawning too fast. Should bring them 
 	  up again after a few minutes.
-
-ping:
-	- should drop uid 0 when appropriate
+	- I'd appreciate if someone could try the Phrack inetd-killer of
+	  a couple of months ago and let me know the results, if any.
 
 rcp:
 	- should call rsh instead of using root
 	- pukes on files in /proc
+	- should warn that the connection isn't encrypted
 
 rlogin: 
 	- should use sigaction
+	- should warn that the connection isn't encrypted
 
-rlogind:
-	- should take flag to ignore root .rhosts
+rsh:
+	- should try rexec if rcmd doesn't work
+	- should warn that the connection isn't encrypted
 
-rshd:
-	- should take flag to ignore root .rhosts
+rpcgen:
+	- should look for cpp in more places (eg, /usr/bin, /usr/libexec)
 
 rusers/rusersd:
 	- doesn't compile cleanly 
@@ -34,19 +56,38 @@ rwall/rwalld:
 
 talk:
 	- long-standing curses bugs associated with going off right side of
-	  screen.
+	  screen. (These appear to no longer happen now though.)
 	- support word-wrap.
 	- handle backspacing intelligently.
-	- should be 8-bit clean.
+	- should do "connection closed, ^C to exit" like OSF/1 talk instead
+	  of bailing and clearing the screen.
 
 talkd:
 	- talk request messages should check for 8 bit tty and not 
 	  clear to 7 bits.
 	- doesn't log flash attempts. 
 
+telnet:
+	- will apparently sometimes assert in ungetch. I think I've
+	  fixed this, so if you still see it let me know.
+	- hangs if you telnet to chargen port and push ^Z 
+	  (due to bogus protocol negotiation attempts)
+	- binary mode doesn't handle crlf right
+	- should warn if the connection isn't encrypted
+
 telnetd:
-	- passes login the -p flag
-	- should accept -L for alternate login prog
+	- hangs if you do the following:
+		telnet
+		log in
+		cat >/dev/null
+		type 256 'a's with no CRs
+	- crashes in ncurses if the terminal type is undefined,
+	  with some versions of ncurses.
+	- should allow passing random user envs as "TELNET_*"
+	- should set REMOTEHOST to the remote hostname
+	- passes login the -p flag instead of sending envs explicitly
 
 overall:
 	- stop using -lbsd
+	- don't use inet_addr; use inet_aton instead
+	- check (again) for bogus select parameters

@@ -1,6 +1,6 @@
 /*-
- * Copyright (c) 1982, 1986 The Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1982, 1986, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -31,19 +31,19 @@
  * SUCH DAMAGE.
  */
 
-#ifndef lint
 char copyright[] =
-"@(#) Copyright (c) 1982, 1986 The Regents of the University of California.\n\
- All rights reserved.\n";
-#endif /* not lint */
+  "@(#) Copyright (c) 1982, 1986, 1993\n"
+  "    The Regents of the University of California.  All rights reserved.\n";
 
-#ifndef lint
-/*static char sccsid[] = "from: @(#)query.c	5.13 (Berkeley) 4/16/91";*/
-static char rcsid[] = "$Id: query.c,v 1.4 1993/08/01 18:24:51 mycroft Exp $";
-#endif /* not lint */
+/*
+ * From: @(#)query.c	5.13 (Berkeley) 4/16/91
+ * From: query.c,v 1.4 1993/08/01 18:24:51 mycroft Exp 
+ * From: @(#)query.c	8.1 (Berkeley) 6/5/93
+ */
+char rcsid[] = 
+  "$Id: query.c,v 1.4 1996/11/25 16:54:37 dholland Exp $";
 
 #include <sys/param.h>
-#include <sys/protosw.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <signal.h>
@@ -56,29 +56,30 @@ static char rcsid[] = "$Id: query.c,v 1.4 1993/08/01 18:24:51 mycroft Exp $";
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <getopt.h>
 
 #define	WTIME	5		/* Time to wait for all responses */
 #define	STIME	500000		/* usec to wait for another response */
 
 int	s;
-int	timedout;
-void	timeout();
+volatile int timedout;
+void	timeout(int);
+void 	query(char *host);
+void	rip_input(struct sockaddr *from, int size);
+int 	inet_subnetof(struct in_addr in);
 char	packet[MAXPACKETSIZE];
 int	nflag;
 
-main(argc, argv)
-	int argc;
-	char *argv[];
+int main(int argc, char *argv[])
 {
-	extern char *optarg;
-	extern int optind;
-	int ch, cc, count, bits;
+	int ch, cc, count=0, bits;
 	struct sockaddr from;
+	struct sigaction sigact;
 	int fromlen = sizeof(from), size = 32*1024;
 	struct timeval shorttime;
 
 	while ((ch = getopt(argc, argv, "n")) != EOF)
-		switch((char)ch) {
+		switch (ch) {
 		case 'n':
 			nflag++;
 			break;
@@ -111,9 +112,13 @@ usage:		printf("usage: query [-n] hosts...\n");
 	 * may be more than one packet per host.
 	 */
 	bits = 1 << s;
-	bzero(&shorttime, sizeof(shorttime));
+	memset(&shorttime, 0, sizeof(shorttime));
 	shorttime.tv_usec = STIME;
-	signal(SIGALRM, timeout);
+	memset(&sigact, 0, sizeof(sigact));
+	sigact.sa_handler = timeout;
+	/*sigact.sa_flags = 0;*/		/* no restart */
+	if (sigaction(SIGALRM, &sigact, (struct sigaction *)NULL) == -1)
+		perror("sigaction");
 	alarm(WTIME);
 	while ((count > 0 && !timedout) ||
 	    select(20, (fd_set *)&bits, NULL, NULL, &shorttime) > 0) {
@@ -135,25 +140,23 @@ usage:		printf("usage: query [-n] hosts...\n");
 	exit (count > 0 ? count : 0);
 }
 
-query(host)
-	char *host;
+void query(char *host)
 {
 	struct sockaddr_in router;
 	register struct rip *msg = (struct rip *)packet;
 	struct hostent *hp;
 	struct servent *sp;
 
-	bzero((char *)&router, sizeof (router));
+	memset(&router, 0, sizeof (router));
 	router.sin_family = AF_INET;
-	router.sin_addr.s_addr = inet_addr(host);
-	if (router.sin_addr.s_addr == -1) {
+	if (inet_aton(host, &router.sin_addr) == 0) {
 		hp = gethostbyname(host);
 		if (hp == NULL) {
 			fprintf(stderr, "query: %s: ", host);
 			herror((char *)NULL);
 			exit(1);
 		}
-		bcopy(hp->h_addr, &router.sin_addr, hp->h_length);
+		memcpy(&router.sin_addr, hp->h_addr, sizeof(router.sin_addr));
 	}
 	sp = getservbyname("router", "udp");
 	if (sp == 0) {
@@ -173,13 +176,13 @@ query(host)
 /*
  * Handle an incoming routing packet.
  */
-rip_input(from, size)
-	struct sockaddr_in *from;
-	int size;
+ 
+void rip_input(struct sockaddr *sa, int size)
 {
+	struct sockaddr_in *from = (struct sockaddr_in *)sa;
 	register struct rip *msg = (struct rip *)packet;
 	register struct netinfo *n;
-	char *name;
+	const char *name;
 	int lna, net, subnet;
 	struct hostent *hp;
 	struct netent *np;
@@ -198,7 +201,7 @@ rip_input(from, size)
 	size -= sizeof (int);
 	n = msg->rip_nets;
 	while (size > 0) {
-	    if (size < sizeof (struct netinfo))
+	    if (size < (int)sizeof (struct netinfo))
 		    break;
 	    if (msg->rip_vers > 0) {
 		    n->rip_dst.sa_family =
@@ -226,10 +229,10 @@ rip_input(from, size)
 					name = "default";
 			} else if ((lna & 0xff) == 0 &&
 			    (np = getnetbyaddr(subnet, AF_INET))) {
-				struct in_addr subnaddr, inet_makeaddr();
+				struct in_addr subnaddr;
 
 				subnaddr = inet_makeaddr(subnet, INADDR_ANY);
-				if (bcmp(&sin->sin_addr, &subnaddr,
+				if (memcmp(&sin->sin_addr, &subnaddr,
 				    sizeof(subnaddr)) == 0)
 					name = np->n_name;
 				else
@@ -264,9 +267,10 @@ rip_input(from, size)
 	}
 }
 
-void
-timeout()
+void timeout(int signum)
 {
+	(void)signum;
+
 	timedout = 1;
 }
 
@@ -276,8 +280,8 @@ timeout()
  * INSIDE OF THE HOST PART.  We can only believe this if we have other
  * information (e.g., we can find a name for this number).
  */
-inet_subnetof(in)
-	struct in_addr in;
+
+int inet_subnetof(struct in_addr in)
 {
 	register u_long i = ntohl(in.s_addr);
 

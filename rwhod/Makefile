@@ -12,8 +12,8 @@ rwhod: $(OBJS)
 $(OBJS): daemon.h
 
 install: rwhod
-	install -s -m744 rwhod /usr/sbin/
-	install -m644 rwhod.8 /usr/man/man8/
+	install -s -m$(DAEMONMODE) rwhod $(SBINDIR)
+	install -m$(MANMODE) rwhod.8 $(MANDIR)/man8/
 
 clean:
 	rm -f *.o rwhod

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 1983 Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1983, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,13 +33,15 @@
 
 /*
  * From: @(#)if.c	5.6 (Berkeley) 6/1/90
+ * From: @(#)if.c	8.1 (Berkeley) 6/5/93
  */
 char if_rcsid[] = 
-  "$Id: if.c,v 1.2 1996/07/15 17:45:59 dholland Exp $";
+  "$Id: if.c,v 1.4 1996/11/25 16:37:43 dholland Exp $";
 
 /*
  * Routing Table Management Daemon
  */
+
 #include "defs.h"
 
 extern	struct interface *ifnet;
@@ -47,13 +49,13 @@ extern	struct interface *ifnet;
 /*
  * Find the interface with address addr.
  */
-struct interface *
-if_ifwithaddr(struct sockaddr *addr)
+
+struct interface *if_ifwithaddr(struct sockaddr *addr)
 {
-	register struct interface *ifp;
+	struct interface *ifp;
 
-#define	same(a1, a2) (memcmp((a1)->sa_data, (a2)->sa_data, 14) == 0)
-
+#define	same(a1, a2) \
+	(memcmp((a1)->sa_data, (a2)->sa_data, 14) == 0)
 	for (ifp = ifnet; ifp; ifp = ifp->int_next) {
 		if (ifp->int_flags & IFF_REMOTE)
 			continue;
@@ -71,10 +73,9 @@ if_ifwithaddr(struct sockaddr *addr)
 /*
  * Find the point-to-point interface with destination address addr.
  */
-struct interface *
-if_ifwithdstaddr(struct sockaddr *addr)
+struct interface *if_ifwithdstaddr(struct sockaddr *addr)
 {
-	register struct interface *ifp;
+	struct interface *ifp;
 
 	for (ifp = ifnet; ifp; ifp = ifp->int_next) {
 		if ((ifp->int_flags & IFF_POINTOPOINT) == 0)
@@ -89,12 +90,12 @@ if_ifwithdstaddr(struct sockaddr *addr)
  * Find the interface on the network 
  * of the specified address.
  */
-struct interface *
-if_ifwithnet(struct sockaddr *addr)
+
+struct interface *if_ifwithnet(struct sockaddr *addr)
 {
-	register struct interface *ifp;
-	register int af = addr->sa_family;
-	register int (*netmatch)();
+	struct interface *ifp;
+	int af = addr->sa_family;
+	int (*netmatch)(struct sockaddr *, struct sockaddr *);
 
 	if (af >= af_max)
 		return (0);
@@ -115,12 +116,11 @@ if_ifwithnet(struct sockaddr *addr)
  * should have come from.  Used for figuring out which
  * interface a packet came in on -- for tracing.
  */
-struct interface *
-if_iflookup(struct sockaddr *addr)
+struct interface *if_iflookup(struct sockaddr *addr)
 {
-	register struct interface *ifp, *maybe;
-	register int af = addr->sa_family;
-	register int (*netmatch)();
+	struct interface *ifp, *maybe;
+	int af = addr->sa_family;
+	int (*netmatch)(struct sockaddr *, struct sockaddr *);
 
 	if (af >= af_max)
 		return (0);

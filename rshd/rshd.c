@@ -42,7 +42,7 @@ char copyright[] =
 /*
  * From: @(#)rshd.c	5.38 (Berkeley) 3/2/91
  */
-char rcsid[] = "$Id: rshd.c,v 1.11 1996/08/17 17:57:17 dholland Exp $";
+char rcsid[] = "$Id: rshd.c,v 1.14 1996/11/23 19:31:51 dholland Exp $";
 
 /*
  * remote shell server:
@@ -60,6 +60,7 @@ char rcsid[] = "$Id: rshd.c,v 1.11 1996/08/17 17:57:17 dholland Exp $";
 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/ip.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 
@@ -76,6 +77,10 @@ char rcsid[] = "$Id: rshd.c,v 1.11 1996/08/17 17:57:17 dholland Exp $";
 #include <paths.h>
 #include <stdarg.h>
 
+#ifdef GNU_LIBC
+#define _check_rhosts_file  __check_rhosts_file
+#endif
+
 #ifdef USE_PAM
 #include <security/pam_appl.h>
 #include <security/pam_misc.h>
@@ -83,12 +88,13 @@ static pam_handle_t *pamh;
 static int retcode;
 #endif /* USE_PAM */
 
-#define	OPTIONS	"alnL"
+#define	OPTIONS	"ahlLn"
 
 static int keepalive = 1;
 static int check_all = 0;
 static int paranoid = 0;
 static int sent_null;
+static int allow_root_rhosts=0;
 
 static void error(const char *fmt, ...);
 static void usage(void);
@@ -101,7 +107,8 @@ int
 main(int argc, char *argv[])
 {
 	struct linger linger;
-	int ch, on = 1, fromlen;
+	int ch, on = 1;
+	size_t fromlen;
 	struct sockaddr_in from;
 	_check_rhosts_file=1;
 	openlog("rshd", LOG_PID | LOG_ODELAY, LOG_DAEMON);
@@ -111,6 +118,10 @@ main(int argc, char *argv[])
 		switch (ch) {
 		case 'a':
 			check_all = 1;
+			break;
+
+		case 'h':
+			allow_root_rhosts = 1;
 			break;
 
 		case 'l':
@@ -135,8 +146,8 @@ main(int argc, char *argv[])
 	argv += optind;
 
 #ifdef USE_PAM
-       if (_check_rhosts_file == 0)
-               syslog(LOG_ERR, "-l functionality has been moved to "
+       if (_check_rhosts_file == 0 || allow_root_rhosts)
+               syslog(LOG_ERR, "-l and -h functionality has been moved to "
                                "pam_rhosts_auth in /etc/pam.conf");
 #endif /* USE_PAM */
 
@@ -229,7 +240,8 @@ doit(struct sockaddr_in *fromp)
       {
 	u_char optbuf[BUFSIZ/3], *cp;
 	char lbuf[BUFSIZ], *lp;
-	int optsize = sizeof(optbuf), ipproto;
+	size_t optsize = sizeof(optbuf);
+	int  ipproto;
 	struct protoent *ip;
 
 	if ((ip = getprotobyname("ip")) != NULL)
@@ -371,14 +383,17 @@ doit(struct sockaddr_in *fromp)
 
 
 #ifndef USE_PAM
-		if (errorstr ||
-		    ruserok(hostname, pwd->pw_uid == 0, remuser, locuser) < 0) {
-			if (errorstr == NULL)
-				errorstr = "Permission denied.\n";
-			fail(errorstr, errorhost, pwd->pw_uid,
-			     remuser, hostname, locuser, cmdbuf);
-
-		}
+	if (!errorstr && pwd->pw_uid==0 && !allow_root_rhosts) {
+		errorstr = "Permission denied.\n";
+	}
+	if (!errorstr) {
+		if (ruserok(hostname, pwd->pw_uid == 0, remuser, locuser) < 0)
+			errorstr = "Permission denied.\n";
+	}
+	if (errorstr) {
+		fail(errorstr, errorhost, pwd->pw_uid,
+		     remuser, hostname, locuser, cmdbuf);
+	}
 #else
        retcode = pam_start("rsh", locuser, &conv, &pamh);
        if (retcode != PAM_SUCCESS) {

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 1983, 1988 Regents of the University of California.
- * All rights reserved.
+ * Copyright (c) 1983, 1988, 1993
+ *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,28 +33,50 @@
 
 /*
  * From: @(#)startup.c	5.19 (Berkeley) 2/28/91
+ * From: @(#)startup.c	8.1 (Berkeley) 6/5/93
  */
 char startup_rcsid[] = 
-  "$Id: startup.c,v 1.3 1996/07/15 17:45:59 dholland Exp $";
+  "$Id: startup.c,v 1.7 1996/11/25 17:28:24 dholland Exp $";
 
 
 /*
  * Routing Table Management Daemon
  */
+
 #include "defs.h"
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <syslog.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <errno.h>
 #include "pathnames.h"
 
 struct	interface *ifnet;
 struct	interface **ifnext = &ifnet;
 int	lookforinterfaces = 1;
-int	externalinterfaces = 0;		/* # of remote and local interfaces */
 int	foundloopback;			/* valid flag for loopaddr */
 struct	sockaddr loopaddr;		/* our address on loopback */
+
+static int externalinterfaces = 0;	/* # of remote and local interfaces */
+
+void add_ptopt_localrt(struct interface *);
+int getnetorhostname(char *, char *, struct sockaddr_in *);
+int gethostnameornumber(char *, struct sockaddr_in *);
+
+void quit(char *s)
+{
+	int sverrno = errno;
+
+	(void) fprintf(stderr, "route: ");
+	if (s)
+		(void) fprintf(stderr, "%s: ", s);
+	(void) fprintf(stderr, "%s\n", strerror(sverrno));
+	exit(1);
+}
+
+#define ROUNDUP(a) \
+	((a) > 0 ? (1 + (((a) - 1) | (sizeof(long) - 1))) : sizeof(long))
+#define ADVANCE(x, n) (x += ROUNDUP((n)->sa_len))
 
 /*
  * Find the network interfaces which have configured themselves.
@@ -62,8 +84,8 @@ struct	sockaddr loopaddr;		/* our address on loopback */
  * ARPANET IMP), set the lookforinterfaces flag so we'll
  * come back later and look again.
  */
-void
-ifinit(void)
+
+void ifinit(void)
 {
 	struct interface ifs, *ifp;
 	int s;
@@ -87,17 +109,12 @@ ifinit(void)
         }
         ifr = ifc.ifc_req;
 	lookforinterfaces = 0;
-#ifdef RTM_ADD
-#define max(a, b) (a > b ? a : b)
-#define size(p)	max((p).sa_len, sizeof(p))
-#else
 #define size(p) (sizeof (p))
-#endif
 	cplim = buf + ifc.ifc_len; /*skip over if's with big ifr_addr's */
 	for (cp = buf; cp < cplim;
 			cp += sizeof (ifr->ifr_name) + size(ifr->ifr_addr)) {
 		ifr = (struct ifreq *)cp;
-		memset(&ifs, 0, sizeof(ifs));
+		bzero((char *)&ifs, sizeof(ifs));
 		ifs.int_addr = ifr->ifr_addr;
 		ifreq = *ifr;
                 if (ioctl(s, SIOCGIFFLAGS, (char *)&ifreq) < 0) {
@@ -153,11 +170,7 @@ ifinit(void)
 				    ifr->ifr_name);
                                 continue;
                         }
-#ifndef sun
 			ifs.int_broadaddr = ifreq.ifr_broadaddr;
-#else
-			ifs.int_broadaddr = ifreq.ifr_addr;
-#endif
 		}
 #ifdef SIOCGIFMETRIC
 		if (ioctl(s, SIOCGIFMETRIC, (char *)&ifreq) < 0) {
@@ -242,18 +255,18 @@ ifinit(void)
  * otherwise a route to this (sub)network.
  * INTERNET SPECIFIC.
  */
-void
-addrouteforif(struct interface *ifp)
+
+void addrouteforif(struct interface *ifp)
 {
 	struct sockaddr_in net;
 	struct sockaddr *dst;
 	int state;
-	register struct rt_entry *rt;
+	struct rt_entry *rt;
 
 	if (ifp->int_flags & IFF_POINTOPOINT)
 		dst = &ifp->int_dstaddr;
 	else {
-		bzero((char *)&net, sizeof (net));
+		memset(&net, 0, sizeof (net));
 		net.sin_family = AF_INET;
 		net.sin_addr = inet_makeaddr(ifp->int_subnet, INADDR_ANY);
 		dst = (struct sockaddr *)&net;
@@ -305,8 +318,8 @@ addrouteforif(struct interface *ifp)
  * If a route to this network is being sent to neighbors on other nets,
  * mark this route as subnet so we don't have to propagate it too.
  */
-void
-add_ptopt_localrt(struct interface *ifp)
+
+void add_ptopt_localrt(struct interface *ifp)
 {
 	struct rt_entry *rt;
 	struct sockaddr *dst;
@@ -316,7 +329,7 @@ add_ptopt_localrt(struct interface *ifp)
 	state = RTS_INTERFACE | RTS_PASSIVE;
 
 	/* look for route to logical network */
-	bzero((char *)&net, sizeof (net));
+	memset(&net, 0, sizeof (net));
 	net.sin_family = AF_INET;
 	net.sin_addr = inet_makeaddr(ifp->int_net, INADDR_ANY);
 	dst = (struct sockaddr *)&net;
@@ -325,7 +338,7 @@ add_ptopt_localrt(struct interface *ifp)
 		state |= RTS_SUBNET;
 
 	dst = &ifp->int_addr;
-	if (rt = rtfind(dst)) {
+	if ((rt = rtfind(dst))!=NULL) {
 		if (rt && rt->rt_state & RTS_INTERFACE)
 			return;
 		rtdelete(rt);
@@ -348,8 +361,8 @@ add_ptopt_localrt(struct interface *ifp)
  *
  * PASSIVE ENTRIES AREN'T NEEDED OR USED ON GATEWAYS RUNNING EGP.
  */
-void
-gwkludge(void)
+
+void gwkludge(void)
 {
 	struct sockaddr_in dst, gate;
 	FILE *fp;
@@ -365,18 +378,27 @@ gwkludge(void)
 	dname = buf + 64;
 	gname = buf + ((BUFSIZ - 64) / 3);
 	type = buf + (((BUFSIZ - 64) * 2) / 3);
-	bzero((char *)&dst, sizeof (dst));
-	bzero((char *)&gate, sizeof (gate));
-	bzero((char *)&route, sizeof(route));
-
+	memset(&dst, 0, sizeof (dst));
+	memset(&gate, 0, sizeof (gate));
+	memset(&route, 0, sizeof(route));
 /* format: {net | host} XX gateway XX metric DD [passive | external]\n */
 #define	readentry(fp) \
 	fscanf((fp), "%s %s gateway %s metric %d %s\n", \
 		type, dname, gname, &metric, qual)
-
 	for (;;) {
 		if ((n = readentry(fp)) == EOF)
 			break;
+		/*
+		 *	Lusertrap. Vendors should ship the line
+		 *
+		 *	CONFIGME CONFIGME gateway CONFIGME metric 1
+		 *
+		 */
+		if (strcmp(type,"CONFIGME")==0)
+		{
+			fprintf(stderr,"Not starting gated. Please configure first.\n");
+			exit(1);
+		}
 		if (!getnetorhostname(type, dname, &dst))
 			continue;
 		if (!gethostnameornumber(gname, &gate))
@@ -398,7 +420,7 @@ gwkludge(void)
 				route.rt_flags |= RTF_HOST;
 			if (metric)
 				route.rt_flags |= RTF_GATEWAY;
-			(void) ioctl(s, SIOCADDRT, (char *)&route.rt_rt);
+			(void) rtioctl(ADD, &route.rt_rt);
 			continue;
 		}
 		if (strcmp(qual, "external") == 0) {
@@ -409,16 +431,18 @@ gwkludge(void)
 			 * to prevent overriding them
 			 * with something else.
 			 */
-			rtadd(&dst, &gate, metric, RTS_EXTERNAL|RTS_PASSIVE);
+			rtadd((struct sockaddr *)&dst,
+			    (struct sockaddr *)&gate, metric,
+			    RTS_EXTERNAL|RTS_PASSIVE);
 			continue;
 		}
 		/* assume no duplicate entries */
 		externalinterfaces++;
 		ifp = (struct interface *)malloc(sizeof (*ifp));
-		bzero((char *)ifp, sizeof (*ifp));
+		memset(ifp, 0, sizeof (*ifp));
 		ifp->int_flags = IFF_REMOTE;
 		/* can't identify broadcast capability */
-		ifp->int_net = inet_netof(dst.sin_addr);
+		ifp->int_net = inet_netof_subnet(dst.sin_addr);
 		if (strcmp(type, "host") == 0) {
 			ifp->int_flags |= IFF_POINTOPOINT;
 			ifp->int_dstaddr = *((struct sockaddr *)&dst);
@@ -432,8 +456,7 @@ gwkludge(void)
 	fclose(fp);
 }
 
-int
-getnetorhostname(char *type, char *name, struct sockaddr_in *sin)
+int getnetorhostname(char *type, char *name, struct sockaddr_in *sin)
 {
 
 	if (strcmp(type, "net") == 0) {
@@ -460,34 +483,22 @@ getnetorhostname(char *type, char *name, struct sockaddr_in *sin)
 		sin->sin_addr = inet_makeaddr(n, INADDR_ANY);
 		return (1);
 	}
-	if (strcmp(type, "host") == 0) {
-		struct hostent *hp = gethostbyname(name);
-
-		if (hp == 0)
-			sin->sin_addr.s_addr = inet_addr(name);
-		else {
-			if (hp->h_addrtype != AF_INET)
-				return (0);
-			memcpy(&sin->sin_addr, hp->h_addr, hp->h_length);
-		}
-		sin->sin_family = AF_INET;
-		return (1);
-	}
+	if (strcmp(type, "host") == 0)
+		return (gethostnameornumber(name, sin));
 	return (0);
 }
 
-int
-gethostnameornumber(char *name, struct sockaddr_in *sin)
+int gethostnameornumber(char *name, struct sockaddr_in *sin)
 {
 	struct hostent *hp;
 
-	hp = gethostbyname(name);
-	if (hp) {
-		bcopy(hp->h_addr, &sin->sin_addr, hp->h_length);
+	if (inet_aton(name, &sin->sin_addr) == 0) {
+		hp = gethostbyname(name);
+		if (hp == 0)
+			return (0);
+		memcpy(&sin->sin_addr, hp->h_addr, sizeof(sin->sin_addr));
 		sin->sin_family = hp->h_addrtype;
-		return (1);
-	}
-	sin->sin_addr.s_addr = inet_addr(name);
-	sin->sin_family = AF_INET;
-	return (sin->sin_addr.s_addr != -1);
+	} else
+		sin->sin_family = AF_INET;
+	return (1);
 }
