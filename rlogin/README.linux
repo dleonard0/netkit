@@ -1,0 +1,178 @@
+From: Andrew.Tridgell@anu.edu.au (Andrew Tridgell)
+Newsgroups: comp.os.linux
+Distribution: world
+Subject: some patches for rlogin, rlogind and sock.c
+Keywords: rlogin, rlogind, window size, SUNOS
+NNTP-Posting-Host: 150.203.15.21
+Message-ID: <1o3mg6INNs3a@manuel.anu.edu.au>
+Organization: CSLab, Autralian National Uni.
+Date: 16 Mar 1993 04:53:25 GMT
+Lines: 230
+
+Included below are some patches that address a couple of problems with
+rlogin and rlogind.
+
+
+1) rlogin to SunOS machines 
+
+The first problem is that rlogin to SunOS machines produces an IO
+error message and refuses to connect. This is caused by the fact that
+rlogin only receives 1 SIGURG interrupt despite there being two pieces
+of urgent data. I believe this is a problem with tcp.c but a work
+around is to modify rlogin.c so it detects this condition and acts
+accordingly (it send itself a SIGURG signal). There are also some
+fixes to the signal handling in rlogin.c as it assumes BSD style
+keep-the-handler behaviour but linux seems to have SYSV style
+disconnect-the-handler behaviour. The fix should work with either
+behaviour - it just does another signal() call at the end of each
+interrupt handler.
+
+When you fix the OOB handler (aka the urgent data handler) you must
+also fix a ioctl problem as the BSD ioctl emulator in libbsd doesn't
+seem to handle certain TIOCSETN calls. This is fixed in the patch by
+removing that ioctl call (which was never used before as urgent data
+never worked properly)
+
+
+2) rlogind does not produce OOB data (window resizing problem)
+
+when rlogind was ported to linux all the urgent data handling was
+turned off - presumably because of the "rlogin to SunOS" bug. These
+changes can now be undone and normal rlogind can be used as rlogin can
+now handle urgent data (if you apply the above fix). The noticable
+effect this has is that changing the size of an xterm will
+automatically change the "rows" and "cols" stty values without user
+intervention. This is especially useful when you resize a xterm
+containing emacs - emacs will now automatically resize to fill the window.
+
+
+3) sock.c closed/dead socket problem (rlogin to linux fails sometimes)
+
+This was a very annoying problem to me. I use rlogin to get into my
+linux box and after I have opened and closed a couple of windows from
+machine A to my linux box I found opening any more was impossible from
+A - but I could still open from another box.
+
+The problem can be fixed by insering two lines in sock.c so that
+sockets that are closed and dead are not returned by get_sock. They
+seem to eventually be able to be re-used after some timer goes off -
+so this is probably just a work around and not really fixing the
+problem.
+
+
+*** rlogin.c.orig	Fri Aug 13 22:03:21 1993
+--- rlogin.c	Mon Sep 20 19:29:39 1993
+***************
+*** 85,90 ****
+--- 85,101 ----
+  extern char *krb_realmofhost();
+  #endif
+  
++ /*
++ * rlogin has problems with urgent data when logging into suns which
++ * results in the connection being closed with an IO error. SUN_KLUDGE
++ * is a work around - the actual bug is probably in tcp.c in the kernel, but
++ * I haven't managed to find it yet.
++ * Andrew.Tridgell@anu.edu.au (12th March 1993)
++ */
++ #ifdef linux
++ #define SUN_KLUDGE
++ #endif
++ 
+  #ifndef TIOCPKT_WINDOW
+  #define	TIOCPKT_WINDOW	0x80
+  #endif
+***************
+*** 555,560 ****
+--- 566,574 ----
+  		winsize = ws;
+  		sendwindow();
+  	}
++ #ifdef SUN_KLUDGE
++        signal(SIGWINCH,sigwinch);
++ #endif
+  }
+  
+  /*
+***************
+*** 595,602 ****
+  int ppid, rcvcnt, rcvstate;
+  char rcvbuf[8 * 1024];
+  
+  void
+! oob()
+  {
+  	struct sgttyb sb;
+  	int atmark, n, out, rcvd;
+--- 609,626 ----
+  int ppid, rcvcnt, rcvstate;
+  char rcvbuf[8 * 1024];
+  
++ void oob()
++ {
++ void oob_real();
++ oob_real();
++ #ifdef SUN_KLUDGE
++ signal(SIGURG,oob);
++ #endif
++ }
++ 
++ 
+  void
+! oob_real()
+  {
+  	struct sgttyb sb;
+  	int atmark, n, out, rcvd;
+***************
+*** 635,641 ****
+--- 659,667 ----
+  		(void)ioctl(0, TIOCGETP, (char *)&sb);
+  		sb.sg_flags &= ~CBREAK;
+  		sb.sg_flags |= RAW;
++ #ifndef SUN_KLUDGE
+  		(void)ioctl(0, TIOCSETN, (char *)&sb);
++ #endif
+  		notc.t_stopc = -1;
+  		notc.t_startc = -1;
+  		(void)ioctl(0, TIOCSETC, (char *)&notc);
+***************
+*** 727,732 ****
+--- 753,778 ----
+  #endif
+  #endif
+  			rcvcnt = read(rem, rcvbuf, sizeof (rcvbuf));
++ 
++ /*
++ * If we get a EIO from a read then it may mean that we have unread ungent data
++ * waiting that is getting in the way. We probably have got more then one lot of
++ * urgent data but we only got one SIGURG due to a problem in the kernel tcp.
++ * We can try and fix this by sending ourself a SIGURG and pretending the error
++ * never occurred. This might be a problem if we really _should_ be getting
++ * a EIO for some unrelated reason. (AJT 3/93)
++ *
++ * Hmm, I just checked this with the current (NET-2e BETA-1) kernel, and
++ * it seems that this patch isn't needed anymore.  FvK 09/20/93
++ */
++ #ifdef XX_SUN_KLUDGE
++ 		if (rcvcnt < 0 && errno == EIO)
++ 		  {
++ 		    errno = 0;		    
++ 		    kill(getpid(),SIGURG);
++ 		    continue;
++ 		  }		
++ #endif    
+  		if (rcvcnt == 0)
+  			return (0);
+  		if (rcvcnt < 0) {
+***************
+*** 792,797 ****
+--- 838,846 ----
+  copytochild()
+  {
+  	(void)kill(child, SIGURG);
++ #ifdef SUN_KLUDGE
++   signal(SIGCHLD,copytochild);
++ #endif
+  }
+  
+  msg(str)

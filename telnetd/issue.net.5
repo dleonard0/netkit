@@ -1,0 +1,44 @@
+.\" Copyright (c) 1994 Peter Tobias <tobias@server.et-inf.fho-emden.de>
+.\" This file may be distributed under the GNU General Public License.
+.TH ISSUE.NET 5 "22 May 1994" "Linux" "Linux Programmer's Manual"
+.SH NAME
+issue.net \- identification file for telnet sessions
+.SH DESCRIPTION
+The file \fB/etc/issue.net\fP is a text file which contains a message or
+system identification to be printed before the login prompt of a
+telnet session. It may contain various
+.BI "%" char
+sequences. The following sequences are supported by the
+.BR telnetd :
+.TP
+.B %t
+- show the current tty
+.TP
+.B %h
+- show the system node name
+.TP
+.B %D
+- show the name of the NIS domain
+.TP
+.B %d
+- show the current time and date
+.TP
+.B %s
+- show the name of the operating system
+.TP
+.B %m
+- show the machine (hardware) type
+.TP
+.B %r
+- show the operating system release
+.TP
+.B %v
+- show the operating system version
+.TP
+.B %%
+- display a single '%' character
+.PP
+.SH FILES
+/etc/issue.net
+.SH "SEE ALSO"
+.BR telnetd (8)

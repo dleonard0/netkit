@@ -1,0 +1,33 @@
+.\" Copyright (c) 1994 Peter Tobias (tobias@server.et-inf.fho-emden.de),
+.\" This file may be distributed under the GNU General Public License.
+.TH FTPUSERS 5 "April 22 1994" "Linux" "Linux Programmer's Manual"
+.SH NAME
+ftpusers \- file which lists users who are not allowed to use ftp
+.SH DESCRIPTION
+\fB/etc/ftpusers\fP is used by
+.BR ftpd(8);
+the file contains a list of users who are not allowed to use the
+ftp command. For security reasons at least users like "root", "bin",
+"uucp" or "news" should be listed in this file. 
+Blank lines and lines beginning with "#" are ignored.
+Remember that the whole line will be used for the username, so please
+don't use the "#" character after a name to comment this entry.
+.SH EXAMPLES
+.B /etc/ftpusers
+may contain the following entries:
+.sp
+#
+.br
+# /etc/ftpusers
+.br
+#
+.br
+root
+.br
+uucp
+.br
+news
+.SH FILES
+/etc/ftpusers
+.SH "SEE ALSO"
+.BR ftp "(1), " ftpd "(8)"

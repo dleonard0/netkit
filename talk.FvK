@@ -1,0 +1,59 @@
+--- get_addrs.c
++++ get_addrs.c	1994/02/23 12:41:31
+@@ -44,11 +44,33 @@
+ #include <stdio.h>
+ #include "talk_ctl.h"
+ 
++/*
++ * Hah.  BSD folks may have thought too simple on this one.
++ * If you are a multihomed host, this program will miserably fail,
++ * as it will use the IP address of "hostname" as the source of the
++ * messages, not the address of the interface over which the packet
++ * will be routed.
++ *
++ * With Linux NET-2E, a possible solution is to perform an UDP CONNECT
++ * operation on a socket, so the kernel sets the correct source address
++ * of the socket's packets.  Then we do a getsockname on that socket,
++ * and voila... we have the correct source address!
++ *
++ * Note that this only works with NET-2E BETA-4 and newer kernels.
++ */
+ get_addrs(my_machine_name, his_machine_name)
+ 	char *my_machine_name, *his_machine_name;
+ {
+ 	struct hostent *hp;
+ 	struct servent *sp;
++#ifdef __linux__
++	struct sockaddr_in sin;
++	struct sockaddr_in foo;
++	int sock, i;
++
++	/* If socket fails, code will see it. */
++	sock = socket(AF_INET, SOCK_DGRAM, 0);
++#endif
+ 
+ 	msg.pid = htonl(getpid());
+ 	/* look up the address of the local host */
+@@ -81,4 +103,22 @@
+ 		exit(-1);
+ 	}
+ 	daemon_port = sp->s_port;
++#ifdef __linux__
++	sin.sin_family = AF_INET;
++	sin.sin_addr.s_addr = his_machine_addr.s_addr;
++	sin.sin_port = sp->s_port;
++
++	/* Now here is the trick.  We connect to the other side. */
++	if ((sock >= 0) &&
++	    (connect(sock, (struct sockaddr *) &sin, sizeof(sin)) == 0)) {
++		/* Bingo.  Now fetch the address. */
++		foo = sin;
++		i = sizeof(foo);
++		if (getsockname(sock, (struct sockaddr *) &foo, &i) == 0) {
++			my_machine_addr = foo.sin_addr;
++		}
++	}
++	/* Loose the socket. */
++	(void) close(sock);
++#endif
+ }

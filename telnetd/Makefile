@@ -1,0 +1,15 @@
+CFLAGS += '-DISSUE_FILE="/etc/issue.net"' -DAUTHENTICATE -I.. \
+	-DTERMCAP -DUSE_TERMIO -DKLUDGELINEMODE -DDIAGNOSTICS
+LDLIBS = -lbsd -ltermcap -ltelnet -L ../libtelnet
+
+telnetd: telnetd.o state.o termstat.o slc.o sys_term.o utility.o \
+		global.o authenc.o
+
+install: telnetd
+	install -s -m744 telnetd /usr/sbin/in.telnetd
+	install -m644 issue.net.5 /usr/man/man5/
+	install -m644 telnetd.8 /usr/man/man8/in.telnetd.8
+
+clean:
+	rm -f *.o telnetd 
+

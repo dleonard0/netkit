@@ -1,0 +1,21 @@
+New in 0.03: (may be incomplete, please make context diffs to catch all)
+- fixed "lprm" to properly remove queued files (maybe this was already in
+  release 0.02 ??)
+- fixed fingerd to not use 'getdomainname' to get the FQDN.
+- added identd to /etc/services and /etc/inetd.conf
+- telnetd: changed the default 'etc/issue.net' to not output the hostname and
+  then the domainname (that should be the fqdn, but is wrong!)
+  changed also the man page issue.net.5
+- changed telnetd to get the fqdn and not only use what 'gethostname' returns
+- telnetd: changed some code back to original form to properly enable
+  binary mode negotiation (outgoing data wasn't binary)
+  Please test this out: do "telnet some_other_not_linux_host" and then do
+  "vi TEST_FILE" and test some strange characters >127 like ° or §.
+- Changed rusers, rpc.ruserd, rwall, rpc.rwalld, rwho, rwhod to not require
+  to copy ./include/*.h files into /usr/include
+- telnetd: added issue.net.5 to "make install"
+- I found a bug-fix on of the news groups by Ulf Rimkus
+  ulf@pc0435.psychologie.uni-marburg.de. 'rexecd' didn't set the environment
+  at all. (Though it prepares all data for it...)
+- Read 'BUGS' to see, how many of the bugs just have disappeared...
+

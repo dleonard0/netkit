@@ -1,0 +1,110 @@
+This is a list of bugs for my NetBSD source collection for Linux.
+
+Please email me, if you can give more detailed bug reports. Don't just
+post to one of the newsgroups and think, I will see it...
+
+If you feel like not working enough, you could just pick up one of the
+mentioned bugs and find a bug-fix for it. Many bug reports are very
+detailed.
+
+I included the mail address of the people who reported the bugs, if it
+seems necessary to me.
+
+(* I have fixed "lprm". Please test, if it really works!!)
+
+(* "telnet" always stripps of the highest bit. It should be 8-bit...
+  Just try "telnet localhost". This bug is fixed as of version 0.03.)
+
+* After a while of running the machine, the rpc.portmapper begins to fork
+  constantly. This only seems to happen when I have the rpc.ugidd also
+  running.
+  I have run the portmapper in debug mode and when it does go wild I get
+  a pile of debug saying that it is about to enter the main switch in the
+  portmapper source code.
+  The problem does not happen on the two machines that I have at home networked.
+  This only happens at work on a network with DEC 5000/240/260 and PC's etc.
+
+  Joe Ceklosky <jceklosk@grctechs.grci.com> 
+
+  (Could someone please mail me, where I can find the newest version of
+  rpc.ugidd? I want to include it into my net source collection on funet.fi)
+
+(* This bug should be fixed with the newest alpha kernel. The problem might
+  have been, that the broadcast flag wasn't set for the loopback device.
+
+  "rusers" segmentation faults, if invoked without any arguments (host names).
+  (broadcast to all hosts on the local network)
+  rusers with a list of hostnames works fine.)
+
+(* See above, this bug should also be fixed with the newest alpha kernel.
+  rpc.rusersd and rpc.rwalld cannot be run from inetd, but must be started
+  from the /etc/rc* scripts as constantly running daemons.
+  Inetd will start up dozen of rpc.rusersd processes and eventually terminates
+  them, saying "rusersd/rpc/udp server failing (looping), service terminated".)
+
+* rpc.rwalld prints two messages instead of one. (fixed??)
+
+* ftp to a slow site and do "ls -ltr" a lot of times. ftp will get stuck and
+  there will be a "CLOSE" connection, that will not vanish for days.
+  (I am not sure, if this is still true for newer kernels.)
+
+* Do "telnet localhost chargen" and then hit Ctrl-C. The process will hang.
+  You will have to go to another console and kill it with a HANGUP signal.
+  There have been some Linux specific changes to signal handling, maybe
+  we should convert back?
+
+* "rsh" is known to have a problem: A stopped rsh command will block the
+  port, so that other rsh commands will hang. Alan Cox has promised to fix
+  the kernel for this. This should be gone with a very new kernel. (??)
+
+* I have changed "timed" to compile for Linux, but I cannot test it.
+  Could someone tell me, if it is working?
+  It is not working, but someone is working on it...
+
+* Can someone make a real good sample /etc/printcap ????
+  I need more examples, like printing via network.
+
+* There is an option "-I" for rpcgen to make programs usable for "inetd".
+  Then we maybe get a running "rusersd" ??  NO!!!
+  The problem is maybe: All programs that use rpc broadcasts cannot be used
+  together with the inetd.   (???)
+
+* Note, this problem seems to be with a GNU version of 'last'. I have never
+  seen that version and is probably not a problem with rlogind/telnetd.
+
+  Subject: Problem with rlogind/telnetd and wtmp entries
+  I have noticed the following problem with the wtmp entries written by
+  the rlogind/telnetd provided in the net package.  An excerpt from the
+  output of last will serve better than an attempted explanation of the
+  problem, so here goes.  Notice how the logout time on ttyp1 is the
+  same as the login time for the next session on that tty, and that
+  quinlan has been logged out since sometime yesterday but that last
+  doesn't seem to know this yet.
+  [~]$ last
+  quinlan  ttyp1        ftp.yggdrasil.co Wed Jun 22 16:28   still logged in
+  imurdock ttyS1                         Wed Jun 22 12:27 - 12:34  (00:07)
+  imurdock ttyS1                         Wed Jun 22 12:23 - 12:24  (00:01)
+  imurdock ttyS1                         Wed Jun 22 12:22 - 12:22  (00:00)
+  imurdock ttyS1                         Wed Jun 22 12:20 - 12:21  (00:01)
+  imurdock ttyS1                         Wed Jun 22 12:17 - 12:18  (00:01)
+  quinlan  ttyp1        ftp.yggdrasil.co Wed Jun 22 00:58 - 16:28  (15:29)
+  [...]
+  Using the `--complain' option of GNU last, the following information
+  is provided about the wtmp entries:
+  [~]$ last --complain
+  quinlan  ttyp1        ftp.yggdrasil.co Wed Jun 22 16:28   still logged in
+  [...]
+  problem: logout time for next entry assumed to be last login time on tty
+  quinlan  ttyp1        ftp.yggdrasil.co Wed Jun 22 00:58 - 16:28  (15:29)
+  [...]
+  I find it hard to believe that rlogind/telnetd is not writing a logout
+  entry to wtmp at all.  In any case, somehow it doesn't like the way
+  they do it.  Any ideas?
+
+* I use rpcgen from rpc-0.9. I should upgrade to the newer available version.
+  But I have heard rumors, that they don't work ok for all source code.
+  If newer versions work ok, I should delete source code for rpcgen and
+  rpcinfo from my source collection.
+  I couldn't find newer versions with archie. Where are they?
+
+Florian  La Roche   flla@stud.uni-sb.de

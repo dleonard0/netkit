@@ -1,0 +1,44 @@
+* This is one of several source packages, containing a collection of net
+  programs ready to compile for Linux.
+  In this package are source files from NetBSD-current from 94/01/09.
+
+  I plan to take a newer NetBSD version from time to time and see, if they
+  have done important fixes. It would be also nice, if we could cooperate
+  better between the NetBSD, FreeBSD and Linux people. (We all use the
+  same basic source code, but do all our own fixes while constantly
+  pretending not to look at the other group...)
+  Communication on net-related things seems to be bad in general...
+  Maybe 4.4BSD-Lite would be a good start for everybody to cooperate?
+
+  If you put together a good binary package and fix some things, you do good
+  work for the people *using* those binary packages. If you also make good
+  context diffs, you also help the original authors of it.
+
+* You should have the C library 4.5.26 or higher, gcc 2.5.7 or higher,
+  linux kernel version 0.99.15 or higher.
+
+* Make sure, you don't have old header files in your /usr/include directory.
+  Alan Cox has put some extra header files onto sunacm to make Linux more
+  compatible to BSD. Those should *NOT* be installed. Current consensus is,
+  that they should be incorporated into the source packages that need them.
+  (Only tcpdump and maybe few others.)
+
+* Check the configuration options in the toplevel Makefile.
+
+* Do a "make" to compile everything. Maybe use "make 2>&1 | less" to check
+  everything. Do a "make install" as root to install everything.
+
+* If you want to see, what exactly has changed for the linux version do:
+  find arp -name '*,v' | sed 's/,v$//' | sort | \
+                xargs -r -ihugo rcsdiff -q -u -L hugo hugo | less
+  (Yeah, that's why Unix is so cool...)
+
+* If you only want to install in the "ftp" dir, do "make SUB=ftp" and
+  "make SUB=ftp install".
+
+* I will not find your bug fixes, if you just post them to one of the
+  newsgroups. Please email them to me.
+
+
+Florian  La Roche   flla@stud.uni-sb.de
+
